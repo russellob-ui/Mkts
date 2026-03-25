@@ -2,3 +2,19 @@ fastapi==0.135.1
 uvicorn==0.41.0
 yfinance==1.2.0
 aiohttp
+
+# Environment & config
+python-dotenv
+
+# AI
+anthropic>=0.40.0
+
+# Database
+sqlalchemy[asyncio]>=2.0
+aiosqlite
+
+# Cache (Redis optional — falls back to in-memory if not installed/running)
+redis[asyncio]>=5.0
+
+# WebSocket (Finnhub live prices)
+websockets>=12.0

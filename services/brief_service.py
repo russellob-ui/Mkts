@@ -392,13 +392,31 @@ async def generate_brief(ticker: str, mode: str = "concise") -> dict:
         }
 
     if mode == "analyst":
+        # Try Claude first, fall back to algorithmic
+        try:
+            from services.ai_service import generate_brief_analyst
+            ai_result = await generate_brief_analyst(company_data, peers_data, news_items)
+        except Exception:
+            ai_result = None
+
+        if ai_result:
+            ai_result["generatedAt"] = datetime.now(timezone.utc).isoformat()
+            return ai_result
+
         result = _generate_analyst_note(company_data, peers_data, news_items)
         if not result["bullets"]:
             result["bullets"] = [f"Insufficient data to generate analyst note for {normalized}"]
         result["generatedAt"] = datetime.now(timezone.utc).isoformat()
         return result
 
-    bullets = _generate_bullets(company_data, peers_data, news_items)
+    # concise mode — try Claude first, fall back to algorithmic
+    try:
+        from services.ai_service import generate_brief_concise
+        ai_bullets = await generate_brief_concise(company_data, peers_data, news_items)
+    except Exception:
+        ai_bullets = None
+
+    bullets = ai_bullets or _generate_bullets(company_data, peers_data, news_items)
 
     if not bullets:
         bullets = [f"Insufficient data to generate briefing for {normalized}"]
