@@ -24,6 +24,7 @@ from routers.market_monitor import router as market_monitor_router
 from routers.ws import router as ws_router
 from routers.ai import router as ai_router
 from routers.db_portfolio import router as db_portfolio_router
+from routers.csv_upload import router as csv_upload_router
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -71,6 +72,7 @@ app.include_router(market_monitor_router)
 app.include_router(ws_router)           # /ws/prices
 app.include_router(ai_router)           # /api/ai/*
 app.include_router(db_portfolio_router) # /api/db/*
+app.include_router(csv_upload_router)   # /api/portfolio/csv
 
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 

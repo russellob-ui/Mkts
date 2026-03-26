@@ -1,662 +1,406 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="terminal" data-mode="dark">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="theme-color" content="#0d1117">
-  <title>MKTS - Market Terminal</title>
-  <meta name="description" content="MKTS Market Terminal — Bloomberg-style stock research for mobile">
-  <meta property="og:title" content="MKTS - Market Terminal">
-  <meta property="og:description" content="Professional stock research terminal">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="theme-color" content="#000000">
+  <title>MKTS</title>
+  <meta name="description" content="MKTS — Your portfolio, beautifully presented">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/static/style.css">
   <script src="https://unpkg.com/lightweight-charts@4.2.1/dist/lightweight-charts.standalone.production.js"></script>
 </head>
 <body>
-  <div class="app-layout">
 
-    <!-- ===== HEADER / COMMAND BAR ===== -->
-    <header class="app-header" data-testid="app-header">
-      <button id="rail-toggle" class="rail-toggle" data-testid="button-rail-toggle" type="button" title="Toggle watchlist">&#9776;</button>
-      <span id="header-logo" class="header-logo" data-testid="header-logo">MKTS<span class="logo-slash">/</span></span>
-      <form id="quote-form" class="header-search" data-testid="search-form">
-        <input type="text" id="ticker-input" data-testid="input-ticker" autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" placeholder="TICKER">
-        <button type="submit" id="go-btn" class="btn-go" data-testid="button-submit" disabled>GO</button>
-      </form>
-      <div class="header-controls">
-        <select id="theme-select" class="theme-select" data-testid="select-theme">
-          <option value="terminal">Terminal</option>
-          <option value="slate">Slate</option>
-          <option value="paper">Paper</option>
-        </select>
-        <button id="mode-toggle" class="mode-toggle" data-testid="button-mode-toggle" type="button" title="Toggle light/dark">&#9790;</button>
-        <button id="alert-bell" class="alert-bell" data-testid="button-alert-bell" type="button" title="Alerts">&#128276;<span id="alert-badge" class="alert-badge hidden" data-testid="alert-badge">0</span></button>
-        <button id="header-overflow-btn" class="header-overflow-btn" data-testid="button-header-overflow" type="button" title="Settings">&#8942;</button>
-        <div id="header-overflow-menu" class="header-overflow-menu hidden" data-testid="header-overflow-menu">
-          <label class="overflow-item">
-            <span>Theme</span>
-            <select id="overflow-theme-select" class="overflow-theme-select" data-testid="overflow-select-theme">
-              <option value="terminal">Terminal</option>
-              <option value="slate">Slate</option>
-              <option value="paper">Paper</option>
-            </select>
-          </label>
-          <button id="overflow-mode-toggle" class="overflow-item" data-testid="overflow-button-mode" type="button">
-            <span>Mode</span>
-            <span id="overflow-mode-icon">&#9790;</span>
+  <div class="app-shell">
+
+    <!-- ===== SIDEBAR (desktop ≥768px) ===== -->
+    <nav class="sidebar" id="sidebar" aria-label="Main navigation">
+      <div class="sidebar-logo">
+        <span class="logo-mark">M</span>
+        <span class="logo-text">MKTS</span>
+      </div>
+
+      <ul class="sidebar-nav" role="list">
+        <li>
+          <button class="nav-item active" data-view="portfolio" aria-label="Portfolio" aria-current="page">
+            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="2" y="3" width="20" height="14" rx="2"/>
+              <path d="M8 21h8M12 17v4"/>
+            </svg>
+            <span class="nav-label">Portfolio</span>
           </button>
-          <button id="overflow-alert-btn" class="overflow-item" data-testid="overflow-button-alerts" type="button">
-            <span>Alerts</span>
-            <span id="overflow-alert-icon">&#128276;</span>
+        </li>
+        <li>
+          <button class="nav-item" data-view="search" aria-label="Search">
+            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="11" cy="11" r="8"/>
+              <path d="m21 21-4.35-4.35"/>
+            </svg>
+            <span class="nav-label">Search</span>
           </button>
-        </div>
-      </div>
-    </header>
+        </li>
+        <li>
+          <button class="nav-item" data-view="upload" aria-label="Upload CSV">
+            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+              <polyline points="17 8 12 3 7 8"/>
+              <line x1="12" y1="3" x2="12" y2="15"/>
+            </svg>
+            <span class="nav-label">Upload</span>
+          </button>
+        </li>
+        <li>
+          <button class="nav-item" data-view="ai" aria-label="AI Analysis" id="sidebar-ai-btn">
+            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 2a8 8 0 0 1 8 8c0 3.5-1.8 6.5-4.5 8.1L12 20l-3.5-1.9C5.8 16.5 4 13.5 4 10a8 8 0 0 1 8-8z"/>
+              <circle cx="12" cy="10" r="2.5"/>
+            </svg>
+            <span class="nav-label">AI</span>
+          </button>
+        </li>
+      </ul>
+    </nav>
 
-    <!-- ===== WATCHLIST STRIP (iPhone only) ===== -->
-    <div id="watchlist-strip" class="watchlist-strip" data-testid="watchlist-strip"></div>
+    <!-- ===== MAIN CONTENT ===== -->
+    <main class="main-content" id="main-content">
 
-    <!-- ===== WATCHLIST RAIL (Desktop persistent, iPad toggle) ===== -->
-    <aside id="watchlist-rail" class="rail" data-testid="watchlist-rail">
-      <div class="rail-header">
-        <span class="rail-title">Watchlist</span>
-        <button id="rail-add-btn" class="rail-add-btn" data-testid="button-watchlist-add" type="button" title="Add current ticker">+</button>
-      </div>
-      <div id="rail-items" class="rail-items" data-testid="watchlist-items"></div>
-      <div id="rail-full-msg" class="rail-full-msg hidden" data-testid="text-watchlist-full">Watchlist full (20 max)</div>
-    </aside>
+      <!-- ===== PORTFOLIO VIEW ===== -->
+      <div id="view-portfolio" class="view active" role="main" aria-label="Portfolio">
 
-    <!-- ===== MAIN WORKSPACE ===== -->
-    <div class="main">
-
-      <!-- ===== HOME STATE ===== -->
-      <main id="search-state" data-testid="home-state">
-
-        <div id="home-loading" class="state-loading state-page" data-testid="state-home-loading">
-          <div class="loading-dot"></div>
-          <span>Loading...</span>
-        </div>
-
-        <div id="home-error" class="state-error state-page hidden" data-testid="state-home-error">
-          <div class="error-icon">&#9888;</div>
-          <div class="error-title">HOME_ERR</div>
-          <div id="home-error-msg" class="error-message" data-testid="text-home-error">Failed to load default equity</div>
-          <button id="home-retry-btn" class="btn-primary" style="margin-top:8px" data-testid="button-home-retry">RETRY</button>
-        </div>
-
-        <div id="home-content" class="hidden" data-testid="home-content">
-          <div class="home-grid">
-
-            <div class="home-col-hero">
-              <section class="home-hero" data-testid="section-home-hero">
-                <div class="home-hero-top">
-                  <div class="home-hero-identity">
-                    <h2 id="home-ticker" class="hero-ticker" data-testid="text-home-ticker"></h2>
-                    <span id="home-exchange" class="home-exchange-badge" data-testid="text-home-exchange"></span>
-                    <p id="home-name" class="hero-name" data-testid="text-home-name"></p>
-                  </div>
-                  <div class="home-hero-price-block">
-                    <span id="home-currency" class="hero-currency" data-testid="text-home-currency"></span>
-                    <div id="home-price" class="hero-price" data-testid="text-home-price"></div>
-                    <span id="home-market-state" class="badge-state home-badge-state" data-testid="text-home-market-state"></span>
-                  </div>
-                </div>
-                <div class="home-hero-change">
-                  <div class="change-cell">
-                    <span class="change-label">CHG</span>
-                    <div class="change-val-row">
-                      <span id="home-arrow" class="change-arrow" data-testid="text-home-arrow"></span>
-                      <span id="home-change" class="change-value" data-testid="text-home-change"></span>
-                    </div>
-                  </div>
-                  <div class="change-cell align-right">
-                    <span class="change-label">PCT</span>
-                    <span id="home-changePct" class="change-value" data-testid="text-home-changePct"></span>
-                  </div>
-                  <div class="change-cell align-right">
-                    <span class="change-label">PREV CLS</span>
-                    <span id="home-prevClose" class="change-value-dim" data-testid="text-home-prevClose"></span>
-                  </div>
-                  <button id="home-deep-dive" class="home-deep-dive-btn" data-testid="button-deep-dive" type="button">FULL VIEW &#9654;</button>
-                </div>
-              </section>
-
-              <div id="home-chart-container" class="home-chart-container" data-testid="home-chart-container"></div>
-
-              <div class="home-stats" data-testid="section-home-stats">
-                <div class="home-stats-grid">
-                  <div class="home-stat"><span class="home-stat-label">OPEN</span><span id="home-kpi-open" class="home-stat-value" data-testid="home-kpi-open">—</span></div>
-                  <div class="home-stat"><span class="home-stat-label">HIGH</span><span id="home-kpi-high" class="home-stat-value" data-testid="home-kpi-high">—</span></div>
-                  <div class="home-stat"><span class="home-stat-label">LOW</span><span id="home-kpi-low" class="home-stat-value" data-testid="home-kpi-low">—</span></div>
-                  <div class="home-stat"><span class="home-stat-label">PREV CLS</span><span id="home-kpi-prev" class="home-stat-value" data-testid="home-kpi-prev">—</span></div>
-                  <div class="home-stat"><span class="home-stat-label">VOLUME</span><span id="home-kpi-vol" class="home-stat-value" data-testid="home-kpi-vol">—</span></div>
-                  <div class="home-stat"><span class="home-stat-label">AVG VOL</span><span id="home-kpi-avgvol" class="home-stat-value" data-testid="home-kpi-avgvol">—</span></div>
-                  <div class="home-stat"><span class="home-stat-label">MKT CAP</span><span id="home-kpi-mcap" class="home-stat-value" data-testid="home-kpi-mcap">—</span></div>
-                  <div class="home-stat"><span class="home-stat-label">P/E</span><span id="home-kpi-pe" class="home-stat-value" data-testid="home-kpi-pe">—</span></div>
-                  <div class="home-stat"><span class="home-stat-label">DIV YLD</span><span id="home-kpi-div" class="home-stat-value" data-testid="home-kpi-div">—</span></div>
-                  <div class="home-stat"><span class="home-stat-label">52W HIGH</span><span id="home-kpi-52h" class="home-stat-value" data-testid="home-kpi-52h">—</span></div>
-                  <div class="home-stat"><span class="home-stat-label">52W LOW</span><span id="home-kpi-52l" class="home-stat-value" data-testid="home-kpi-52l">—</span></div>
-                  <div class="home-stat"><span class="home-stat-label">BETA</span><span id="home-kpi-beta" class="home-stat-value" data-testid="home-kpi-beta">—</span></div>
-                </div>
-              </div>
-            </div>
-
-            <div class="home-col-monitor">
-              <div class="home-monitor" data-testid="section-home-monitor">
-                <div class="section-label">MARKET MONITOR</div>
-                <div id="home-market-monitor" class="home-monitor-body" data-testid="home-market-monitor">
-                  <div class="home-monitor-loading">Loading markets...</div>
-                </div>
-              </div>
-            </div>
-
-            <div class="home-col-news">
-              <div class="home-panel" data-testid="section-home-news">
-                <div class="section-label">HEADLINES</div>
-                <div id="home-news" class="home-panel-body" data-testid="home-news">
-                  <div class="home-panel-loading">Loading headlines...</div>
-                </div>
-              </div>
-            </div>
-
-            <div class="home-col-peers">
-              <div class="home-panel" data-testid="section-home-peers">
-                <div class="section-label">PEERS</div>
-                <div id="home-peers" class="home-panel-body" data-testid="home-peers">
-                  <div class="home-panel-loading">Loading peers...</div>
-                </div>
-              </div>
-            </div>
-
-            <div class="home-col-events">
-              <div class="home-panel" data-testid="section-home-events">
-                <div class="section-label">EVENTS</div>
-                <div id="home-events" class="home-panel-body" data-testid="home-events">
-                  <div class="home-panel-loading">Loading events...</div>
-                </div>
-              </div>
-            </div>
-
-            <div class="home-col-relative">
-              <div class="home-panel" data-testid="section-home-relative">
-                <div class="section-label">RELATIVE PERFORMANCE</div>
-                <div id="home-relative" class="home-panel-body" data-testid="home-relative">
-                  <div class="home-panel-loading">Loading...</div>
-                </div>
-              </div>
-            </div>
-
-            <div class="home-col-portctx">
-              <div id="home-portfolio-ctx" class="home-panel hidden" data-testid="section-home-portfolio-ctx">
-                <div class="section-label">PORTFOLIO CONTEXT</div>
-                <div id="home-portctx-body" class="home-panel-body" data-testid="home-portctx-body"></div>
-              </div>
-            </div>
-
-          </div>
-        </div>
-      </main>
-
-      <!-- ===== COMPANY STATE ===== -->
-      <main id="company-state" class="hidden">
-
-        <header class="company-header" data-testid="company-header">
-          <button id="back-btn" class="back-btn" data-testid="button-back" type="button">&#9664; HOME</button>
-          <h1 class="header-title header-title-sm">MKTS<span class="dim">/</span><span id="header-ticker" data-testid="text-header-ticker">RES</span></h1>
-          <span id="c-market-state" class="badge-state" data-testid="text-market-state"></span>
-        </header>
-
-        <div id="company-loading" class="state-loading state-page hidden" data-testid="state-company-loading">
-          <div class="loading-dot"></div>
-          <span>Loading...</span>
-        </div>
-
-        <div id="company-error" class="state-error state-page hidden" data-testid="state-company-error">
-          <div class="error-icon">&#9888;</div>
-          <div class="error-title">FATAL_ERR</div>
-          <div id="company-error-msg" class="error-message" data-testid="text-company-error"></div>
-        </div>
-
-        <div id="company-content" class="hidden">
-
-          <div id="market-strip" class="mkt-strip" data-testid="section-market-strip">
-            <div id="market-strip-scroll" class="mkt-strip-scroll" data-testid="market-strip-scroll">
-              <div class="mkt-strip-loading" id="mkt-strip-loading">
-                <span class="mkt-strip-loading-text">Loading markets...</span>
-              </div>
+        <div class="portfolio-header">
+          <div class="portfolio-hero">
+            <p class="portfolio-label">Portfolio Value</p>
+            <h1 class="portfolio-total" id="portfolio-total">—</h1>
+            <div class="portfolio-change-row" id="portfolio-change-row">
+              <span class="change-chip" id="portfolio-change-chip">
+                <span id="portfolio-change-amount"></span>
+                <span id="portfolio-change-pct"></span>
+              </span>
             </div>
           </div>
 
-          <div id="status-bar" class="status-bar" data-testid="status-bar">
-            <div class="status-workspace" data-testid="status-workspace">
-              <select id="workspace-select" class="ws-select" data-testid="workspace-select">
-                <option value="home">HOME</option>
-                <option value="research">RESEARCH</option>
-                <option value="chartist">CHARTIST</option>
-                <option value="newsdesk">NEWS DESK</option>
-                <option value="portfolio">PORTFOLIO</option>
-                <option value="options">OPTIONS</option>
-              </select>
-              <div class="ws-pills" data-testid="ws-pills">
-                <button class="ws-pill" data-ws="home" data-testid="ws-home">HOME</button>
-                <button class="ws-pill" data-ws="research" data-testid="ws-research">RESEARCH</button>
-                <button class="ws-pill" data-ws="chartist" data-testid="ws-chartist">CHARTIST</button>
-                <button class="ws-pill" data-ws="newsdesk" data-testid="ws-newsdesk">NEWS</button>
-                <button class="ws-pill" data-ws="portfolio" data-testid="ws-portfolio">PORTF</button>
-                <button class="ws-pill" data-ws="options" data-testid="ws-options">OPTS</button>
-              </div>
-            </div>
-            <div class="status-right">
-              <span id="status-pnl" class="status-pnl hidden" data-testid="status-pnl"></span>
-              <span id="status-alert-count" class="status-alerts" data-testid="status-alert-count">0 alerts</span>
-            </div>
+          <!-- Portfolio sparkline -->
+          <div class="sparkline-wrap" id="sparkline-wrap">
+            <svg
+              class="sparkline"
+              id="portfolio-sparkline"
+              viewBox="0 0 400 80"
+              preserveAspectRatio="none"
+              aria-hidden="true"
+            ></svg>
           </div>
 
-          <section class="price-hero" data-testid="section-price-hero">
-            <div class="hero-top">
-              <div class="hero-identity">
-                <h2 id="c-ticker" class="hero-ticker" data-testid="text-ticker"></h2>
-                <p id="c-name" class="hero-name" data-testid="text-company-name"></p>
-              </div>
-              <div class="hero-price-block">
-                <span id="c-currency" class="hero-currency" data-testid="text-currency"></span>
-                <div id="c-price" class="hero-price" data-testid="text-price"></div>
-              </div>
-            </div>
-            <div class="hero-change-row">
-              <div class="change-cell">
-                <span class="change-label">CHG</span>
-                <div class="change-val-row">
-                  <span id="c-arrow" class="change-arrow" data-testid="text-arrow"></span>
-                  <span id="c-change" class="change-value" data-testid="text-change"></span>
-                </div>
-              </div>
-              <div class="change-cell align-right">
-                <span class="change-label">PCT</span>
-                <span id="c-changePct" class="change-value" data-testid="text-changePct"></span>
-              </div>
-              <div class="change-cell align-right">
-                <span class="change-label">PREV CLS</span>
-                <span id="c-prevClose" class="change-value-dim" data-testid="text-prevClose"></span>
-              </div>
-            </div>
-          </section>
+          <!-- Time period tabs -->
+          <div class="tab-row" id="portfolio-period-tabs" role="tablist" aria-label="Time period">
+            <button class="tab active" data-period="1D" role="tab" aria-selected="true">1D</button>
+            <button class="tab" data-period="1W" role="tab" aria-selected="false">1W</button>
+            <button class="tab" data-period="1M" role="tab" aria-selected="false">1M</button>
+            <button class="tab" data-period="3M" role="tab" aria-selected="false">3M</button>
+            <button class="tab" data-period="1Y" role="tab" aria-selected="false">1Y</button>
+          </div>
 
-          <section class="range-section" data-testid="section-52w-range">
-            <div class="range-header">
-              <span class="section-label">52W RANGE</span>
-            </div>
-            <div class="range-bar-container">
-              <div class="range-bar">
-                <div id="range-fill" class="range-fill"></div>
-                <div id="range-marker" class="range-marker"></div>
-              </div>
-              <div class="range-labels">
-                <span id="c-52wLow" class="range-val" data-testid="text-52w-low"></span>
-                <span id="c-52wCurrent" class="range-val range-val-current" data-testid="text-52w-current"></span>
-                <span id="c-52wHigh" class="range-val" data-testid="text-52w-high"></span>
-              </div>
-            </div>
-          </section>
-
-          <div class="workspace-grid">
-            <div class="workspace-main">
-              <nav class="tab-strip" data-testid="nav-tabs">
-                <button class="tab active" data-tab="summ" data-testid="tab-summ">SUMM</button>
-                <button class="tab" data-tab="fins" data-testid="tab-fins">FINS</button>
-                <button class="tab" data-tab="news" data-testid="tab-news">NEWS</button>
-                <button class="tab" data-tab="chart" data-testid="tab-chart">CHART</button>
-                <button class="tab" data-tab="portf" data-testid="tab-portf">PORTF</button>
-                <button class="tab" data-tab="opts" data-testid="tab-opts">OPTS</button>
-              </nav>
-
-              <div class="tab-panels">
-                <div id="panel-summ" class="tab-panel" data-testid="panel-summ">
-                  <div class="kpi-section">
-                    <div class="section-label">TODAY</div>
-                    <div class="kpi-grid" data-testid="grid-day-stats">
-                      <div class="kpi-cell"><span class="kpi-label">OPEN</span><span id="kpi-open" class="kpi-value" data-testid="kpi-open">—</span></div>
-                      <div class="kpi-cell"><span class="kpi-label">HIGH</span><span id="kpi-dayHigh" class="kpi-value" data-testid="kpi-dayHigh">—</span></div>
-                      <div class="kpi-cell"><span class="kpi-label">LOW</span><span id="kpi-dayLow" class="kpi-value" data-testid="kpi-dayLow">—</span></div>
-                      <div class="kpi-cell"><span class="kpi-label">PREV CLS</span><span id="kpi-prevClose" class="kpi-value" data-testid="kpi-prevClose">—</span></div>
-                    </div>
-                  </div>
-
-                  <div class="kpi-section">
-                    <div class="section-label">KEY METRICS</div>
-                    <div class="kpi-grid" data-testid="grid-key-metrics">
-                      <div class="kpi-cell"><span class="kpi-label">MKT CAP</span><span id="kpi-marketCap" class="kpi-value" data-testid="kpi-marketCap">—</span></div>
-                      <div class="kpi-cell"><span class="kpi-label">P/E (TTM)</span><span id="kpi-trailingPE" class="kpi-value" data-testid="kpi-trailingPE">—</span></div>
-                      <div class="kpi-cell"><span class="kpi-label">P/E (FWD)</span><span id="kpi-forwardPE" class="kpi-value" data-testid="kpi-forwardPE">—</span></div>
-                      <div class="kpi-cell"><span class="kpi-label">DIV YIELD</span><span id="kpi-divYield" class="kpi-value" data-testid="kpi-divYield">—</span></div>
-                      <div class="kpi-cell"><span class="kpi-label">VOLUME</span><span id="kpi-volume" class="kpi-value" data-testid="kpi-volume">—</span></div>
-                      <div class="kpi-cell"><span class="kpi-label">AVG VOL</span><span id="kpi-avgVolume" class="kpi-value" data-testid="kpi-avgVolume">—</span></div>
-                    </div>
-                  </div>
-
-                  <div class="profile-section" data-testid="section-profile">
-                    <div class="section-label">COMPANY PROFILE</div>
-                    <div class="profile-meta" data-testid="profile-meta">
-                      <span id="c-sector" class="meta-tag" data-testid="text-sector"></span>
-                      <span id="c-industry" class="meta-tag" data-testid="text-industry"></span>
-                      <span id="c-country" class="meta-tag" data-testid="text-country"></span>
-                    </div>
-                    <div id="c-website-row" class="profile-website hidden">
-                      <span class="kpi-label">WEB</span>
-                      <a id="c-website" class="profile-link" target="_blank" rel="noopener" data-testid="link-website"></a>
-                    </div>
-                    <p id="c-summary" class="profile-summary" data-testid="text-summary"></p>
-                    <button id="summary-toggle" class="summary-toggle hidden" data-testid="button-summary-toggle">SHOW MORE</button>
-                  </div>
-
-                  <div class="inline-panels">
-                    <div id="inline-brief" class="wp-panel" data-testid="inline-brief">
-                      <div class="wp-panel-header">
-                        <span class="wp-panel-title">MARKET BRIEF</span>
-                        <span class="wp-panel-badge">AUTOMATED</span>
-                        <div class="brief-toggle" data-testid="inline-brief-toggle">
-                          <button class="brief-mode-btn active" data-brief="concise" data-testid="inline-brief-concise">CONCISE</button>
-                          <button class="brief-mode-btn" data-brief="analyst" data-testid="inline-brief-analyst">ANALYST</button>
-                        </div>
-                      </div>
-                      <div id="inline-brief-body" class="wp-panel-body"><div class="wp-panel-loading">Loading...</div></div>
-                    </div>
-
-                    <div id="inline-peers" class="wp-panel" data-testid="inline-peers">
-                      <div class="wp-panel-header"><span class="wp-panel-title">PEERS</span></div>
-                      <div id="inline-peers-body" class="wp-panel-body"><div class="wp-panel-loading">Loading...</div></div>
-                    </div>
-
-                    <div id="inline-news" class="wp-panel" data-testid="inline-news">
-                      <div class="wp-panel-header"><span class="wp-panel-title">HEADLINES</span></div>
-                      <div id="inline-news-body" class="wp-panel-body"><div class="wp-panel-loading">Loading...</div></div>
-                    </div>
-                  </div>
-                </div>
-
-                <div id="panel-fins" class="tab-panel hidden" data-testid="panel-fins">
-                  <div id="fins-loading" class="state-loading" data-testid="state-fins-loading">
-                    <div class="loading-dot"></div>
-                    <span>Loading financials...</span>
-                  </div>
-                  <div id="fins-error" class="state-error hidden" data-testid="state-fins-error">
-                    <div class="error-icon">&#9888;</div>
-                    <div class="error-title">FINS_ERR</div>
-                    <div id="fins-error-msg" class="error-message" data-testid="text-fins-error"></div>
-                  </div>
-                  <div id="fins-content" class="hidden" data-testid="fins-content">
-                    <div class="fins-overview" data-testid="fins-overview">
-                      <div class="fins-overview-scroll">
-                        <div class="fins-ov-cell" data-testid="fins-ov-revenue"><span class="fins-ov-label">REVENUE</span><span id="fins-ov-revenue" class="fins-ov-value">—</span></div>
-                        <div class="fins-ov-cell" data-testid="fins-ov-netIncome"><span class="fins-ov-label">NET INC</span><span id="fins-ov-netIncome" class="fins-ov-value">—</span></div>
-                        <div class="fins-ov-cell" data-testid="fins-ov-fcf"><span class="fins-ov-label">FCF</span><span id="fins-ov-fcf" class="fins-ov-value">—</span></div>
-                        <div class="fins-ov-cell" data-testid="fins-ov-debt"><span class="fins-ov-label">TOTAL DEBT</span><span id="fins-ov-debt" class="fins-ov-value">—</span></div>
-                        <div class="fins-ov-cell" data-testid="fins-ov-roe"><span class="fins-ov-label">ROE</span><span id="fins-ov-roe" class="fins-ov-value">—</span></div>
-                        <div class="fins-ov-cell" data-testid="fins-ov-opMargin"><span class="fins-ov-label">OP MARGIN</span><span id="fins-ov-opMargin" class="fins-ov-value">—</span></div>
-                      </div>
-                    </div>
-                    <nav class="fins-switcher" data-testid="fins-switcher">
-                      <button class="fins-tab active" data-fins="income" data-testid="fins-tab-income">INCOME</button>
-                      <button class="fins-tab" data-fins="balance" data-testid="fins-tab-balance">BALANCE</button>
-                      <button class="fins-tab" data-fins="cashflow" data-testid="fins-tab-cashflow">CASH FLOW</button>
-                      <button class="fins-tab" data-fins="ratios" data-testid="fins-tab-ratios">RATIOS</button>
-                    </nav>
-                    <div id="fins-statement-container" class="fins-statement-container" data-testid="fins-statement-container"></div>
-                  </div>
-                </div>
-
-                <div id="panel-news" class="tab-panel hidden" data-testid="panel-news">
-                  <div id="news-tab-body" class="news-tab-body" data-testid="news-tab-body">
-                    <div class="wp-panel-loading">Loading headlines...</div>
-                  </div>
-                </div>
-
-                <div id="panel-chart" class="tab-panel hidden" data-testid="panel-chart">
-                  <div id="chart-loading" class="state-loading" data-testid="state-chart-loading">
-                    <div class="loading-dot"></div>
-                    <span>Loading chart...</span>
-                  </div>
-                  <div id="chart-error" class="state-error hidden" data-testid="state-chart-error">
-                    <div class="error-icon">&#9888;</div>
-                    <div class="error-title">CHART_ERR</div>
-                    <div id="chart-error-msg" class="error-message" data-testid="text-chart-error"></div>
-                  </div>
-                  <div id="chart-content" class="hidden" data-testid="chart-content">
-                    <div class="chart-controls" data-testid="chart-controls">
-                      <div class="chart-timeframes" data-testid="chart-timeframes">
-                        <button class="tf-btn" data-range="1D" data-testid="tf-1D">1D</button>
-                        <button class="tf-btn" data-range="5D" data-testid="tf-5D">5D</button>
-                        <button class="tf-btn" data-range="1M" data-testid="tf-1M">1M</button>
-                        <button class="tf-btn" data-range="3M" data-testid="tf-3M">3M</button>
-                        <button class="tf-btn" data-range="6M" data-testid="tf-6M">6M</button>
-                        <button class="tf-btn" data-range="YTD" data-testid="tf-YTD">YTD</button>
-                        <button class="tf-btn active" data-range="1Y" data-testid="tf-1Y">1Y</button>
-                        <button class="tf-btn" data-range="3Y" data-testid="tf-3Y">3Y</button>
-                        <button class="tf-btn" data-range="5Y" data-testid="tf-5Y">5Y</button>
-                      </div>
-                      <div class="chart-mode-row">
-                        <div class="chart-modes" data-testid="chart-modes">
-                          <button class="mode-btn active" data-mode="candle" data-testid="mode-candle">Candle</button>
-                          <button class="mode-btn" data-mode="line" data-testid="mode-line">Line</button>
-                        </div>
-                        <div class="chart-overlays" data-testid="chart-overlays">
-                          <button class="overlay-btn" data-overlay="sma" data-testid="overlay-sma">SMA</button>
-                          <button class="overlay-btn" data-overlay="vol" data-testid="overlay-vol">VOL</button>
-                          <button class="overlay-btn" data-overlay="bb" data-testid="overlay-bb">BB</button>
-                          <button class="overlay-btn" data-overlay="vwap" data-testid="overlay-vwap">VWAP</button>
-                        </div>
-                        <div class="chart-indicators" data-testid="chart-indicators">
-                          <button class="ind-btn" data-ind="rsi" data-testid="ind-rsi">RSI</button>
-                          <button class="ind-btn" data-ind="macd" data-testid="ind-macd">MACD</button>
-                        </div>
-                        <div class="chart-events-toggle" data-testid="chart-events-toggle">
-                          <button class="overlay-btn" data-overlay="earnings" data-testid="overlay-earnings">E</button>
-                          <button class="overlay-btn" data-overlay="dividends" data-testid="overlay-dividends">D</button>
-                          <button class="overlay-btn" data-overlay="news" data-testid="overlay-news">N</button>
-                        </div>
-                      </div>
-                      <div class="chart-draw-row" data-testid="chart-draw-row">
-                        <span class="draw-label">DRAW:</span>
-                        <button class="draw-btn" data-draw="trendline" data-testid="draw-trendline" title="Trendline">&#8599;</button>
-                        <button class="draw-btn" data-draw="hline" data-testid="draw-hline" title="Horizontal Line">&#8213;</button>
-                        <button class="draw-btn" data-draw="fib" data-testid="draw-fib" title="Fibonacci">FIB</button>
-                        <button class="draw-btn" data-draw="text" data-testid="draw-text" title="Text Note">T</button>
-                        <button class="draw-btn draw-clear" data-draw="clear" data-testid="draw-clear" title="Clear All">CLR</button>
-                      </div>
-                    </div>
-                    <div class="chart-area-wrapper">
-                      <div id="chart-container" class="chart-container" data-testid="chart-container"></div>
-                      <canvas id="drawing-canvas" class="drawing-canvas" data-testid="drawing-canvas"></canvas>
-                    </div>
-                    <div id="chart-volume-container" class="chart-volume-container" data-testid="chart-volume-container"></div>
-                    <div id="chart-rsi-container" class="chart-indicator-pane" data-testid="chart-rsi-container"></div>
-                    <div id="chart-macd-container" class="chart-indicator-pane" data-testid="chart-macd-container"></div>
-                    <div class="chart-legend" id="chart-legend" data-testid="chart-legend"></div>
-                    <div class="compare-controls" data-testid="compare-controls">
-                      <span class="compare-label">COMPARE:</span>
-                      <button class="cmp-btn" data-cmp="peers" data-testid="cmp-peers">vs Peers</button>
-                      <button class="cmp-btn" data-cmp="sector" data-testid="cmp-sector">vs Sector</button>
-                      <button class="cmp-btn" data-cmp="index" data-testid="cmp-index">vs Index</button>
-                      <button class="cmp-btn" data-cmp="all" data-testid="cmp-all">All</button>
-                    </div>
-                  </div>
-                </div>
-
-                <div id="panel-portf" class="tab-panel hidden" data-testid="panel-portf">
-                  <div id="portf-empty" class="portf-empty" data-testid="portf-empty">
-                    <div class="portf-input-section">
-                      <div class="section-label">ADD HOLDINGS</div>
-                      <div class="portf-input-row">
-                        <input type="text" id="portf-ticker" class="portf-input" placeholder="AAPL" data-testid="input-portf-ticker">
-                        <input type="number" id="portf-shares" class="portf-input portf-shares-input" placeholder="Shares" min="0.01" step="any" data-testid="input-portf-shares">
-                        <select id="portf-account" class="portf-input portf-account-select" data-testid="select-portf-account">
-                          <option value="GIA">GIA</option>
-                          <option value="ISA">ISA</option>
-                          <option value="SIPP">SIPP</option>
-                          <option value="Cash">Cash</option>
-                        </select>
-                        <button id="portf-add-btn" class="portf-add-btn" data-testid="button-portf-add">ADD</button>
-                      </div>
-                      <div class="portf-input-row portf-optional-row">
-                        <input type="number" id="portf-cost-basis" class="portf-input portf-cost-input" placeholder="Cost basis (optional)" step="any" min="0" data-testid="input-portf-cost-basis">
-                        <button id="portf-add-cash-btn" class="portf-add-btn portf-cash-btn" data-testid="button-portf-add-cash">+ CASH</button>
-                      </div>
-                      <div id="portf-holdings-list" class="portf-holdings-list" data-testid="portf-holdings-list"></div>
-                      <button id="portf-analyze-btn" class="portf-analyze-btn hidden" data-testid="button-portf-analyze">ANALYZE PORTFOLIO</button>
-                    </div>
-                    <div class="portf-csv-section">
-                      <div class="section-label">IMPORT CSV</div>
-                      <div id="portf-csv-dropzone" class="portf-csv-dropzone" data-testid="dropzone-csv">
-                        <div class="portf-csv-icon">⬆</div>
-                        <div class="portf-csv-label">Drag CSV here or tap to browse</div>
-                        <div class="portf-csv-hint">Format: Ticker, Shares, Account, Cost Basis</div>
-                        <input type="file" id="portf-csv-file" accept=".csv,.tsv,.txt" hidden data-testid="input-csv-file">
-                      </div>
-                    </div>
-                    <div id="portf-csv-preview" class="portf-csv-preview hidden" data-testid="portf-csv-preview"></div>
-                  </div>
-                  <div id="portf-loading" class="state-loading hidden" data-testid="state-portf-loading">
-                    <div class="loading-dot"></div>
-                    <span>Analyzing...</span>
-                  </div>
-                  <div id="portf-dashboard" class="portf-dashboard hidden" data-testid="portf-dashboard"></div>
-                </div>
-
-                <div id="panel-opts" class="tab-panel hidden" data-testid="panel-opts">
-                  <div id="opts-loading" class="state-loading" data-testid="state-opts-loading">
-                    <div class="loading-dot"></div>
-                    <span>Loading options...</span>
-                  </div>
-                  <div id="opts-error" class="state-error hidden" data-testid="state-opts-error">
-                    <div class="error-icon">&#9888;</div>
-                    <div class="error-title">OPTS_ERR</div>
-                    <div id="opts-error-msg" class="error-message" data-testid="text-opts-error">Options data not available for this ticker</div>
-                  </div>
-                  <div id="opts-content" class="hidden" data-testid="opts-content">
-                    <div class="opts-caveat" data-testid="opts-caveat">
-                      <span class="opts-caveat-badge">DELAYED &middot; PROVIDER-LIMITED</span>
-                      <span class="opts-caveat-text">Data via Yahoo Finance. Not real-time. Not suitable for execution decisions.</span>
-                    </div>
-                    <div class="opts-controls">
-                      <label class="opts-label">EXPIRY:</label>
-                      <select id="opts-expiry-select" class="opts-expiry-select" data-testid="opts-expiry-select"></select>
-                    </div>
-                    <div class="opts-analytics" data-testid="opts-analytics">
-                      <div class="opts-stat"><span class="opts-stat-label">P/C RATIO</span><span id="opts-pc-ratio" class="opts-stat-value" data-testid="opts-pc-ratio">—</span></div>
-                      <div class="opts-stat"><span class="opts-stat-label">MAX PAIN</span><span id="opts-max-pain" class="opts-stat-value" data-testid="opts-max-pain">—</span></div>
-                      <div class="opts-stat"><span class="opts-stat-label">AVG IV</span><span id="opts-iv-summary" class="opts-stat-value" data-testid="opts-iv-summary">—</span></div>
-                      <div class="opts-stat"><span class="opts-stat-label">IMPLIED MOVE</span><span id="opts-implied-move" class="opts-stat-value" data-testid="opts-implied-move">—</span></div>
-                    </div>
-                    <div class="opts-chain-section">
-                      <div class="section-label">CALLS</div>
-                      <div id="opts-calls-table" class="opts-table-container" data-testid="opts-calls-table"></div>
-                      <div class="section-label">PUTS</div>
-                      <div id="opts-puts-table" class="opts-table-container" data-testid="opts-puts-table"></div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <aside class="workspace-sidebar" data-testid="workspace-sidebar">
-              <div id="sidebar-brief" class="wp-panel ws-panel" data-ws-panel="brief" data-testid="sidebar-brief">
-                <div class="wp-panel-header">
-                  <span class="wp-panel-title">MARKET BRIEF</span>
-                  <span class="wp-panel-badge">AUTOMATED</span>
-                  <div class="brief-toggle" data-testid="sidebar-brief-toggle">
-                    <button class="brief-mode-btn active" data-brief="concise" data-testid="sidebar-brief-concise">CONCISE</button>
-                    <button class="brief-mode-btn" data-brief="analyst" data-testid="sidebar-brief-analyst">ANALYST</button>
-                  </div>
-                </div>
-                <div id="sidebar-brief-body" class="wp-panel-body"><div class="wp-panel-loading">Loading...</div></div>
-              </div>
-
-              <div id="sidebar-peers" class="wp-panel ws-panel" data-ws-panel="peers" data-testid="sidebar-peers">
-                <div class="wp-panel-header"><span class="wp-panel-title">PEERS</span></div>
-                <div id="sidebar-peers-body" class="wp-panel-body"><div class="wp-panel-loading">Loading...</div></div>
-              </div>
-
-              <div id="sidebar-news" class="wp-panel ws-panel" data-ws-panel="headlines" data-testid="sidebar-news">
-                <div class="wp-panel-header"><span class="wp-panel-title">HEADLINES</span></div>
-                <div id="sidebar-news-body" class="wp-panel-body"><div class="wp-panel-loading">Loading...</div></div>
-              </div>
-
-              <div id="sidebar-alerts" class="wp-panel ws-panel" data-ws-panel="alerts" data-testid="sidebar-alerts">
-                <div class="wp-panel-header">
-                  <span class="wp-panel-title">ALERTS</span>
-                  <span id="sidebar-alert-badge" class="wp-panel-badge">0</span>
-                </div>
-                <div id="sidebar-alerts-body" class="wp-panel-body"><div class="alerts-empty">No alerts configured</div></div>
-              </div>
-
-              <div id="sidebar-vol" class="wp-panel ws-panel" data-ws-panel="volsummary" data-testid="sidebar-vol">
-                <div class="wp-panel-header"><span class="wp-panel-title">VOL SUMMARY</span></div>
-                <div id="sidebar-vol-body" class="wp-panel-body"><div class="wp-panel-loading">Loading...</div></div>
-              </div>
-
-              <div id="sidebar-holdings" class="wp-panel ws-panel" data-ws-panel="holdings" data-testid="sidebar-holdings">
-                <div class="wp-panel-header"><span class="wp-panel-title">HOLDINGS</span></div>
-                <div id="sidebar-holdings-body" class="wp-panel-body"><div class="alerts-empty">No holdings added</div></div>
-              </div>
-
-              <div id="sidebar-exposure" class="wp-panel ws-panel" data-ws-panel="exposure" data-testid="sidebar-exposure">
-                <div class="wp-panel-header"><span class="wp-panel-title">SECTOR EXPOSURE</span></div>
-                <div id="sidebar-exposure-body" class="wp-panel-body"><div class="alerts-empty">No portfolio data</div></div>
-              </div>
-
-              <div id="sidebar-accounts" class="wp-panel ws-panel" data-ws-panel="accounts" data-testid="sidebar-accounts">
-                <div class="wp-panel-header"><span class="wp-panel-title">ACCOUNTS</span></div>
-                <div id="sidebar-accounts-body" class="wp-panel-body"><div class="alerts-empty">No account data</div></div>
-              </div>
-
-              <div id="sidebar-dividends" class="wp-panel ws-panel" data-ws-panel="dividends" data-testid="sidebar-dividends">
-                <div class="wp-panel-header"><span class="wp-panel-title">UPCOMING DIVIDENDS</span></div>
-                <div id="sidebar-dividends-body" class="wp-panel-body"><div class="alerts-empty">No dividend data</div></div>
-              </div>
-            </aside>
+          <!-- Account filter tabs -->
+          <div class="tab-row account-tabs" id="account-tabs" role="tablist" aria-label="Account filter">
+            <button class="tab active" data-account="all" role="tab" aria-selected="true">ALL</button>
+            <button class="tab" data-account="isa" role="tab" aria-selected="false">ISA</button>
+            <button class="tab" data-account="gia" role="tab" aria-selected="false">GIA</button>
           </div>
         </div>
-      </main>
 
-    </div>
+        <!-- Holdings section -->
+        <section class="holdings-section" aria-label="Holdings">
+          <div class="section-header">
+            <h2 class="section-title">Holdings</h2>
+            <button class="btn-ghost-sm" id="upload-cta-btn" aria-label="Upload CSV">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="17 8 12 3 7 8"/>
+                <line x1="12" y1="3" x2="12" y2="15"/>
+              </svg>
+              Upload CSV
+            </button>
+          </div>
 
-    <!-- ===== CONTEXT RAIL (Desktop right panel) ===== -->
-    <aside id="context-rail" class="context" data-testid="context-rail"></aside>
+          <!-- Empty state -->
+          <div class="empty-state" id="portfolio-empty">
+            <div class="empty-icon-wrap" aria-hidden="true">
+              <svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="8" y="16" width="48" height="36" rx="4"/>
+                <path d="M20 28h24M20 36h16"/>
+                <path d="M32 8v8"/>
+                <path d="M26 8l6 8 6-8"/>
+              </svg>
+            </div>
+            <h3 class="empty-title">No portfolio data</h3>
+            <p class="empty-desc">Upload your Brewin Dolphin CSV to see your holdings here</p>
+            <button class="btn-primary" id="empty-upload-btn">Upload CSV</button>
+          </div>
 
-  </div>
+          <!-- Skeleton loading -->
+          <div class="skeleton-list hidden" id="holdings-skeleton" aria-hidden="true">
+            <div class="skeleton-holding"></div>
+            <div class="skeleton-holding"></div>
+            <div class="skeleton-holding"></div>
+            <div class="skeleton-holding"></div>
+            <div class="skeleton-holding"></div>
+          </div>
 
-  <!-- Alerts Modal -->
-  <div id="alerts-modal" class="alerts-modal hidden" data-testid="alerts-modal">
-    <div class="alerts-modal-content">
-      <div class="alerts-modal-header">
-        <span class="wp-panel-title">ALERTS</span>
-        <button id="alerts-modal-close" class="alerts-modal-close" data-testid="alerts-modal-close">&times;</button>
+          <!-- Holdings list -->
+          <div class="holdings-list" id="holdings-list" role="list"></div>
+        </section>
       </div>
-      <div class="alerts-create" data-testid="alerts-create">
-        <div class="alerts-form-row">
-          <input type="text" id="alert-ticker-input" class="alert-input" placeholder="AAPL" data-testid="input-alert-ticker">
-          <select id="alert-type-select" class="alert-select" data-testid="select-alert-type">
-            <option value="price_above">Price Above</option>
-            <option value="price_below">Price Below</option>
-            <option value="pct_move">% Move</option>
-            <option value="rsi_overbought">RSI &gt; 70</option>
-            <option value="rsi_oversold">RSI &lt; 30</option>
-            <option value="macd_cross">MACD Cross</option>
-            <option value="volume_spike">Volume Spike</option>
-          </select>
-          <input type="number" id="alert-value-input" class="alert-input alert-value" placeholder="Value" step="any" data-testid="input-alert-value">
-          <button id="alert-add-btn" class="portf-add-btn" data-testid="button-alert-add">ADD</button>
+
+      <!-- ===== STOCK DETAIL VIEW ===== -->
+      <div id="view-stock-detail" class="view hidden" role="main" aria-label="Stock detail">
+
+        <div class="detail-topbar">
+          <button class="back-btn" id="back-btn" aria-label="Go back">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M19 12H5M12 19l-7-7 7-7"/>
+            </svg>
+          </button>
+          <div class="detail-identity">
+            <div class="detail-name-row">
+              <h2 class="detail-company-name" id="detail-company-name">—</h2>
+              <span class="market-badge open" id="detail-market-badge">OPEN</span>
+            </div>
+            <span class="detail-ticker" id="detail-ticker">—</span>
+          </div>
+        </div>
+
+        <div class="detail-price-block">
+          <div class="detail-price" id="detail-price">—</div>
+          <div class="detail-change-row">
+            <span class="change-chip" id="detail-change-chip">
+              <span id="detail-change-amount"></span>
+              <span id="detail-change-pct"></span>
+            </span>
+          </div>
+        </div>
+
+        <!-- TradingView chart -->
+        <div class="tv-chart-wrap" id="tv-chart-wrap">
+          <div class="chart-loading-overlay" id="chart-loading-overlay">
+            <div class="spinner"></div>
+          </div>
+          <div id="tv-chart" class="tv-chart"></div>
+        </div>
+
+        <!-- Chart period tabs -->
+        <div class="tab-row" id="detail-period-tabs" role="tablist" aria-label="Chart period">
+          <button class="tab active" data-period="1D" role="tab" aria-selected="true">1D</button>
+          <button class="tab" data-period="1W" role="tab" aria-selected="false">1W</button>
+          <button class="tab" data-period="1M" role="tab" aria-selected="false">1M</button>
+          <button class="tab" data-period="3M" role="tab" aria-selected="false">3M</button>
+          <button class="tab" data-period="1Y" role="tab" aria-selected="false">1Y</button>
+          <button class="tab" data-period="ALL" role="tab" aria-selected="false">ALL</button>
+        </div>
+
+        <!-- Key stats grid -->
+        <section class="detail-section" aria-label="Key statistics">
+          <h3 class="section-title">Key Statistics</h3>
+          <div class="stats-grid" id="stats-grid">
+            <div class="stat-card skeleton-stat" aria-hidden="true"></div>
+            <div class="stat-card skeleton-stat" aria-hidden="true"></div>
+            <div class="stat-card skeleton-stat" aria-hidden="true"></div>
+            <div class="stat-card skeleton-stat" aria-hidden="true"></div>
+            <div class="stat-card skeleton-stat" aria-hidden="true"></div>
+            <div class="stat-card skeleton-stat" aria-hidden="true"></div>
+          </div>
+        </section>
+
+        <!-- About -->
+        <section class="detail-section" id="about-section" aria-label="About company">
+          <h3 class="section-title">About</h3>
+          <div class="about-body" id="about-body">
+            <p class="about-text" id="about-text"></p>
+            <button class="read-more hidden" id="about-toggle">Show more</button>
+          </div>
+        </section>
+
+        <!-- AI Brief -->
+        <section class="detail-section ai-brief-section" id="ai-brief-section" aria-label="AI Brief">
+          <div class="section-header">
+            <h3 class="section-title">AI Brief</h3>
+            <span class="ai-badge">AI</span>
+          </div>
+          <div class="ai-brief-body" id="ai-brief-body">
+            <div class="ai-brief-loading" id="ai-brief-loading">
+              <div class="spinner spinner-sm"></div>
+              <span>Generating brief…</span>
+            </div>
+            <p class="ai-brief-text hidden" id="ai-brief-text"></p>
+          </div>
+        </section>
+
+        <!-- News -->
+        <section class="detail-section" id="news-section" aria-label="News">
+          <h3 class="section-title">News</h3>
+          <div class="news-skeleton" id="news-skeleton" aria-hidden="true">
+            <div class="skeleton-news-item"></div>
+            <div class="skeleton-news-item"></div>
+            <div class="skeleton-news-item"></div>
+          </div>
+          <div class="news-list hidden" id="news-list" role="list"></div>
+          <div class="news-empty hidden" id="news-empty">
+            <p>No recent news available</p>
+          </div>
+        </section>
+
+      </div>
+
+      <!-- ===== SEARCH VIEW ===== -->
+      <div id="view-search" class="view hidden" role="main" aria-label="Search">
+        <div class="search-header">
+          <div class="search-bar">
+            <svg class="search-bar-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="11" cy="11" r="8"/>
+              <path d="m21 21-4.35-4.35"/>
+            </svg>
+            <input
+              type="search"
+              id="search-input"
+              class="search-input"
+              placeholder="Search ticker or company…"
+              autocomplete="off"
+              autocorrect="off"
+              autocapitalize="characters"
+              spellcheck="false"
+              enterkeyhint="search"
+              aria-label="Search stocks"
+            >
+            <button class="search-clear hidden" id="search-clear" aria-label="Clear search" type="button">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"/>
+                <path d="m15 9-6 6M9 9l6 6"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <div class="search-body" id="search-body">
+          <!-- Recent searches -->
+          <div id="recent-searches" class="recent-searches">
+            <div class="section-header">
+              <span class="section-label">Recent</span>
+              <button class="btn-ghost-sm" id="clear-recent" type="button">Clear</button>
+            </div>
+            <div class="recent-list" id="recent-list" role="list"></div>
+          </div>
+
+          <!-- Results -->
+          <div class="search-results hidden" id="search-results">
+            <div class="search-loading hidden" id="search-loading" aria-live="polite">
+              <div class="spinner spinner-sm"></div>
+            </div>
+            <div class="results-list" id="results-list" role="list"></div>
+            <div class="results-empty hidden" id="results-empty">
+              <p>No results found</p>
+            </div>
+          </div>
         </div>
       </div>
-      <div id="alerts-list" class="alerts-list" data-testid="alerts-list"></div>
-    </div>
-  </div>
 
-  <script src="/static/drawing.js"></script>
+      <!-- ===== UPLOAD VIEW ===== -->
+      <div id="view-upload" class="view hidden" role="main" aria-label="Upload portfolio">
+        <div class="view-header">
+          <h2 class="view-title">Upload Portfolio</h2>
+          <p class="view-subtitle">Supports Brewin Dolphin CSV exports</p>
+        </div>
+
+        <div class="drop-zone" id="upload-zone" role="button" tabindex="0" aria-label="Drop CSV file here or click to browse">
+          <div class="drop-zone-inner">
+            <div class="drop-icon" aria-hidden="true">
+              <svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M32 8v32"/>
+                <path d="M20 20l12-12 12 12"/>
+                <rect x="8" y="44" width="48" height="12" rx="4"/>
+              </svg>
+            </div>
+            <p class="drop-primary">Drop your CSV here</p>
+            <p class="drop-or">or</p>
+            <label class="btn-primary drop-label" role="button">
+              Browse file
+              <input type="file" id="csv-file-input" accept=".csv" hidden aria-label="Choose CSV file">
+            </label>
+            <p class="drop-hint">Brewin Dolphin portfolio export (.csv)</p>
+          </div>
+        </div>
+
+        <!-- Upload preview -->
+        <div class="upload-preview hidden" id="upload-preview">
+          <div class="section-header">
+            <h3 class="section-title">Preview</h3>
+            <div class="preview-summary" id="preview-summary"></div>
+          </div>
+          <div class="preview-list" id="preview-list" role="list"></div>
+          <div class="preview-actions">
+            <button class="btn-secondary" id="preview-cancel" type="button">Cancel</button>
+            <button class="btn-primary" id="preview-confirm" type="button">Save Portfolio</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== AI VIEW (opens AI panel) ===== -->
+      <div id="view-ai" class="view hidden" role="main" aria-label="AI Analysis">
+        <div class="ai-placeholder">
+          <div class="ai-placeholder-icon" aria-hidden="true">
+            <svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M32 4a12 12 0 0 1 12 12c0 6-3 11-8 14l-4 3-4-3c-5-3-8-8-8-14A12 12 0 0 1 32 4z"/>
+              <circle cx="32" cy="18" r="5"/>
+              <path d="M20 44c0-6.6 5.4-12 12-12s12 5.4 12 12v4H20v-4z"/>
+            </svg>
+          </div>
+          <h3>AI Analysis</h3>
+          <p>Search for a stock, then open the AI panel to get analysis, compare peers, and ask questions.</p>
+        </div>
+      </div>
+
+    </main><!-- /main-content -->
+
+  </div><!-- /app-shell -->
+
+  <!-- ===== BOTTOM NAV (mobile) ===== -->
+  <nav class="bottom-nav" id="bottom-nav" aria-label="Bottom navigation">
+    <button class="bnav-item active" data-view="portfolio" aria-label="Portfolio" aria-current="page">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <rect x="2" y="3" width="20" height="14" rx="2"/>
+        <path d="M8 21h8M12 17v4"/>
+      </svg>
+      <span>Portfolio</span>
+    </button>
+    <button class="bnav-item" data-view="search" aria-label="Search">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <circle cx="11" cy="11" r="8"/>
+        <path d="m21 21-4.35-4.35"/>
+      </svg>
+      <span>Search</span>
+    </button>
+    <button class="bnav-item" data-view="upload" aria-label="Upload">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+        <polyline points="17 8 12 3 7 8"/>
+        <line x1="12" y1="3" x2="12" y2="15"/>
+      </svg>
+      <span>Upload</span>
+    </button>
+    <button class="bnav-item" data-view="ai" aria-label="AI" id="bottom-ai-btn">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M12 2a8 8 0 0 1 8 8c0 3.5-1.8 6.5-4.5 8.1L12 20l-3.5-1.9C5.8 16.5 4 13.5 4 10a8 8 0 0 1 8-8z"/>
+        <circle cx="12" cy="10" r="2.5"/>
+      </svg>
+      <span>AI</span>
+    </button>
+  </nav>
+
+  <!-- ===== TOAST CONTAINER ===== -->
+  <div class="toast-container" id="toast-container" role="status" aria-live="polite" aria-atomic="false"></div>
+
   <script src="/static/ws.js"></script>
   <script src="/static/ai.js"></script>
   <script src="/static/app.js"></script>
