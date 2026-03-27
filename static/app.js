@@ -360,7 +360,6 @@ document.addEventListener("DOMContentLoaded", function () {
       var price = q.price != null ? fmtPrice(q.price) : "—";
       var chg = q.changePct != null ? ((q.changePct >= 0 ? "+" : "") + fmtNum(q.changePct, 2) + "%") : "";
       var chgCls = q.changePct != null ? (q.changePct >= 0 ? "pos" : "neg") : "";
-      var dirCls = q.changePct != null ? (q.changePct >= 0 ? " pos-item" : " neg-item") : "";
       var isActive = w.ticker === activeTicker ? " active" : "";
       var name = q.name || "";
       if (name.length > 15) name = name.substring(0, 15) + "…";
@@ -381,7 +380,7 @@ document.addEventListener("DOMContentLoaded", function () {
         badges += '</div>';
       }
 
-      html += '<div class="rail-item' + isActive + dirCls + '" data-ticker="' + escHtml(w.ticker) + '" data-testid="watchlist-item-' + escHtml(w.ticker) + '">';
+      html += '<div class="rail-item' + isActive + '" data-ticker="' + escHtml(w.ticker) + '" data-testid="watchlist-item-' + escHtml(w.ticker) + '">';
       html += '<div class="rail-item-top"><span class="rail-item-ticker">' + escHtml(w.ticker) + '</span>';
       if (name) html += '<span class="rail-item-name">' + escHtml(name) + '</span>';
       html += '</div>';
