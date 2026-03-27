@@ -24,6 +24,7 @@
   let _subscribed      = new Set();
   let _handlers        = [];
   let _connected       = false;
+  let _prevPrices      = {};
 
   // ── Connection ──────────────────────────────────────────────────────────────
 
@@ -93,6 +94,10 @@
   function _applyPriceUpdate({ ticker, price, volume }) {
     if (!ticker || price == null) return;
 
+    const prev = _prevPrices[ticker];
+    const dir  = prev != null ? (price > prev ? 'up' : (price < prev ? 'down' : null)) : null;
+    _prevPrices[ticker] = price;
+
     const formattedPrice = _formatPrice(price);
 
     // Update watchlist rail items  [data-ws-ticker="AAPL"]
@@ -107,14 +112,14 @@
       const heroPriceEl = document.getElementById('hero-price');
       if (heroPriceEl) {
         heroPriceEl.textContent = formattedPrice;
-        _flashElement(heroPriceEl);
+        _flashElement(heroPriceEl, dir);
       }
     }
 
     // Update home monitor rows
     document.querySelectorAll(`[data-monitor-ticker="${ticker}"] .monitor-price`).forEach(el => {
       el.textContent = formattedPrice;
-      _flashElement(el);
+      _flashElement(el, dir);
     });
   }
 
@@ -124,11 +129,12 @@
     return price.toFixed(4);
   }
 
-  function _flashElement(el) {
-    el.classList.remove('ws-flash');
+  function _flashElement(el, dir) {
+    const cls = dir === 'up' ? 'ws-flash-up' : (dir === 'down' ? 'ws-flash-down' : 'ws-flash');
+    el.classList.remove('ws-flash', 'ws-flash-up', 'ws-flash-down');
     void el.offsetWidth; // reflow
-    el.classList.add('ws-flash');
-    setTimeout(() => el.classList.remove('ws-flash'), 600);
+    el.classList.add(cls);
+    setTimeout(() => el.classList.remove(cls), 800);
   }
 
   // ── Public API ──────────────────────────────────────────────────────────────

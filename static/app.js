@@ -360,6 +360,7 @@ document.addEventListener("DOMContentLoaded", function () {
       var price = q.price != null ? fmtPrice(q.price) : "—";
       var chg = q.changePct != null ? ((q.changePct >= 0 ? "+" : "") + fmtNum(q.changePct, 2) + "%") : "";
       var chgCls = q.changePct != null ? (q.changePct >= 0 ? "pos" : "neg") : "";
+      var dirCls = q.changePct != null ? (q.changePct >= 0 ? " pos-item" : " neg-item") : "";
       var isActive = w.ticker === activeTicker ? " active" : "";
       var name = q.name || "";
       if (name.length > 15) name = name.substring(0, 15) + "…";
@@ -380,7 +381,7 @@ document.addEventListener("DOMContentLoaded", function () {
         badges += '</div>';
       }
 
-      html += '<div class="rail-item' + isActive + '" data-ticker="' + escHtml(w.ticker) + '" data-testid="watchlist-item-' + escHtml(w.ticker) + '">';
+      html += '<div class="rail-item' + isActive + dirCls + '" data-ticker="' + escHtml(w.ticker) + '" data-testid="watchlist-item-' + escHtml(w.ticker) + '">';
       html += '<div class="rail-item-top"><span class="rail-item-ticker">' + escHtml(w.ticker) + '</span>';
       if (name) html += '<span class="rail-item-name">' + escHtml(name) + '</span>';
       html += '</div>';
@@ -593,7 +594,7 @@ document.addEventListener("DOMContentLoaded", function () {
       html += '<tr>';
       html += '<td>' + escHtml(m.name) + '</td>';
       html += '<td>' + fmtMktPrice(m.price) + '</td>';
-      html += '<td class="' + pctClass(m.dayChangePct) + '">' + fmtSignedPct(m.dayChangePct) + '</td>';
+      html += '<td>' + _pctBarCell(m.dayChangePct) + '</td>';
       html += '</tr>';
     });
     html += '</tbody></table>';
@@ -2333,6 +2334,14 @@ document.addEventListener("DOMContentLoaded", function () {
       pctEl.textContent = sign + fmtNum(Math.abs(d.changePct), 2) + "%";
       pctEl.className = "change-value " + cls;
     }
+
+    // Directional hero background tint
+    var heroEl = document.querySelector(".home-hero");
+    if (heroEl) {
+      heroEl.classList.remove("hero-up", "hero-down");
+      if (d.changePct > 0) heroEl.classList.add("hero-up");
+      else if (d.changePct < 0) heroEl.classList.add("hero-down");
+    }
   }
 
   function renderHomeStats(d) {
@@ -2349,6 +2358,26 @@ document.addEventListener("DOMContentLoaded", function () {
     setText("home-kpi-52h", fmtVal(d.fiftyTwoWeekHigh, 2));
     setText("home-kpi-52l", fmtVal(d.fiftyTwoWeekLow, 2));
     setText("home-kpi-beta", "—");
+
+    // Visual KPI encoding: colour-coded left borders
+    var price = d.price;
+    var ids52h = document.getElementById("home-kpi-52h");
+    var ids52l = document.getElementById("home-kpi-52l");
+    var idsMcap = document.getElementById("home-kpi-mcap");
+    var idsPe = document.getElementById("home-kpi-pe");
+    var idsDiv = document.getElementById("home-kpi-div");
+
+    [ids52h, ids52l, idsMcap, idsPe, idsDiv].forEach(function(span) {
+      if (span && span.parentElement) span.parentElement.classList.remove("kpi-high", "kpi-low", "kpi-accent");
+    });
+
+    if (ids52h && ids52h.parentElement && price && d.fiftyTwoWeekHigh && price / d.fiftyTwoWeekHigh > 0.95)
+      ids52h.parentElement.classList.add("kpi-high");
+    if (ids52l && ids52l.parentElement && price && d.fiftyTwoWeekLow && price / d.fiftyTwoWeekLow < 1.10)
+      ids52l.parentElement.classList.add("kpi-low");
+    if (idsMcap && idsMcap.parentElement) idsMcap.parentElement.classList.add("kpi-accent");
+    if (idsPe && idsPe.parentElement && d.trailingPE != null) idsPe.parentElement.classList.add("kpi-accent");
+    if (idsDiv && idsDiv.parentElement && d.dividendYield != null) idsDiv.parentElement.classList.add("kpi-accent");
   }
 
   function renderMarketMonitor(items) {
@@ -2365,9 +2394,9 @@ document.addEventListener("DOMContentLoaded", function () {
       html += '<tr data-testid="monitor-row-' + escHtml(m.symbol) + '">';
       html += '<td>' + escHtml(m.name) + '</td>';
       html += '<td>' + fmtMktPrice(m.price) + '</td>';
-      html += '<td class="' + pctClass(m.dayChangePct) + '">' + fmtSignedPct(m.dayChangePct) + '</td>';
-      html += '<td class="' + pctClass(m.weekChangePct) + '">' + fmtSignedPct(m.weekChangePct) + '</td>';
-      html += '<td class="' + pctClass(m.monthChangePct) + '">' + fmtSignedPct(m.monthChangePct) + '</td>';
+      html += '<td>' + _pctBarCell(m.dayChangePct) + '</td>';
+      html += '<td>' + _pctBarCell(m.weekChangePct) + '</td>';
+      html += '<td>' + _pctBarCell(m.monthChangePct) + '</td>';
       html += '</tr>';
     });
     html += '</tbody></table>';
@@ -2377,6 +2406,16 @@ document.addEventListener("DOMContentLoaded", function () {
   function pctClass(v) {
     if (v == null) return "pct-flat";
     return v > 0 ? "pct-pos" : (v < 0 ? "pct-neg" : "pct-flat");
+  }
+
+  function _pctBarCell(v) {
+    var cls = pctClass(v);
+    var barColor = v > 0 ? "var(--positive)" : (v < 0 ? "var(--negative)" : "var(--text-tertiary)");
+    var barW = v != null ? Math.min(Math.abs(v) * 10, 32) : 0;
+    return '<div class="monitor-pct-cell">'
+      + '<span class="pct-bar" style="width:' + barW + 'px;background:' + barColor + '"></span>'
+      + '<span class="' + cls + '">' + fmtSignedPct(v) + '</span>'
+      + '</div>';
   }
 
   function fmtSignedPct(v) {
