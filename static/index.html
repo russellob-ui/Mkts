@@ -23,10 +23,13 @@
     <header class="app-header" data-testid="app-header">
       <button id="rail-toggle" class="rail-toggle" data-testid="button-rail-toggle" type="button" title="Toggle watchlist">&#9776;</button>
       <span id="header-logo" class="header-logo" data-testid="header-logo">MKTS<span class="logo-slash">/</span></span>
-      <form id="quote-form" class="header-search" data-testid="search-form">
-        <input type="text" id="ticker-input" data-testid="input-ticker" autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" placeholder="TICKER">
-        <button type="submit" id="go-btn" class="btn-go" data-testid="button-submit" disabled>GO</button>
-      </form>
+      <div class="header-search-wrap">
+        <form id="quote-form" class="header-search" data-testid="search-form">
+          <input type="text" id="ticker-input" data-testid="input-ticker" autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" placeholder="TICKER / ⌘K">
+          <button type="submit" id="go-btn" class="btn-go" data-testid="button-submit" disabled>GO</button>
+        </form>
+        <div id="search-dropdown" class="search-dropdown hidden"></div>
+      </div>
       <div class="header-controls">
         <select id="theme-select" class="theme-select" data-testid="select-theme">
           <option value="terminal">Terminal</option>
@@ -34,7 +37,8 @@
           <option value="paper">Paper</option>
         </select>
         <button id="mode-toggle" class="mode-toggle" data-testid="button-mode-toggle" type="button" title="Toggle light/dark">&#9790;</button>
-        <button id="alert-bell" class="alert-bell" data-testid="button-alert-bell" type="button" title="Alerts">&#128276;<span id="alert-badge" class="alert-badge hidden" data-testid="alert-badge">0</span></button>
+        <button id="portfolio-hub-btn" class="portfolio-hub-btn" type="button" title="Portfolio Review (P)">&#128200;</button>
+      <button id="alert-bell" class="alert-bell" data-testid="button-alert-bell" type="button" title="Alerts">&#128276;<span id="alert-badge" class="alert-badge hidden" data-testid="alert-badge">0</span></button>
         <button id="header-overflow-btn" class="header-overflow-btn" data-testid="button-header-overflow" type="button" title="Settings">&#8942;</button>
         <div id="header-overflow-menu" class="header-overflow-menu hidden" data-testid="header-overflow-menu">
           <label class="overflow-item">
@@ -622,6 +626,117 @@
         </div>
       </main>
 
+      <!-- ===== PORTFOLIO HUB STATE ===== -->
+      <div id="portfolio-hub" class="portfolio-hub hidden" data-testid="portfolio-hub">
+
+        <!-- Import Wizard Modal -->
+        <div id="pf-wizard" class="pf-wizard hidden">
+          <div class="pf-wizard-backdrop"></div>
+          <div class="pf-wizard-card">
+            <button id="pf-wizard-close" class="pf-wizard-close" type="button">&times;</button>
+
+            <!-- Step 1: Upload -->
+            <div id="pf-step-upload" class="pf-step">
+              <div class="pf-step-icon">&#128200;</div>
+              <h2 class="pf-step-title">Import Portfolio</h2>
+              <p class="pf-step-sub">Upload your broker export. Supports Brewin Dolphin, Hargreaves Lansdown, Quilter, St James's Place, and generic ISIN/CSV files.</p>
+              <div id="pf-drop-zone" class="pf-drop-zone">
+                <div class="pf-drop-icon">&#128196;</div>
+                <p class="pf-drop-text">Drag &amp; drop .xlsx or .csv here</p>
+                <p class="pf-drop-or">— or —</p>
+                <label class="btn-primary pf-browse-label">
+                  Browse File
+                  <input type="file" id="pf-file-input" accept=".xlsx,.xls,.xlsm,.csv" style="display:none">
+                </label>
+              </div>
+              <div id="pf-upload-error" class="pf-upload-error hidden"></div>
+            </div>
+
+            <!-- Step 2: Resolving -->
+            <div id="pf-step-resolving" class="pf-step hidden">
+              <div class="pf-step-icon pf-spin">&#9696;</div>
+              <h2 class="pf-step-title">Resolving Securities</h2>
+              <p id="pf-resolve-status" class="pf-step-sub">Identifying securities…</p>
+              <div class="pf-resolve-bar"><div id="pf-resolve-fill" class="pf-resolve-fill" style="width:0%"></div></div>
+            </div>
+
+            <!-- Step 3: Done -->
+            <div id="pf-step-done" class="pf-step hidden">
+              <div class="pf-step-icon">&#9989;</div>
+              <h2 class="pf-step-title">Portfolio Ready</h2>
+              <p id="pf-done-summary" class="pf-step-sub"></p>
+              <button id="pf-done-view-btn" class="btn-primary" type="button">VIEW DASHBOARD</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Dashboard -->
+        <div id="pf-dashboard" class="pf-dashboard">
+
+          <!-- Header bar -->
+          <div class="pf-dash-header">
+            <span class="pf-dash-title">PORTFOLIO REVIEW</span>
+            <div class="pf-dash-actions">
+              <button id="pf-import-btn" class="pf-action-btn" type="button" title="Import new file">&#128196; Import</button>
+              <button id="pf-review-btn" class="pf-action-btn pf-action-primary" type="button" title="Generate AI review">&#129302; AI Review</button>
+              <button id="pf-print-btn" class="pf-action-btn" type="button" title="Export PDF" onclick="window.print()">&#128424; PDF</button>
+            </div>
+          </div>
+
+          <!-- Summary strip -->
+          <div id="pf-summary-strip" class="pf-summary-strip">
+            <div class="pf-summary-cell"><span class="pf-sum-label">TOTAL VALUE</span><span id="pf-sum-value" class="pf-sum-val">—</span></div>
+            <div class="pf-summary-cell"><span class="pf-sum-label">TOTAL COST</span><span id="pf-sum-cost" class="pf-sum-val">—</span></div>
+            <div class="pf-summary-cell"><span class="pf-sum-label">GAIN / LOSS</span><span id="pf-sum-gl" class="pf-sum-val">—</span></div>
+            <div class="pf-summary-cell"><span class="pf-sum-label">RETURN</span><span id="pf-sum-ret" class="pf-sum-val">—</span></div>
+            <div class="pf-summary-cell"><span class="pf-sum-label">HOLDINGS</span><span id="pf-sum-count" class="pf-sum-val">—</span></div>
+          </div>
+
+          <!-- Charts row -->
+          <div class="pf-charts-row">
+            <div class="pf-chart-card">
+              <div class="pf-chart-label">ALLOCATION</div>
+              <div id="pf-alloc-chart" class="pf-alloc-chart"></div>
+              <div id="pf-alloc-legend" class="pf-alloc-legend"></div>
+            </div>
+            <div class="pf-chart-card pf-chart-card-wide">
+              <div class="pf-chart-label">PERFORMANCE vs BENCHMARK</div>
+              <div id="pf-perf-chart" class="pf-perf-chart-container"></div>
+            </div>
+          </div>
+
+          <!-- Holdings table -->
+          <div class="pf-holdings-section">
+            <div class="pf-holdings-header">
+              <span class="pf-chart-label">HOLDINGS</span>
+              <div class="pf-sort-controls">
+                <span class="pf-sort-label">Sort:</span>
+                <button class="pf-sort-btn active" data-sort="value">Value</button>
+                <button class="pf-sort-btn" data-sort="gl">G/L %</button>
+                <button class="pf-sort-btn" data-sort="weight">Weight</button>
+                <button class="pf-sort-btn" data-sort="name">Name</button>
+              </div>
+            </div>
+            <div id="pf-holdings-table" class="pf-holdings-table">
+              <div class="pf-empty-state">
+                <p>&#128200; No portfolio loaded.</p>
+                <button id="pf-import-btn-2" class="btn-primary" type="button">Import Portfolio</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- AI Review panel (inline) -->
+          <div id="pf-ai-review" class="pf-ai-review hidden">
+            <div class="pf-ai-header">
+              <span class="pf-chart-label">&#129302; AI PORTFOLIO REVIEW</span>
+              <button id="pf-ai-close" class="pf-ai-close" type="button">&times;</button>
+            </div>
+            <div id="pf-ai-body" class="pf-ai-body"></div>
+          </div>
+
+        </div>
+      </div>
+
     </div>
 
     <!-- ===== CONTEXT RAIL (Desktop right panel) ===== -->
@@ -659,6 +774,7 @@
   <script src="/static/drawing.js"></script>
   <script src="/static/ws.js"></script>
   <script src="/static/ai.js"></script>
+  <script src="/static/portfolio.js"></script>
   <script src="/static/app.js"></script>
 </body>
 </html>
