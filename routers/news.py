@@ -1,4 +1,5 @@
 import asyncio
+import re
 import time
 from functools import partial
 from difflib import SequenceMatcher
@@ -16,6 +17,13 @@ router = APIRouter(prefix="/api")
 
 _enhanced_cache: dict[str, tuple[float, list, list]] = {}
 ENHANCED_CACHE_TTL = 600
+
+_EXCHANGE_SUFFIX = re.compile(r'\.[A-Z]{1,3}$')
+
+
+def _strip_suffix(ticker: str) -> str:
+    """Remove exchange suffix (.L, .NS, .PA, .AS, .TO, .AX, .HK etc.)"""
+    return _EXCHANGE_SUFFIX.sub('', ticker) if ticker else ticker
 
 
 def _titles_similar(a: str, b: str, threshold: float = 0.7) -> bool:
@@ -66,7 +74,10 @@ async def get_news(ticker: str = Query(default=""), name: str = Query(default=""
 
 
 @router.get("/news/enhanced")
-async def get_enhanced_news(ticker: str = Query(default="")):
+async def get_enhanced_news(
+    ticker: str = Query(default=""),
+    name: str = Query(default=""),
+):
     cleaned = ticker.strip().upper()
     if not cleaned:
         return JSONResponse(
@@ -75,18 +86,23 @@ async def get_enhanced_news(ticker: str = Query(default="")):
         )
 
     now = time.time()
-    if cleaned in _enhanced_cache:
-        ts, cached_articles, cached_sources = _enhanced_cache[cleaned]
+    cache_key = cleaned
+    if cache_key in _enhanced_cache:
+        ts, cached_articles, cached_sources = _enhanced_cache[cache_key]
         if now - ts < ENHANCED_CACHE_TTL:
             items = [EnhancedNewsItem(**a) for a in cached_articles]
             return EnhancedNewsResponse.ok(items, cached_sources)
 
+    # Strip exchange suffix for APIs that don't understand .L / .NS etc.
+    api_ticker = _strip_suffix(cleaned)
+    company_name = name.strip()
+
     try:
         loop = asyncio.get_running_loop()
-        marketaux_task = fetch_marketaux_news(cleaned)
-        finnhub_task = finnhub_service.fetch_company_news(cleaned)
+        marketaux_task = fetch_marketaux_news(api_ticker)
+        finnhub_task = finnhub_service.fetch_company_news(api_ticker)
         gnews_task = loop.run_in_executor(
-            None, partial(news_service.fetch_news, cleaned, "")
+            None, partial(news_service.fetch_news, api_ticker, company_name)
         )
 
         marketaux_articles, finnhub_articles, gnews_raw = await asyncio.gather(
@@ -100,6 +116,16 @@ async def get_enhanced_news(ticker: str = Query(default="")):
             finnhub_articles = []
         if isinstance(gnews_raw, Exception):
             gnews_raw = []
+
+        # If very few results and we have a company name, try a name-based GNews search
+        total_so_far = len(list(marketaux_articles)) + len(list(finnhub_articles)) + len(gnews_raw)
+        if total_so_far < 3 and company_name and company_name.upper() != api_ticker:
+            short_name = company_name.split(' PLC')[0].split(' Ltd')[0].split(' Inc')[0].strip()
+            extra_raw = await loop.run_in_executor(
+                None, partial(news_service.fetch_news, "", short_name)
+            )
+            if not isinstance(extra_raw, Exception):
+                gnews_raw = list(gnews_raw) + list(extra_raw)
     except Exception:
         return JSONResponse(
             status_code=503,
@@ -132,7 +158,7 @@ async def get_enhanced_news(ticker: str = Query(default="")):
         a.get("provider") for a in deduplicated if a.get("provider")
     ))
 
-    _enhanced_cache[cleaned] = (now, deduplicated, sources_present)
+    _enhanced_cache[cache_key] = (now, deduplicated, sources_present)
 
     items = [EnhancedNewsItem(**a) for a in deduplicated]
     return EnhancedNewsResponse.ok(items, sources_present)

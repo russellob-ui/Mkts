@@ -1949,40 +1949,55 @@ body {
   font-weight: 700;
 }
 
-/* ===== PRICE HERO (Company) ===== */
+/* ===== PRICE HERO (Company) — Robinhood style ===== */
 .price-hero {
-  border: 1px solid var(--border-default);
-  background: var(--card-bg);
-  border-radius: var(--radius);
-  padding: var(--space-md);
-  margin-bottom: var(--space-md);
-}
-
-.hero-top {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: var(--space-md);
-  border-bottom: 1px solid var(--border-subtle);
-  padding-bottom: var(--space-sm);
+  border: none;
+  background: transparent;
+  border-radius: 0;
+  padding: var(--space-md) 0 var(--space-sm);
   margin-bottom: var(--space-sm);
 }
 
-.hero-identity {
-  min-width: 0;
-  flex: 1;
-}
-
-.hero-price-block {
-  text-align: right;
-  flex-shrink: 0;
-}
-
-.hero-change-row {
+.hero-ticker-row {
   display: flex;
-  justify-content: space-between;
-  gap: var(--space-md);
+  align-items: center;
+  gap: var(--space-sm);
+  margin-bottom: 2px;
+}
+
+.price-hero .hero-identity {
+  margin-bottom: var(--space-xs);
+}
+
+.price-hero .hero-price-block {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-xs);
+  margin-bottom: var(--space-xs);
+}
+
+.price-hero .hero-currency {
+  font-family: var(--font-sans);
+  font-size: 18px;
+  font-weight: 400;
+  color: var(--text-secondary);
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+/* Clean single-line change row */
+.hero-change-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   flex-wrap: wrap;
+}
+
+.hero-prev-close {
+  font-family: var(--font-sans);
+  font-size: 13px;
+  color: var(--text-tertiary);
+  margin-left: 4px;
 }
 
 /* ===== KPI GRID ===== */
@@ -4475,3 +4490,97 @@ body {
 .ws-flash     { animation: flash-neutral 0.8s ease-out; }
 .ws-flash-up  { animation: flash-up 0.8s ease-out; }
 .ws-flash-down { animation: flash-down 0.8s ease-out; }
+
+/* ===== ROBINHOOD-STYLE SUMM PANEL ===== */
+
+/* Summary panel section spacing */
+.summ-section {
+  padding: var(--space-lg) 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.summ-section:last-child { border-bottom: none; }
+.summ-section .section-label { margin-bottom: var(--space-md); }
+
+/* Profile */
+.profile-summary {
+  font-family: var(--font-sans);
+  font-size: 14px;
+  color: var(--text-secondary);
+  line-height: 1.6;
+  margin: var(--space-sm) 0;
+}
+.summary-toggle {
+  background: none;
+  border: none;
+  color: var(--positive);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 0;
+  cursor: pointer;
+}
+.profile-link {
+  color: var(--positive);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  text-decoration: none;
+}
+
+/* Robinhood-style 2-column stats list */
+.stats-list {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
+}
+.stats-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border-subtle);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  gap: var(--space-sm);
+}
+.stats-row:nth-child(odd) { padding-right: var(--space-lg); }
+.stats-row:nth-child(even) { padding-left: var(--space-lg); border-left: 1px solid var(--border-subtle); }
+.stats-label { color: var(--text-secondary); font-weight: 400; }
+.stats-value { color: var(--text-primary); font-weight: 600; font-variant-numeric: tabular-nums; }
+
+/* Robinhood-style news cards */
+.news-cards { display: flex; flex-direction: column; }
+.news-card {
+  padding: 14px 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.news-card:last-child { border-bottom: none; }
+.news-card-headline {
+  display: block;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary);
+  line-height: 1.45;
+  margin-bottom: 5px;
+  text-decoration: none;
+}
+.news-card-headline:hover { color: var(--positive); }
+.news-card-meta {
+  font-family: var(--font-sans);
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+/* ===== 52W RANGE BAR POLISH ===== */
+.range-bar {
+  height: 4px;
+  border-radius: 2px;
+}
+.range-marker {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  top: -4px;
+  background: var(--text-primary);
+  box-shadow: 0 0 0 3px rgba(255,255,255,0.15);
+}

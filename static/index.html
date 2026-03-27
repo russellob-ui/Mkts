@@ -261,32 +261,22 @@
           </div>
 
           <section class="price-hero" data-testid="section-price-hero">
-            <div class="hero-top">
-              <div class="hero-identity">
+            <div class="hero-identity">
+              <div class="hero-ticker-row">
                 <h2 id="c-ticker" class="hero-ticker" data-testid="text-ticker"></h2>
-                <p id="c-name" class="hero-name" data-testid="text-company-name"></p>
+                <span id="c-market-state" class="badge-state" data-testid="text-market-state"></span>
               </div>
-              <div class="hero-price-block">
-                <span id="c-currency" class="hero-currency" data-testid="text-currency"></span>
-                <div id="c-price" class="hero-price" data-testid="text-price"></div>
-              </div>
+              <p id="c-name" class="hero-name" data-testid="text-company-name"></p>
             </div>
-            <div class="hero-change-row">
-              <div class="change-cell">
-                <span class="change-label">CHG</span>
-                <div class="change-val-row">
-                  <span id="c-arrow" class="change-arrow" data-testid="text-arrow"></span>
-                  <span id="c-change" class="change-value" data-testid="text-change"></span>
-                </div>
-              </div>
-              <div class="change-cell align-right">
-                <span class="change-label">PCT</span>
-                <span id="c-changePct" class="change-value" data-testid="text-changePct"></span>
-              </div>
-              <div class="change-cell align-right">
-                <span class="change-label">PREV CLS</span>
-                <span id="c-prevClose" class="change-value-dim" data-testid="text-prevClose"></span>
-              </div>
+            <div class="hero-price-block">
+              <div id="c-price" class="hero-price" data-testid="text-price"></div>
+              <span id="c-currency" class="hero-currency" data-testid="text-currency"></span>
+            </div>
+            <div class="hero-change-line">
+              <span id="c-arrow" class="change-arrow" data-testid="text-arrow"></span>
+              <span id="c-change" class="change-value" data-testid="text-change"></span>
+              <span id="c-changePct" class="change-value" data-testid="text-changePct"></span>
+              <span id="c-prevClose" class="hero-prev-close" data-testid="text-prevClose"></span>
             </div>
           </section>
 
@@ -310,76 +300,63 @@
           <div class="workspace-grid">
             <div class="workspace-main">
               <nav class="tab-strip" data-testid="nav-tabs">
-                <button class="tab active" data-tab="summ" data-testid="tab-summ">SUMM</button>
-                <button class="tab" data-tab="fins" data-testid="tab-fins">FINS</button>
-                <button class="tab" data-tab="news" data-testid="tab-news">NEWS</button>
-                <button class="tab" data-tab="chart" data-testid="tab-chart">CHART</button>
-                <button class="tab" data-tab="portf" data-testid="tab-portf">PORTF</button>
-                <button class="tab" data-tab="opts" data-testid="tab-opts">OPTS</button>
+                <button class="tab active" data-tab="summ" data-testid="tab-summ">Summary</button>
+                <button class="tab" data-tab="fins" data-testid="tab-fins">Financials</button>
+                <button class="tab" data-tab="news" data-testid="tab-news">News</button>
+                <button class="tab" data-tab="chart" data-testid="tab-chart">Chart</button>
+                <button class="tab" data-tab="portf" data-testid="tab-portf">Portfolio</button>
+                <button class="tab" data-tab="opts" data-testid="tab-opts">Options</button>
               </nav>
 
               <div class="tab-panels">
                 <div id="panel-summ" class="tab-panel" data-testid="panel-summ">
-                  <div class="kpi-section">
-                    <div class="section-label">TODAY</div>
-                    <div class="kpi-grid" data-testid="grid-day-stats">
-                      <div class="kpi-cell"><span class="kpi-label">OPEN</span><span id="kpi-open" class="kpi-value" data-testid="kpi-open">—</span></div>
-                      <div class="kpi-cell"><span class="kpi-label">HIGH</span><span id="kpi-dayHigh" class="kpi-value" data-testid="kpi-dayHigh">—</span></div>
-                      <div class="kpi-cell"><span class="kpi-label">LOW</span><span id="kpi-dayLow" class="kpi-value" data-testid="kpi-dayLow">—</span></div>
-                      <div class="kpi-cell"><span class="kpi-label">PREV CLS</span><span id="kpi-prevClose" class="kpi-value" data-testid="kpi-prevClose">—</span></div>
-                    </div>
-                  </div>
 
-                  <div class="kpi-section">
-                    <div class="section-label">KEY METRICS</div>
-                    <div class="kpi-grid" data-testid="grid-key-metrics">
-                      <div class="kpi-cell"><span class="kpi-label">MKT CAP</span><span id="kpi-marketCap" class="kpi-value" data-testid="kpi-marketCap">—</span></div>
-                      <div class="kpi-cell"><span class="kpi-label">P/E (TTM)</span><span id="kpi-trailingPE" class="kpi-value" data-testid="kpi-trailingPE">—</span></div>
-                      <div class="kpi-cell"><span class="kpi-label">P/E (FWD)</span><span id="kpi-forwardPE" class="kpi-value" data-testid="kpi-forwardPE">—</span></div>
-                      <div class="kpi-cell"><span class="kpi-label">DIV YIELD</span><span id="kpi-divYield" class="kpi-value" data-testid="kpi-divYield">—</span></div>
-                      <div class="kpi-cell"><span class="kpi-label">VOLUME</span><span id="kpi-volume" class="kpi-value" data-testid="kpi-volume">—</span></div>
-                      <div class="kpi-cell"><span class="kpi-label">AVG VOL</span><span id="kpi-avgVolume" class="kpi-value" data-testid="kpi-avgVolume">—</span></div>
-                    </div>
-                  </div>
-
-                  <div class="profile-section" data-testid="section-profile">
-                    <div class="section-label">COMPANY PROFILE</div>
+                  <!-- ABOUT section -->
+                  <div class="summ-section" data-testid="section-profile">
+                    <div class="section-label">About</div>
                     <div class="profile-meta" data-testid="profile-meta">
                       <span id="c-sector" class="meta-tag" data-testid="text-sector"></span>
                       <span id="c-industry" class="meta-tag" data-testid="text-industry"></span>
                       <span id="c-country" class="meta-tag" data-testid="text-country"></span>
                     </div>
+                    <p id="c-summary" class="profile-summary" data-testid="text-summary"></p>
+                    <button id="summary-toggle" class="summary-toggle hidden" data-testid="button-summary-toggle">Show more</button>
                     <div id="c-website-row" class="profile-website hidden">
-                      <span class="kpi-label">WEB</span>
                       <a id="c-website" class="profile-link" target="_blank" rel="noopener" data-testid="link-website"></a>
                     </div>
-                    <p id="c-summary" class="profile-summary" data-testid="text-summary"></p>
-                    <button id="summary-toggle" class="summary-toggle hidden" data-testid="button-summary-toggle">SHOW MORE</button>
                   </div>
 
-                  <div class="inline-panels">
-                    <div id="inline-brief" class="wp-panel" data-testid="inline-brief">
-                      <div class="wp-panel-header">
-                        <span class="wp-panel-title">MARKET BRIEF</span>
-                        <span class="wp-panel-badge">AUTOMATED</span>
-                        <div class="brief-toggle" data-testid="inline-brief-toggle">
-                          <button class="brief-mode-btn active" data-brief="concise" data-testid="inline-brief-concise">CONCISE</button>
-                          <button class="brief-mode-btn" data-brief="analyst" data-testid="inline-brief-analyst">ANALYST</button>
-                        </div>
-                      </div>
-                      <div id="inline-brief-body" class="wp-panel-body"><div class="wp-panel-loading">Loading...</div></div>
-                    </div>
-
-                    <div id="inline-peers" class="wp-panel" data-testid="inline-peers">
-                      <div class="wp-panel-header"><span class="wp-panel-title">PEERS</span></div>
-                      <div id="inline-peers-body" class="wp-panel-body"><div class="wp-panel-loading">Loading...</div></div>
-                    </div>
-
-                    <div id="inline-news" class="wp-panel" data-testid="inline-news">
-                      <div class="wp-panel-header"><span class="wp-panel-title">HEADLINES</span></div>
-                      <div id="inline-news-body" class="wp-panel-body"><div class="wp-panel-loading">Loading...</div></div>
+                  <!-- STATISTICS section — Robinhood-style 2-col list -->
+                  <div class="summ-section">
+                    <div class="section-label">Statistics</div>
+                    <div class="stats-list" data-testid="stats-list">
+                      <div class="stats-row"><span class="stats-label">Open</span><span id="kpi-open" class="stats-value" data-testid="kpi-open">—</span></div>
+                      <div class="stats-row"><span class="stats-label">Day High</span><span id="kpi-dayHigh" class="stats-value" data-testid="kpi-dayHigh">—</span></div>
+                      <div class="stats-row"><span class="stats-label">Day Low</span><span id="kpi-dayLow" class="stats-value" data-testid="kpi-dayLow">—</span></div>
+                      <div class="stats-row"><span class="stats-label">Prev Close</span><span id="kpi-prevClose" class="stats-value" data-testid="kpi-prevClose">—</span></div>
+                      <div class="stats-row"><span class="stats-label">Volume</span><span id="kpi-volume" class="stats-value" data-testid="kpi-volume">—</span></div>
+                      <div class="stats-row"><span class="stats-label">Avg Volume</span><span id="kpi-avgVolume" class="stats-value" data-testid="kpi-avgVolume">—</span></div>
+                      <div class="stats-row"><span class="stats-label">Market Cap</span><span id="kpi-marketCap" class="stats-value" data-testid="kpi-marketCap">—</span></div>
+                      <div class="stats-row"><span class="stats-label">P/E (TTM)</span><span id="kpi-trailingPE" class="stats-value" data-testid="kpi-trailingPE">—</span></div>
+                      <div class="stats-row"><span class="stats-label">P/E (Fwd)</span><span id="kpi-forwardPE" class="stats-value" data-testid="kpi-forwardPE">—</span></div>
+                      <div class="stats-row"><span class="stats-label">Div Yield</span><span id="kpi-divYield" class="stats-value" data-testid="kpi-divYield">—</span></div>
                     </div>
                   </div>
+
+                  <!-- NEWS section -->
+                  <div class="summ-section">
+                    <div class="section-label">News</div>
+                    <div id="inline-news-body" class="wp-panel-body"><div class="wp-panel-loading">Loading...</div></div>
+                  </div>
+
+                  <!-- Hidden panels still needed for sidebar/context compatibility -->
+                  <div id="inline-brief" class="hidden" data-testid="inline-brief">
+                    <div id="inline-brief-body"></div>
+                  </div>
+                  <div id="inline-peers" class="hidden" data-testid="inline-peers">
+                    <div id="inline-peers-body"></div>
+                  </div>
+                  <div id="inline-news" class="hidden" data-testid="inline-news"></div>
                 </div>
 
                 <div id="panel-fins" class="tab-panel hidden" data-testid="panel-fins">

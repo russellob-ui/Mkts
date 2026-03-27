@@ -752,7 +752,7 @@ document.addEventListener("DOMContentLoaded", function () {
       renderEnhancedNewsTab(enhancedNewsCache[ticker]);
       return;
     }
-    fetch("/api/news/enhanced?ticker=" + encodeURIComponent(ticker))
+    fetch("/api/news/enhanced?ticker=" + encodeURIComponent(ticker) + (name ? "&name=" + encodeURIComponent(name) : ""))
       .then(function (res) { return res.json(); })
       .then(function (data) {
         if (ticker !== currentTicker) return;
@@ -908,28 +908,30 @@ document.addEventListener("DOMContentLoaded", function () {
 
   function buildNewsCompactHtml(articles) {
     if (!articles || articles.length === 0) {
-      return '<div class="wp-panel-empty">No headlines available</div>';
+      return '<div class="wp-panel-empty">No news available</div>';
     }
-    var html = '<ul class="news-list">';
+    var html = '<div class="news-cards">';
     articles.forEach(function (a) {
       var timeStr = a.publishedAt ? fmtTimeAgo(a.publishedAt) : "";
       var sourceStr = a.source ? escHtml(a.source) : "";
       var metaParts = [];
       if (sourceStr) metaParts.push(sourceStr);
       if (timeStr) metaParts.push(timeStr);
-      html += '<li class="news-item" data-testid="news-item">';
+      html += '<div class="news-card" data-testid="news-item">';
+      html += '<div class="news-card-text">';
       var sUrl = safeUrl(a.url);
       if (sUrl) {
-        html += '<a href="' + escHtml(sUrl) + '" target="_blank" rel="noopener">' + escHtml(a.title) + '</a>';
+        html += '<a class="news-card-headline" href="' + escHtml(sUrl) + '" target="_blank" rel="noopener">' + escHtml(a.title) + '</a>';
       } else {
-        html += '<a>' + escHtml(a.title) + '</a>';
+        html += '<span class="news-card-headline">' + escHtml(a.title) + '</span>';
       }
       if (metaParts.length > 0) {
-        html += '<div class="news-meta">' + metaParts.join(" · ") + '</div>';
+        html += '<div class="news-card-meta">' + metaParts.join(" · ") + '</div>';
       }
-      html += '</li>';
+      html += '</div>';
+      html += '</div>';
     });
-    html += '</ul>';
+    html += '</div>';
     return html;
   }
 
@@ -1010,28 +1012,34 @@ document.addEventListener("DOMContentLoaded", function () {
     headerTicker.textContent = d.ticker || "—";
     setText("c-ticker", d.ticker);
     setText("c-name", d.name);
-    setText("c-currency", d.currency || "USD");
+    setText("c-currency", d.currency || "");
     setText("c-price", fmtPrice(d.price));
-    setText("c-market-state", d.marketState || "EQUITY");
 
-    var isPos = d.change >= 0;
+    var msEl = document.getElementById("c-market-state");
+    if (msEl) {
+      var ms = d.marketState || "";
+      msEl.textContent = ms;
+      msEl.style.display = (ms && ms !== "REGULAR" && ms !== "EQUITY") ? "" : "none";
+    }
+
+    var isPos = (d.change || 0) >= 0;
     var cls = isPos ? "positive" : "negative";
-    var arrow = isPos ? "\u25B2" : "\u25BC";
 
     var arrowEl = document.getElementById("c-arrow");
-    arrowEl.textContent = arrow;
-    arrowEl.className = "change-arrow " + cls;
+    if (arrowEl) { arrowEl.textContent = isPos ? "▲" : "▼"; arrowEl.className = "change-arrow " + cls; }
 
     var changeEl = document.getElementById("c-change");
-    changeEl.textContent = fmtNum(Math.abs(d.change), 2);
-    changeEl.className = "change-value " + cls;
+    if (changeEl) { changeEl.textContent = fmtNum(Math.abs(d.change || 0), 2); changeEl.className = "change-value " + cls; }
 
     var pctEl = document.getElementById("c-changePct");
-    var sign = isPos ? "+" : "-";
-    pctEl.textContent = sign + fmtNum(Math.abs(d.changePct), 2) + "%";
-    pctEl.className = "change-value " + cls;
+    if (pctEl) {
+      var sign = isPos ? "+" : "−";
+      pctEl.textContent = "(" + sign + fmtNum(Math.abs(d.changePct || 0), 2) + "%)";
+      pctEl.className = "change-value " + cls;
+    }
 
-    setText("c-prevClose", fmtVal(d.previousClose, 2));
+    var prevEl = document.getElementById("c-prevClose");
+    if (prevEl) prevEl.textContent = d.previousClose != null ? "Prev " + fmtVal(d.previousClose, 2) : "";
 
     render52wRange(d.price, d.fiftyTwoWeekLow, d.fiftyTwoWeekHigh);
     renderKPIs(d);
