@@ -21,3 +21,6 @@ websockets==16.0
 
 # Portfolio Excel parsing (Brewin Dolphin, HL, Quilter, etc.)
 openpyxl==3.1.5
+
+# File upload support (required by FastAPI for multipart/form-data)
+python-multipart==0.0.20

@@ -144,9 +144,19 @@ async def get_portfolio_analytics(
     if not tickers:
         return {"success": True, "empty": True, "holdings": holdings, "summary": {}}
 
-    # Fetch live quotes
-    from services.market_data_service import get_quote_multi
-    quotes = await get_quote_multi(tickers)
+    # Fetch live quotes concurrently (one call per ticker)
+    from services.market_data_service import get_quote, DataUnavailableError
+    from services.yfinance_service import DataNotFoundError
+
+    async def _safe_quote(ticker):
+        try:
+            q = await get_quote(ticker)
+            return ticker, q
+        except (DataUnavailableError, DataNotFoundError, Exception):
+            return ticker, None
+
+    pairs = await asyncio.gather(*[_safe_quote(t) for t in tickers])
+    quotes = {ticker: q for ticker, q in pairs if q is not None}
 
     enriched = []
     total_value = 0.0
@@ -154,10 +164,10 @@ async def get_portfolio_analytics(
 
     for h in holdings:
         ticker = h.get("ticker", "")
-        q = quotes.get(ticker, {}) if ticker else {}
+        q = quotes.get(ticker) if ticker else None
         shares = float(h.get("shares") or 0)
         cost_basis = float(h.get("costBasis") or 0)
-        price = q.get("price") or q.get("c") or 0
+        price = q.price if q else 0
         market_value = price * shares if price else 0
         gl = market_value - cost_basis if (market_value and cost_basis) else None
         gl_pct = (gl / cost_basis * 100) if gl is not None and cost_basis else None
@@ -171,7 +181,7 @@ async def get_portfolio_analytics(
             "marketValue": market_value,
             "gainLoss": gl,
             "gainLossPct": gl_pct,
-            "changePct": q.get("dp") or q.get("changePct"),
+            "changePct": q.changePct if q else None,
         })
 
     # Sort by market value descending
