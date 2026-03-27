@@ -3522,4 +3522,149 @@ document.addEventListener("DOMContentLoaded", function () {
   });
 
   updateVWAPState();
+
+  // ── Expose switchToCompany for portfolio.js ─────────────────────────────────
+  window.switchToCompany = fetchCompany;
+
+  // ── Ticker Search Autocomplete ──────────────────────────────────────────────
+  var _searchDropdown = document.getElementById("search-dropdown");
+  var _searchDebounce = null;
+  var _activeSearchIdx = -1;
+
+  function _getSearchItems() {
+    return _searchDropdown ? Array.from(_searchDropdown.querySelectorAll(".search-item")) : [];
+  }
+
+  function _hideDropdown() {
+    if (_searchDropdown) _searchDropdown.classList.add("hidden");
+    _activeSearchIdx = -1;
+  }
+
+  function _showSearchResults(results) {
+    if (!_searchDropdown || !results.length) { _hideDropdown(); return; }
+    _searchDropdown.innerHTML = results.map(function (r) {
+      return '<div class="search-item" data-ticker="' + (r.symbol || "") + '">' +
+        '<span class="search-item-ticker">' + (r.symbol || "") + '</span>' +
+        '<span class="search-item-name">' + (r.name || "") + '</span>' +
+        '<span class="search-item-type">' + (r.type || "") + '</span>' +
+        '</div>';
+    }).join('');
+
+    _searchDropdown.querySelectorAll(".search-item").forEach(function (item) {
+      item.addEventListener("mousedown", function (e) {
+        e.preventDefault();
+        var ticker = item.getAttribute("data-ticker");
+        if (ticker) {
+          input.value = ticker;
+          _hideDropdown();
+          loadHomeScreen(ticker.toUpperCase());
+        }
+      });
+    });
+
+    _activeSearchIdx = -1;
+    _searchDropdown.classList.remove("hidden");
+  }
+
+  if (input) {
+    input.addEventListener("input", function () {
+      goBtn.disabled = input.value.trim().length === 0;
+      var q = input.value.trim();
+      clearTimeout(_searchDebounce);
+      if (q.length < 1) { _hideDropdown(); return; }
+      _searchDebounce = setTimeout(function () {
+        safeFetchJson("/api/search?q=" + encodeURIComponent(q)).then(function (data) {
+          if (data && data.success && Array.isArray(data.results)) {
+            _showSearchResults(data.results);
+          } else {
+            _hideDropdown();
+          }
+        }).catch(function () { _hideDropdown(); });
+      }, 200);
+    });
+
+    input.addEventListener("keydown", function (e) {
+      var items = _getSearchItems();
+      if (!items.length) return;
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        _activeSearchIdx = Math.min(_activeSearchIdx + 1, items.length - 1);
+        items.forEach(function (it, i) { it.classList.toggle("active", i === _activeSearchIdx); });
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        _activeSearchIdx = Math.max(_activeSearchIdx - 1, -1);
+        items.forEach(function (it, i) { it.classList.toggle("active", i === _activeSearchIdx); });
+      } else if (e.key === "Enter" && _activeSearchIdx >= 0) {
+        var active = items[_activeSearchIdx];
+        if (active) {
+          var ticker = active.getAttribute("data-ticker");
+          if (ticker) { input.value = ticker; _hideDropdown(); loadHomeScreen(ticker.toUpperCase()); e.preventDefault(); }
+        }
+      } else if (e.key === "Escape") {
+        _hideDropdown();
+      }
+    });
+
+    input.addEventListener("blur", function () {
+      setTimeout(_hideDropdown, 150);
+    });
+  }
+
+  document.addEventListener("click", function (e) {
+    if (_searchDropdown && !_searchDropdown.contains(e.target) && e.target !== input) {
+      _hideDropdown();
+    }
+  });
+
+  // ── Keyboard Shortcuts ──────────────────────────────────────────────────────
+  document.addEventListener("keydown", function (e) {
+    var tag = document.activeElement && document.activeElement.tagName;
+    var inInput = tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT";
+
+    // ⌘K / Ctrl+K — focus search
+    if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+      e.preventDefault();
+      if (input) { input.focus(); input.select(); }
+      return;
+    }
+
+    // / — focus search (when not in an input)
+    if (!inInput && e.key === "/") {
+      e.preventDefault();
+      if (input) { input.focus(); input.select(); }
+      return;
+    }
+
+    if (inInput) return;
+
+    // Escape — close dropdowns / panels
+    if (e.key === "Escape") {
+      _hideDropdown();
+      return;
+    }
+
+    // 1–6 — switch company tabs when in company view
+    if (companyState && !companyState.classList.contains("hidden")) {
+      var tabMap = { "1": "summ", "2": "fins", "3": "news", "4": "chart", "5": "portf", "6": "opts" };
+      if (tabMap[e.key]) {
+        var tabBtn = document.querySelector('.tab[data-tab="' + tabMap[e.key] + '"]');
+        if (tabBtn) { tabBtn.click(); return; }
+      }
+    }
+
+    // W — add current ticker to watchlist
+    if ((e.key === "w" || e.key === "W") && currentTicker) {
+      var addBtn = document.getElementById("rail-add-btn");
+      if (addBtn) addBtn.click();
+      return;
+    }
+
+    // A — open AI chat
+    if (e.key === "a" || e.key === "A") {
+      var aiBtn = document.getElementById("ai-chat-btn");
+      if (aiBtn) aiBtn.click();
+      return;
+    }
+  });
+
 });

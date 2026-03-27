@@ -24,6 +24,8 @@ from routers.market_monitor import router as market_monitor_router
 from routers.ws import router as ws_router
 from routers.ai import router as ai_router
 from routers.db_portfolio import router as db_portfolio_router
+from routers.search import router as search_router
+from routers.portfolio_import import router as portfolio_import_router
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -42,13 +44,13 @@ async def lifespan(app: FastAPI):
     from services.cache_service import init_cache
     await init_cache(REDIS_URL or None)
 
-    logger.info("MKTS v5.0.0 started")
+    logger.info("MKTS v5.1.0 started")
     yield
     # ── Shutdown ──────────────────────────────────────────────────────────────
     logger.info("MKTS shutting down")
 
 
-app = FastAPI(title="MKTS", version="5.0.0", lifespan=lifespan)
+app = FastAPI(title="MKTS", version="5.1.0", lifespan=lifespan)
 
 # ── Existing routers ──────────────────────────────────────────────────────────
 app.include_router(quotes_router)
@@ -68,9 +70,11 @@ app.include_router(home_router)
 app.include_router(market_monitor_router)
 
 # ── New routers ───────────────────────────────────────────────────────────────
-app.include_router(ws_router)           # /ws/prices
-app.include_router(ai_router)           # /api/ai/*
-app.include_router(db_portfolio_router) # /api/db/*
+app.include_router(ws_router)             # /ws/prices
+app.include_router(ai_router)             # /api/ai/*
+app.include_router(db_portfolio_router)   # /api/db/*
+app.include_router(search_router)         # /api/search
+app.include_router(portfolio_import_router)  # /api/portfolio/*
 
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
