@@ -535,6 +535,82 @@ document.addEventListener("DOMContentLoaded", function () {
     }
   })();
 
+  /* ===== BOTTOM TAB BAR (iPhone) ===== */
+
+  (function initBottomTabs() {
+    var btabHome = document.getElementById("btab-home");
+    var btabWatchlist = document.getElementById("btab-watchlist");
+    var btabSearch = document.getElementById("btab-search");
+    var btabPortfolio = document.getElementById("btab-portfolio");
+    var btabAlerts = document.getElementById("btab-alerts");
+
+    function setActiveTab(id) {
+      ["btab-home","btab-watchlist","btab-search","btab-portfolio","btab-alerts"].forEach(function(tid) {
+        var el = document.getElementById(tid);
+        if (el) el.classList.toggle("active", tid === id);
+      });
+    }
+
+    if (btabHome) {
+      btabHome.addEventListener("click", function() {
+        setActiveTab("btab-home");
+        // Navigate to home
+        if (!companyState.classList.contains("hidden")) {
+          companyState.classList.add("hidden");
+          searchState.classList.remove("hidden");
+          currentTicker = "";
+          if (homeTicker) showHomeState("content");
+        }
+        var hub = document.getElementById("portfolio-hub");
+        if (hub && !hub.classList.contains("hidden")) {
+          hub.classList.add("hidden");
+          searchState.classList.remove("hidden");
+        }
+      });
+    }
+
+    if (btabWatchlist) {
+      btabWatchlist.addEventListener("click", function() {
+        setActiveTab("btab-watchlist");
+        // Toggle the watchlist rail as a slide-in drawer on iPhone
+        var rail = document.getElementById("watchlist-rail");
+        if (rail) {
+          rail.classList.toggle("rail-open");
+        }
+      });
+    }
+
+    if (btabSearch) {
+      btabSearch.addEventListener("click", function() {
+        setActiveTab("btab-search");
+        // Focus the search input
+        var inp = document.getElementById("ticker-input");
+        if (inp) {
+          inp.focus();
+          inp.select();
+        }
+      });
+    }
+
+    if (btabPortfolio) {
+      btabPortfolio.addEventListener("click", function() {
+        setActiveTab("btab-portfolio");
+        // Open portfolio hub
+        var hubBtn = document.getElementById("portfolio-hub-btn");
+        if (hubBtn) hubBtn.click();
+      });
+    }
+
+    if (btabAlerts) {
+      btabAlerts.addEventListener("click", function() {
+        setActiveTab("btab-alerts");
+        // Open alerts modal
+        var alertBell = document.getElementById("alert-bell");
+        if (alertBell) alertBell.click();
+      });
+    }
+  })();
+
   /* ===== HEADER LOGO — return to home ===== */
 
   var headerLogo = document.getElementById("header-logo");

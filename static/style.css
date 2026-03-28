@@ -249,7 +249,7 @@ body {
   min-height: 100dvh;
 }
 
-/* iPhone (<768px): single column */
+/* iPhone (<768px): single column + bottom tab bar */
 @media (max-width: 767px) {
   .app-layout {
     grid-template-areas: "header" "strip" "main";
@@ -257,34 +257,41 @@ body {
     grid-template-columns: 1fr;
   }
   .rail { display: none; }
-  .context { display: none; }
-  .watchlist-strip { display: flex; }
-}
-
-/* iPad (768-1199px): 2-zone */
-@media (min-width: 768px) and (max-width: 1199px) {
-  .app-layout {
-    grid-template-areas: "header header" "main main";
-    grid-template-rows: auto 1fr;
-    grid-template-columns: 1fr;
-  }
-  .rail { display: none; }
   .rail.rail-open {
-    display: block;
+    display: flex;
+    flex-direction: column;
     position: fixed;
     left: 0;
     top: 0;
     bottom: 0;
-    width: 220px;
-    z-index: 500;
+    width: 240px;
+    z-index: 700;
     background: var(--bg-surface);
     border-right: 1px solid var(--border-default);
     box-shadow: var(--shadow-md);
     overflow-y: auto;
-    padding-top: 52px;
+    padding-top: 8px;
   }
   .context { display: none; }
+  .watchlist-strip { display: flex; }
+  /* Push content above the fixed bottom tab bar */
+  .main { padding-bottom: 60px; }
+}
+
+/* iPad (768-1199px): sidebar always visible beside main */
+@media (min-width: 768px) and (max-width: 1199px) {
+  .app-layout {
+    grid-template-areas:
+      "rail header"
+      "rail main";
+    grid-template-rows: auto 1fr;
+    grid-template-columns: var(--rail-width) 1fr;
+  }
+  .rail { display: flex; }
+  .context { display: none; }
   .watchlist-strip { display: none; }
+  /* Hide the rail toggle burger — sidebar is always visible on iPad */
+  .rail-toggle { display: none !important; }
 }
 
 /* Desktop (≥1200px): full 3-zone */
@@ -544,6 +551,70 @@ body {
 }
 
 .header-controls { position: relative; }
+
+/* ===== BOTTOM TAB BAR (iPhone only) ===== */
+.bottom-tab-bar {
+  display: none; /* hidden by default; shown via media query */
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 56px;
+  background: var(--bg-surface);
+  border-top: 1px solid var(--border-default);
+  z-index: 600;
+  padding-bottom: env(safe-area-inset-bottom, 0);
+}
+
+@media (max-width: 767px) {
+  .bottom-tab-bar {
+    display: flex;
+    align-items: stretch;
+    justify-content: space-around;
+  }
+}
+
+@media (min-width: 768px) {
+  .bottom-tab-bar { display: none !important; }
+}
+
+.btab {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  min-height: 44px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: var(--text-tertiary);
+  font-family: var(--font-sans);
+  font-size: 10px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 0;
+  text-decoration: none;
+  transition: color 0.15s;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.btab:hover,
+.btab.active {
+  color: var(--accent);
+}
+
+.btab svg {
+  width: 20px;
+  height: 20px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.75;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
 
 /* ===== WATCHLIST RAIL ===== */
 .rail {
