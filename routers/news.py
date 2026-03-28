@@ -58,10 +58,16 @@ async def get_news(ticker: str = Query(default=""), name: str = Query(default=""
             content=NewsResponse.fail("Ticker is required"),
         )
 
+    api_ticker = _strip_suffix(cleaned)
+    raw_name = name.strip()
+    # Shorten "Centrica PLC Ord 6 14/81P" → "Centrica"
+    short_name = raw_name.split(" PLC")[0].split(" Ltd")[0].split(" Inc")[0].strip() if raw_name else ""
+    search_name = short_name or api_ticker
+
     try:
         loop = asyncio.get_running_loop()
         raw = await loop.run_in_executor(
-            None, partial(news_service.fetch_news, cleaned, name.strip())
+            None, partial(news_service.fetch_news, api_ticker, search_name)
         )
     except Exception:
         return JSONResponse(

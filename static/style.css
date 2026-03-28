@@ -1309,7 +1309,7 @@ body {
 }
 
 .home-hero.hero-down {
-  background: linear-gradient(135deg, rgba(255,80,0,0.07) 0%, transparent 60%);
+  background: transparent;
 }
 
 .home-hero-top {
@@ -1398,36 +1398,6 @@ body {
 .home-badge-state {
   display: inline-block;
   margin-top: 2px;
-}
-
-.home-hero-change {
-  display: flex;
-  align-items: center;
-  gap: var(--space-md);
-  border-top: 1px solid var(--border-subtle);
-  margin-top: var(--space-sm);
-  padding-top: var(--space-sm);
-  flex-wrap: wrap;
-}
-
-.change-cell {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.change-label {
-  font-family: var(--font-sans);
-  font-size: var(--text-meta);
-  color: var(--text-secondary);
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-}
-
-.change-val-row {
-  display: flex;
-  align-items: center;
-  gap: 3px;
 }
 
 .change-arrow {

@@ -2313,7 +2313,8 @@ document.addEventListener("DOMContentLoaded", function () {
     setText("home-currency", d.currency || "USD");
     setText("home-price", fmtPrice(d.price));
     setText("home-market-state", d.marketState || "EQUITY");
-    setText("home-prevClose", fmtVal(d.previousClose, 2));
+    var prevEl = document.getElementById("home-prevClose");
+    if (prevEl) prevEl.textContent = d.previousClose != null ? "Prev " + fmtVal(d.previousClose, 2) : "";
 
     var exEl = document.getElementById("home-exchange");
     if (exEl) {
@@ -2337,17 +2338,9 @@ document.addEventListener("DOMContentLoaded", function () {
 
     var pctEl = document.getElementById("home-changePct");
     if (pctEl) {
-      var sign = isPos ? "+" : "-";
-      pctEl.textContent = sign + fmtNum(Math.abs(d.changePct), 2) + "%";
+      var sign = isPos ? "+" : "\u2212";
+      pctEl.textContent = "(" + sign + fmtNum(Math.abs(d.changePct), 2) + "%)";
       pctEl.className = "change-value " + cls;
-    }
-
-    // Directional hero background tint
-    var heroEl = document.querySelector(".home-hero");
-    if (heroEl) {
-      heroEl.classList.remove("hero-up", "hero-down");
-      if (d.changePct > 0) heroEl.classList.add("hero-up");
-      else if (d.changePct < 0) heroEl.classList.add("hero-down");
     }
   }
 
