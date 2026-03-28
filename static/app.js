@@ -59,6 +59,7 @@ document.addEventListener("DOMContentLoaded", function () {
   var summaryExpanded = false;
 
   var currentTicker = "";
+  var currentCompanyData = null;   // populated in renderCompany(), used by context rail
   var finsCache = {};
   var finsLoaded = {};
   var activeFinsView = "income";
@@ -634,10 +635,55 @@ document.addEventListener("DOMContentLoaded", function () {
     if (!rail) return;
     rail.innerHTML = "";
 
-    if (!companyState.classList.contains("hidden")) {
+    // ── Company page: key stats + news for the viewed stock ──
+    if (!companyState.classList.contains("hidden") && currentCompanyData) {
+      var d = currentCompanyData;
+      var isPos = (d.change || 0) >= 0;
+      var cls = isPos ? "positive" : "negative";
+      var sign = isPos ? "▲" : "▼";
+      var pctSign = isPos ? "+" : "−";
+
+      var html = '<div class="ctx-stock-header">';
+      html += '<div class="ctx-stock-ticker">' + escHtml(d.ticker || "") + '</div>';
+      html += '<div class="ctx-stock-name">' + escHtml(d.name || "") + '</div>';
+      html += '<div class="ctx-stock-price">' + fmtPrice(d.price) + ' <span class="' + cls + '">' + sign + ' ' + fmtNum(Math.abs(d.change || 0), 2) + ' (' + pctSign + fmtNum(Math.abs(d.changePct || 0), 2) + '%)</span></div>';
+      html += '</div>';
+
+      // Key stats table
+      html += '<div class="ctx-stats">';
+      function ctxStat(label, val) { return '<div class="ctx-stat-row"><span class="ctx-stat-label">' + label + '</span><span class="ctx-stat-val">' + val + '</span></div>'; }
+      if (d.open != null)           html += ctxStat("OPEN",      fmtVal(d.open, 2));
+      if (d.dayHigh != null)        html += ctxStat("HIGH",      fmtVal(d.dayHigh, 2));
+      if (d.dayLow != null)         html += ctxStat("LOW",       fmtVal(d.dayLow, 2));
+      if (d.previousClose != null)  html += ctxStat("PREV CLS",  fmtVal(d.previousClose, 2));
+      if (d.volume != null)         html += ctxStat("VOLUME",    fmtVol(d.volume));
+      if (d.averageVolume != null)  html += ctxStat("AVG VOL",   fmtVol(d.averageVolume));
+      if (d.marketCap != null)      html += ctxStat("MKT CAP",   fmtMktCap(d.marketCap));
+      if (d.trailingPE != null)     html += ctxStat("P/E TTM",   fmtNum(d.trailingPE, 1));
+      if (d.dividendYield != null && d.dividendYield > 0)
+                                    html += ctxStat("DIV YLD",   (d.dividendYield * 100).toFixed(2) + "%");
+      if (d.fiftyTwoWeekHigh != null) html += ctxStat("52W HIGH", fmtVal(d.fiftyTwoWeekHigh, 2));
+      if (d.fiftyTwoWeekLow != null)  html += ctxStat("52W LOW",  fmtVal(d.fiftyTwoWeekLow, 2));
+      html += '</div>';
+
+      // Headlines for this stock
+      html += '<div class="ctx-news-section"><div class="section-label" style="padding:8px 12px 4px">HEADLINES</div>';
+      html += '<div id="ctx-company-news" class="ctx-news-body"></div></div>';
+
+      rail.innerHTML = html;
+
+      // Populate news from cache if available
+      var newsEl = document.getElementById("ctx-company-news");
+      var articles = enhancedNewsCache[d.ticker] || newsCache[d.ticker];
+      if (newsEl && articles && articles.length > 0) {
+        newsEl.innerHTML = buildNewsCompactHtml(articles.slice(0, 6));
+      } else if (newsEl) {
+        newsEl.innerHTML = '<div class="home-panel-loading">Loading...</div>';
+      }
       return;
     }
 
+    // ── Home page: market monitor + headlines ──
     if (!searchState.classList.contains("hidden") && homeMonitorCache) {
       var monitorHtml = '<div class="context-section"><div class="section-label">MARKET MONITOR</div>';
       monitorHtml += '<div id="ctx-monitor" class="home-monitor-body"></div></div>';
@@ -761,6 +807,7 @@ document.addEventListener("DOMContentLoaded", function () {
           showCompanyState("content");
           renderCompany(data.data);
           resetTabs();
+          updateContextRail();   // show stats immediately; news fills in after fetchContextPanels
           fetchContextPanels(ticker, data.data.name || ticker);
         } else {
           showCompanyState("error");
@@ -837,6 +884,9 @@ document.addEventListener("DOMContentLoaded", function () {
           enhancedNewsCache[ticker] = articles;
           renderNews(articles);
           renderEnhancedNewsTab(articles);
+          // Refresh context rail news panel
+          var ctxNewsEl = document.getElementById("ctx-company-news");
+          if (ctxNewsEl) ctxNewsEl.innerHTML = buildNewsCompactHtml(articles.slice(0, 6));
         } else {
           throw new Error("No enhanced articles");
         }
@@ -854,6 +904,8 @@ document.addEventListener("DOMContentLoaded", function () {
             enhancedNewsCache[ticker] = fallback;
             renderNews(fallback);
             renderEnhancedNewsTab(fallback);
+            var ctxNewsEl = document.getElementById("ctx-company-news");
+            if (ctxNewsEl) ctxNewsEl.innerHTML = buildNewsCompactHtml(fallback.slice(0, 6));
           })
           .catch(function () {
             if (ticker !== currentTicker) return;
@@ -1085,6 +1137,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
   /* ===== COMPANY RENDERING ===== */
   function renderCompany(d) {
+    currentCompanyData = d;
     headerTicker.textContent = d.ticker || "—";
     setText("c-ticker", d.ticker);
     setText("c-name", d.name);
@@ -2336,11 +2389,15 @@ document.addEventListener("DOMContentLoaded", function () {
       { label: "10Y Treasury",  value: fmtRate(d.yield10y) },
       { label: "2Y Treasury",   value: fmtRate(d.yield2y) },
       { label: "US CPI YoY",    value: d.cpiUs != null ? d.cpiUs.toFixed(1) + "%" : "—" },
+      { label: "UK CPI YoY",    value: d.ukCpi != null ? d.ukCpi.toFixed(1) + "%" : "—" },
+      { label: "UK GDP YoY",    value: d.ukGdp != null ? (d.ukGdp >= 0 ? "+" : "") + d.ukGdp.toFixed(1) + "%" : "—",
+        cls: d.ukGdp != null ? (d.ukGdp >= 0 ? "positive" : "negative") : "" },
     ];
 
     var html = '<div class="macro-grid">';
     rows.forEach(function (r) {
-      html += '<div class="macro-row"><span class="macro-label">' + r.label + '</span><span class="macro-value">' + r.value + '</span></div>';
+      var valCls = "macro-value" + (r.cls ? " " + r.cls : "");
+      html += '<div class="macro-row"><span class="macro-label">' + r.label + '</span><span class="' + valCls + '">' + r.value + '</span></div>';
     });
     html += '</div>';
 

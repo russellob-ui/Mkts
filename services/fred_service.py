@@ -119,6 +119,7 @@ def _cpi_yoy() -> float | None:
 def get_macro_snapshot() -> dict:
     """
     Return a dict with the latest key macro indicators.
+    Combines FRED (US) and ONS (UK) data.
     All values are floats or None if unavailable.
     """
     fed_rate = _latest_value("FEDFUNDS")
@@ -139,14 +140,27 @@ def get_macro_snapshot() -> dict:
         else:
             curve_label = "Inverted"
 
+    # UK data from ONS (free, no key required)
+    uk_cpi: float | None = None
+    uk_gdp: float | None = None
+    try:
+        from services.ons_service import get_uk_macro
+        ons = get_uk_macro()
+        uk_cpi = ons.get("ukCpi")
+        uk_gdp = ons.get("ukGdp")
+    except Exception as exc:
+        logger.debug("ONS macro fetch failed: %s", exc)
+
     return {
         "fedRate":    fed_rate,
         "boeRate":    boe_rate,
         "cpiUs":      cpi_us,
+        "ukCpi":      uk_cpi,
+        "ukGdp":      uk_gdp,
         "yield10y":   yield_10y,
         "yield2y":    yield_2y,
         "yieldSpread": spread,
         "yieldCurve": curve_label,
         "vix":        vix,
-        "hasData":    any(v is not None for v in [fed_rate, boe_rate, yield_10y, vix]),
+        "hasData":    any(v is not None for v in [fed_rate, boe_rate, yield_10y, vix, uk_cpi]),
     }

@@ -899,6 +899,78 @@ body {
   margin-bottom: 0;
 }
 
+/* ── Context rail: company stats (Phase 7) ── */
+.ctx-stock-header {
+  padding-bottom: var(--space-md);
+  margin-bottom: var(--space-md);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.ctx-stock-ticker {
+  font-family: var(--font-mono);
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--text-primary);
+  letter-spacing: 0.04em;
+}
+
+.ctx-stock-name {
+  font-family: var(--font-sans);
+  font-size: 12px;
+  color: var(--text-tertiary);
+  margin: 2px 0 6px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ctx-stock-price {
+  font-family: var(--font-mono);
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.ctx-stats {
+  margin-bottom: var(--space-md);
+}
+
+.ctx-stat-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 5px 0;
+  border-bottom: 1px solid var(--border-subtle);
+  font-family: var(--font-sans);
+  font-size: 12px;
+}
+
+.ctx-stat-label {
+  color: var(--text-tertiary);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 10px;
+}
+
+.ctx-stat-val {
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.ctx-news-body {
+  max-height: 340px;
+  overflow-y: auto;
+  font-size: 12px;
+}
+
+.ctx-news-body::-webkit-scrollbar { width: 4px; }
+.ctx-news-body::-webkit-scrollbar-thumb { background: var(--border-default); border-radius: 2px; }
+
 /* ===== CARDS / PANELS ===== */
 .card {
   background: var(--card-bg);
