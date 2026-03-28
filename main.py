@@ -26,6 +26,7 @@ from routers.ai import router as ai_router
 from routers.db_portfolio import router as db_portfolio_router
 from routers.search import router as search_router
 from routers.portfolio_import import router as portfolio_import_router
+from routers.macro import router as macro_router
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -75,6 +76,7 @@ app.include_router(ai_router)             # /api/ai/*
 app.include_router(db_portfolio_router)   # /api/db/*
 app.include_router(search_router)         # /api/search
 app.include_router(portfolio_import_router)  # /api/portfolio/*
+app.include_router(macro_router)             # /api/macro/*
 
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 

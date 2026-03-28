@@ -15,6 +15,7 @@ FINNHUB_KEY   = os.getenv("FINNHUB_KEY", "")
 GNEWS_KEY     = os.getenv("GNEWS_KEY", "")
 EODHD_KEY     = os.getenv("EODHD_KEY", "")
 MARKETAUX_KEY = os.getenv("MARKETAUX_KEY", "")
+FRED_KEY      = os.getenv("FRED_API_KEY", "")
 
 # ── AI ────────────────────────────────────────────────────────────────────────
 ANTHROPIC_KEY = os.getenv("ANTHROPIC_API_KEY", "")
@@ -27,3 +28,4 @@ FINNHUB_BASE   = "https://finnhub.io/api/v1"
 GNEWS_BASE     = "https://gnews.io/api/v4"
 EODHD_BASE     = "https://eodhd.com/api"
 MARKETAUX_BASE = "https://api.marketaux.com/v1"
+FRED_BASE      = "https://api.stlouisfed.org/fred"

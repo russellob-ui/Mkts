@@ -2214,6 +2214,78 @@ document.addEventListener("DOMContentLoaded", function () {
 
     loadHomeChart(ticker, ver);
     renderHomePortfolioCtx(ticker);
+    fetchMacroWidget();
+  }
+
+  // ── FRED Macro Widget ─────────────────────────────────────────────────────
+  var _macroLoaded = false;
+
+  function fetchMacroWidget() {
+    if (_macroLoaded) return; // only fetch once per page load
+    var el = document.getElementById("home-macro");
+    if (!el) return;
+    fetch("/api/macro/snapshot")
+      .then(function (r) { return r.json(); })
+      .then(function (resp) {
+        if (resp.success && resp.data) {
+          renderMacroWidget(resp.data);
+          _macroLoaded = true;
+        } else {
+          el.innerHTML = '<div class="home-panel-loading">Macro data unavailable</div>';
+        }
+      })
+      .catch(function () {
+        if (el) el.innerHTML = '<div class="home-panel-loading">Macro data unavailable</div>';
+      });
+  }
+
+  function renderMacroWidget(d) {
+    var el = document.getElementById("home-macro");
+    if (!el) return;
+
+    function fmtRate(v) {
+      if (v == null) return "—";
+      return v.toFixed(2) + "%";
+    }
+
+    var curveClass = "";
+    if (d.yieldCurve === "Inverted") curveClass = "negative";
+    else if (d.yieldCurve === "Normal") curveClass = "positive";
+
+    var vixClass = d.vix != null ? (d.vix > 25 ? "negative" : d.vix < 15 ? "positive" : "") : "";
+
+    var rows = [
+      { label: "US Fed Rate",   value: fmtRate(d.fedRate) },
+      { label: "BoE Rate",      value: fmtRate(d.boeRate) },
+      { label: "10Y Treasury",  value: fmtRate(d.yield10y) },
+      { label: "2Y Treasury",   value: fmtRate(d.yield2y) },
+      { label: "US CPI YoY",    value: d.cpiUs != null ? d.cpiUs.toFixed(1) + "%" : "—" },
+    ];
+
+    var html = '<div class="macro-grid">';
+    rows.forEach(function (r) {
+      html += '<div class="macro-row"><span class="macro-label">' + r.label + '</span><span class="macro-value">' + r.value + '</span></div>';
+    });
+    html += '</div>';
+
+    if (d.yieldSpread != null) {
+      var spreadSign = d.yieldSpread >= 0 ? "+" : "";
+      html += '<div class="macro-curve-row">';
+      html += '<span class="macro-label">Yield Curve</span>';
+      html += '<span class="macro-curve-badge ' + curveClass + '">' + (d.yieldCurve || "—") + '</span>';
+      html += '<span class="macro-value">' + spreadSign + d.yieldSpread.toFixed(0) + 'bps</span>';
+      html += '</div>';
+    }
+
+    if (d.vix != null) {
+      html += '<div class="macro-row"><span class="macro-label">VIX</span><span class="macro-value ' + vixClass + '">' + d.vix.toFixed(1) + '</span></div>';
+    }
+
+    if (!d.hasData) {
+      html = '<div class="home-panel-loading">Add FRED_API_KEY in Railway to enable macro data</div>';
+    }
+
+    el.innerHTML = html;
   }
 
   function cleanTickerForNews(ticker) {
