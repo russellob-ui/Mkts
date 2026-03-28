@@ -1,8 +1,11 @@
+import json
 import math
 import asyncio
+import urllib.request
 from functools import partial
 from collections import defaultdict
 import yfinance as yf
+from config import EODHD_KEY, EODHD_BASE
 from schemas.portfolio import (
     HoldingData,
     ExposureData,
@@ -59,7 +62,57 @@ def _parse_holdings(holdings_str: str) -> list[dict]:
     return result
 
 
+def _fetch_single_info_eodhd(ticker: str) -> dict:
+    """Synchronous EODHD price fetch for UK (.L) tickers."""
+    _empty = {"price": 0.0, "change": 0.0, "changePct": 0.0, "currency": "GBP",
+               "name": ticker, "sector": None, "country": "United Kingdom",
+               "dividendRate": None, "dividendYield": None, "exDividendDate": None}
+    if not EODHD_KEY:
+        return _empty
+    try:
+        eodhd_sym = ticker[:-2].upper() + ".LSE"
+        # Real-time quote
+        q_url = f"{EODHD_BASE}/real-time/{eodhd_sym}?api_token={EODHD_KEY}&fmt=json"
+        with urllib.request.urlopen(q_url, timeout=6) as resp:
+            q = json.loads(resp.read())
+        # Company name from search
+        s_url = f"{EODHD_BASE}/search/{eodhd_sym}?api_token={EODHD_KEY}&fmt=json&limit=1"
+        name = ticker
+        try:
+            with urllib.request.urlopen(s_url, timeout=4) as resp:
+                hits = json.loads(resp.read())
+            if hits and isinstance(hits, list):
+                name = hits[0].get("Name", ticker)
+        except Exception:
+            pass
+
+        # EODHD returns LSE prices in pence (GBX) — convert to GBP
+        raw_price = float(q.get("close") or 0)
+        raw_prev  = float(q.get("previousClose") or raw_price)
+        price     = raw_price / 100.0
+        prev      = raw_prev  / 100.0
+        change    = price - prev
+        chg_pct   = float(q.get("change_p") or (((price - prev) / prev * 100) if prev > 0 else 0))
+        return {
+            "price": round(price, 4),
+            "change": round(change, 4),
+            "changePct": round(chg_pct, 4),
+            "currency": "GBP",
+            "name": name,
+            "sector": None,
+            "country": "United Kingdom",
+            "dividendRate": None,
+            "dividendYield": None,
+            "exDividendDate": None,
+        }
+    except Exception:
+        return _empty
+
+
 def _fetch_single_info(ticker: str) -> dict:
+    # Route UK (LSE) tickers to EODHD — yfinance gets blocked on Railway
+    if ticker.upper().endswith(".L"):
+        return _fetch_single_info_eodhd(ticker)
     try:
         stock = yf.Ticker(ticker)
         info = stock.info or {}

@@ -17,6 +17,10 @@ EODHD_KEY     = os.getenv("EODHD_KEY", "")
 MARKETAUX_KEY = os.getenv("MARKETAUX_KEY", "")
 FRED_KEY      = os.getenv("FRED_API_KEY", "")
 
+# ── Storage ───────────────────────────────────────────────────────────────────
+# On Railway: set DB_PATH=/data/mkts.db and mount a persistent volume at /data
+DB_PATH = os.getenv("DB_PATH", "./mkts.db")
+
 # ── AI ────────────────────────────────────────────────────────────────────────
 ANTHROPIC_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 

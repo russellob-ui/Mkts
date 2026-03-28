@@ -13,6 +13,7 @@ or the ?session= query param.
 
 import datetime
 import logging
+import os
 from typing import AsyncGenerator
 
 from sqlalchemy import (
@@ -23,9 +24,15 @@ from sqlalchemy.ext.asyncio import (
 )
 from sqlalchemy.orm import declarative_base
 
+from config import DB_PATH
+
 logger = logging.getLogger(__name__)
 
-DATABASE_URL = "sqlite+aiosqlite:///./mkts.db"
+# Ensure the parent directory exists (e.g. /data on Railway with a mounted volume)
+_db_dir = os.path.dirname(os.path.abspath(DB_PATH))
+os.makedirs(_db_dir, exist_ok=True)
+
+DATABASE_URL = f"sqlite+aiosqlite:///{os.path.abspath(DB_PATH)}"
 
 _engine = create_async_engine(DATABASE_URL, echo=False, future=True)
 _async_session: async_sessionmaker[AsyncSession] = async_sessionmaker(

@@ -220,6 +220,20 @@
       retEl.textContent = ret != null ? fmtPct(ret) : '—';
       retEl.className = 'pf-sum-val ' + posNegClass(ret);
     }
+
+    // Day P/L — sum from holdings or from analytics summary
+    var dayEl = el('pf-sum-day');
+    if (dayEl) {
+      var dayPnl = s.dayPnL != null ? s.dayPnL : s.dayPnLGBP;
+      if (dayPnl == null && _holdings.length > 0) {
+        dayPnl = _holdings.reduce(function (sum, h) {
+          return sum + (h.dayPnL != null ? h.dayPnL : (h.dayPnlGbp != null ? h.dayPnlGbp : 0));
+        }, 0);
+      }
+      dayEl.textContent = dayPnl != null ? fmtGbp(dayPnl) : '—';
+      dayEl.className = 'pf-sum-val ' + posNegClass(dayPnl);
+    }
+
     setText('pf-sum-count', (_holdings.length || s.holdingsCount || '—').toString());
   }
 
@@ -291,33 +305,80 @@
       return 0;
     });
 
-    var html = '<table class="pf-table"><thead><tr>';
-    html += '<th>Security</th><th>Ticker</th><th class="num">Value</th><th class="num">Weight</th><th class="num">Cost</th><th class="num">G/L</th><th class="num">G/L %</th><th class="num">Price</th><th></th>';
-    html += '</tr></thead><tbody>';
+    var isMobile = window.innerWidth < 768;
+    var html = '';
 
-    sorted.forEach(function (h) {
-      var mv = h.marketValue || h.valueGbp;
-      var cost = h.costGbp;
-      var gl = h.gainLoss != null ? h.gainLoss : (mv != null && cost != null ? mv - cost : null);
-      var glPct = h.gainLossPct != null ? h.gainLossPct : h.unrealisedGlPct;
-      var glClass = posNegClass(gl);
-      var ticker = h.ticker || '';
-      var resolved = h.resolved !== false && ticker;
+    if (isMobile) {
+      // ── Card view for iPhone ──
+      html = '<div class="pf-cards">';
+      sorted.forEach(function (h) {
+        var mv = h.marketValue || h.marketValueGBP || h.valueGbp;
+        var cost = h.costGbp;
+        var gl = h.gainLoss != null ? h.gainLoss : (mv != null && cost != null ? mv - cost : null);
+        var glPct = h.gainLossPct != null ? h.gainLossPct : h.unrealisedGlPct;
+        var dayPnl = h.dayPnL != null ? h.dayPnL : h.dayPnlGbp;
+        var glClass = posNegClass(gl);
+        var dayClass = posNegClass(dayPnl);
+        var ticker = h.ticker || '';
+        var resolved = h.resolved !== false && ticker;
+        var wPct = h.weight != null ? (h.weight * 100) : h.weightPct;
 
-      html += '<tr class="pf-row">';
-      html += '<td class="pf-name" title="' + (h.isin || '') + '">' + (h.name || '—') + '</td>';
-      html += '<td class="pf-ticker">' + (resolved ? '<span class="pf-ticker-pill">' + ticker + '</span>' : '<span class="pf-unresolved">UNRESOLVED</span>') + '</td>';
-      html += '<td class="num">' + (mv != null ? fmtGbp(mv) : '—') + '</td>';
-      html += '<td class="num">' + (h.weightPct != null ? h.weightPct.toFixed(1) + '%' : '—') + '</td>';
-      html += '<td class="num">' + (cost != null ? fmtGbp(cost) : '—') + '</td>';
-      html += '<td class="num ' + glClass + '">' + (gl != null ? fmtGbp(gl) : '—') + '</td>';
-      html += '<td class="num ' + glClass + '">' + (glPct != null ? fmtPct(glPct) : '—') + '</td>';
-      html += '<td class="num">' + (h.currentPrice ? '£' + fmt(h.currentPrice) : (h.unitPrice ? '£' + fmt(h.unitPrice) : '—')) + '</td>';
-      html += '<td>' + (resolved ? '<button class="pf-terminal-btn" data-ticker="' + ticker + '" title="View in terminal">&#128200;</button>' : '') + '</td>';
-      html += '</tr>';
-    });
+        html += '<div class="pf-card">';
+        html += '<div class="pf-card-top">';
+        html += '<div class="pf-card-identity">';
+        html += '<span class="pf-card-name">' + (h.name || '—') + '</span>';
+        html += resolved ? '<span class="pf-ticker-pill">' + ticker + '</span>' : '<span class="pf-unresolved">UNRESOLVED</span>';
+        html += '</div>';
+        html += '<div class="pf-card-value">';
+        html += '<span class="pf-card-mv">' + (mv != null ? fmtGbp(mv) : '—') + '</span>';
+        html += wPct != null ? '<span class="pf-card-weight">' + wPct.toFixed(1) + '%</span>' : '';
+        html += '</div>';
+        html += '</div>';
+        html += '<div class="pf-card-bottom">';
+        html += '<div class="pf-card-stat"><span class="pf-card-stat-label">COST</span><span class="pf-card-stat-val">' + (cost != null ? fmtGbp(cost) : '—') + '</span></div>';
+        html += '<div class="pf-card-stat"><span class="pf-card-stat-label">G/L</span><span class="pf-card-stat-val ' + glClass + '">' + (gl != null ? fmtGbp(gl) : '—') + '</span></div>';
+        html += '<div class="pf-card-stat"><span class="pf-card-stat-label">G/L%</span><span class="pf-card-stat-val ' + glClass + '">' + (glPct != null ? fmtPct(glPct) : '—') + '</span></div>';
+        html += '<div class="pf-card-stat"><span class="pf-card-stat-label">DAY</span><span class="pf-card-stat-val ' + dayClass + '">' + (dayPnl != null ? fmtGbp(dayPnl) : '—') + '</span></div>';
+        if (resolved) html += '<button class="pf-terminal-btn" data-ticker="' + ticker + '" title="View">&#128200;</button>';
+        html += '</div>';
+        html += '</div>';
+      });
+      html += '</div>';
+    } else {
+      // ── Table view for iPad/Desktop ──
+      html = '<table class="pf-table"><thead><tr>';
+      html += '<th>Security</th><th>Ticker</th><th class="num">Value</th><th class="num">Weight</th><th class="num">Cost</th><th class="num">G/L</th><th class="num">G/L %</th><th class="num">Day P/L</th><th class="num">Price</th><th></th>';
+      html += '</tr></thead><tbody>';
 
-    html += '</tbody></table>';
+      sorted.forEach(function (h) {
+        var mv = h.marketValue || h.marketValueGBP || h.valueGbp;
+        var cost = h.costGbp;
+        var gl = h.gainLoss != null ? h.gainLoss : (mv != null && cost != null ? mv - cost : null);
+        var glPct = h.gainLossPct != null ? h.gainLossPct : h.unrealisedGlPct;
+        var dayPnl = h.dayPnL != null ? h.dayPnL : h.dayPnlGbp;
+        var glClass = posNegClass(gl);
+        var dayClass = posNegClass(dayPnl);
+        var ticker = h.ticker || '';
+        var resolved = h.resolved !== false && ticker;
+
+        html += '<tr class="pf-row">';
+        html += '<td class="pf-name" title="' + (h.isin || '') + '">' + (h.name || '—') + '</td>';
+        html += '<td class="pf-ticker">' + (resolved ? '<span class="pf-ticker-pill">' + ticker + '</span>' : '<span class="pf-unresolved">UNRESOLVED</span>') + '</td>';
+        html += '<td class="num">' + (mv != null ? fmtGbp(mv) : '—') + '</td>';
+        var wPct = h.weight != null ? (h.weight * 100) : h.weightPct;
+        html += '<td class="num">' + (wPct != null ? wPct.toFixed(1) + '%' : '—') + '</td>';
+        html += '<td class="num">' + (cost != null ? fmtGbp(cost) : '—') + '</td>';
+        html += '<td class="num ' + glClass + '">' + (gl != null ? fmtGbp(gl) : '—') + '</td>';
+        html += '<td class="num ' + glClass + '">' + (glPct != null ? fmtPct(glPct) : '—') + '</td>';
+        html += '<td class="num ' + dayClass + '">' + (dayPnl != null ? fmtGbp(dayPnl) : '—') + '</td>';
+        html += '<td class="num">' + (h.price ? '£' + fmt(h.price) : (h.currentPrice ? '£' + fmt(h.currentPrice) : (h.unitPrice ? '£' + fmt(h.unitPrice) : '—'))) + '</td>';
+        html += '<td>' + (resolved ? '<button class="pf-terminal-btn" data-ticker="' + ticker + '" title="View in terminal">&#128200;</button>' : '') + '</td>';
+        html += '</tr>';
+      });
+
+      html += '</tbody></table>';
+    }
+
     container.innerHTML = html;
 
     // Wire terminal buttons
