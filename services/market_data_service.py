@@ -164,11 +164,17 @@ async def get_quote(ticker: str) -> QuoteData:
     eo_quote = eo_quote or {}
     eo_search = eo_search or {}
 
+    is_uk = normalized.endswith(".L")
     price = _first_float(fh_quote.get("c"), eo_quote.get("close"))
 
-    yf_data = {}
+    yf_data: dict = {}
+    loop = asyncio.get_running_loop()
+
     if price is None:
-        loop = asyncio.get_running_loop()
+        # Both Finnhub and EODHD returned nothing — try yfinance as last resort
+        if is_uk:
+            # On Railway, yfinance gets blocked for UK tickers; raise immediately
+            raise DataNotFoundError(normalized)
         try:
             yf_data = await loop.run_in_executor(
                 None, partial(yfinance_service.fetch_quote, normalized)
@@ -182,8 +188,8 @@ async def get_quote(ticker: str) -> QuoteData:
     if price is None or price == 0:
         raise DataNotFoundError(normalized)
 
-    if not yf_data:
-        loop = asyncio.get_running_loop()
+    # For non-UK tickers fetch yfinance for marketState / name supplemental data
+    if not yf_data and not is_uk:
         try:
             yf_data = await loop.run_in_executor(
                 None, partial(yfinance_service.fetch_quote, normalized)
@@ -235,21 +241,38 @@ async def get_company(ticker: str) -> CompanyData:
     eo_quote = eo_quote or {}
     eo_search = eo_search or {}
 
-    loop = asyncio.get_running_loop()
-    try:
-        yf_data = await loop.run_in_executor(
-            None, partial(yfinance_service.fetch_company, normalized)
-        )
-    except DataNotFoundError:
-        yf_data = {}
-    except Exception:
-        yf_data = {}
+    # For UK (LSE) tickers EODHD is the primary source; yfinance gets blocked
+    # on Railway cloud IPs. Only call yfinance for non-UK tickers or as a
+    # last-resort fallback when both Finnhub and EODHD return nothing.
+    is_uk = normalized.endswith(".L")
 
     price = _first_float(
         fh_quote.get("c"),
         eo_quote.get("close"),
-        yf_data.get("price"),
     )
+
+    loop = asyncio.get_running_loop()
+    yf_data: dict = {}
+
+    if price is None or (price == 0 and not is_uk):
+        # Try yfinance only when EODHD + Finnhub both failed
+        try:
+            yf_data = await loop.run_in_executor(
+                None, partial(yfinance_service.fetch_company, normalized)
+            )
+        except DataNotFoundError:
+            yf_data = {}
+        except Exception:
+            yf_data = {}
+        price = _first_float(price, yf_data.get("price"))
+    elif not is_uk:
+        # Non-UK: fetch yfinance in background for supplemental fields
+        try:
+            yf_data = await loop.run_in_executor(
+                None, partial(yfinance_service.fetch_company, normalized)
+            )
+        except Exception:
+            yf_data = {}
 
     if price is None or price == 0:
         raise DataNotFoundError(normalized)
