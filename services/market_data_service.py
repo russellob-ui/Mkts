@@ -215,12 +215,13 @@ async def get_company(ticker: str) -> CompanyData:
     if not normalized:
         raise DataNotFoundError("empty ticker")
 
-    fh_quote, fh_profile, fh_metrics, eo_quote, eo_search = await asyncio.gather(
+    fh_quote, fh_profile, fh_metrics, eo_quote, eo_search, eo_fund = await asyncio.gather(
         finnhub_service.fetch_quote(normalized),
         finnhub_service.fetch_profile(normalized),
         finnhub_service.fetch_metrics(normalized),
         eodhd_service.fetch_quote(normalized),
         eodhd_service.fetch_search(normalized),
+        eodhd_service.fetch_fundamentals(normalized),
         return_exceptions=True,
     )
 
@@ -234,45 +235,20 @@ async def get_company(ticker: str) -> CompanyData:
         eo_quote = None
     if isinstance(eo_search, Exception):
         eo_search = None
+    if isinstance(eo_fund, Exception):
+        eo_fund = None
 
     fh_quote = fh_quote or {}
     fh_profile = fh_profile or {}
     fh_metrics = fh_metrics or {}
     eo_quote = eo_quote or {}
     eo_search = eo_search or {}
-
-    # For UK (LSE) tickers EODHD is the primary source; yfinance gets blocked
-    # on Railway cloud IPs. Only call yfinance for non-UK tickers or as a
-    # last-resort fallback when both Finnhub and EODHD return nothing.
-    is_uk = normalized.endswith(".L")
+    eo_fund = eo_fund or {}
 
     price = _first_float(
         fh_quote.get("c"),
         eo_quote.get("close"),
     )
-
-    loop = asyncio.get_running_loop()
-    yf_data: dict = {}
-
-    if price is None or (price == 0 and not is_uk):
-        # Try yfinance only when EODHD + Finnhub both failed
-        try:
-            yf_data = await loop.run_in_executor(
-                None, partial(yfinance_service.fetch_company, normalized)
-            )
-        except DataNotFoundError:
-            yf_data = {}
-        except Exception:
-            yf_data = {}
-        price = _first_float(price, yf_data.get("price"))
-    elif not is_uk:
-        # Non-UK: fetch yfinance in background for supplemental fields
-        try:
-            yf_data = await loop.run_in_executor(
-                None, partial(yfinance_service.fetch_company, normalized)
-            )
-        except Exception:
-            yf_data = {}
 
     if price is None or price == 0:
         raise DataNotFoundError(normalized)
@@ -280,7 +256,6 @@ async def get_company(ticker: str) -> CompanyData:
     prev_close = _first_float(
         fh_quote.get("pc"),
         eo_quote.get("previousClose"),
-        yf_data.get("previousClose"),
     )
 
     change = _first_float(fh_quote.get("d"), eo_quote.get("change"))
@@ -291,39 +266,38 @@ async def get_company(ticker: str) -> CompanyData:
     if change_pct is None and prev_close and prev_close > 0:
         change_pct = round(((price - prev_close) / prev_close) * 100, 4)
 
-    change = change if change is not None else (yf_data.get("change") or 0.0)
-    change_pct = change_pct if change_pct is not None else (yf_data.get("changePct") or 0.0)
+    change = change if change is not None else 0.0
+    change_pct = change_pct if change_pct is not None else 0.0
 
     dividend_yield = _normalize_dividend_yield(
-        _first_positive(fh_metrics.get("dividendYieldIndicatedAnnual"), yf_data.get("dividendYield"))
+        _first_positive(fh_metrics.get("dividendYieldIndicatedAnnual"), eo_fund.get("dividendYield"))
     )
 
-    raw_country = _first_str(fh_profile.get("country"), eo_search.get("Country"), yf_data.get("country"))
-    raw_market_state = _first_str(yf_data.get("marketState"))
+    raw_country = _first_str(fh_profile.get("country"), eo_search.get("Country"), eo_fund.get("country"))
 
     return CompanyData(
         ticker=normalized,
-        name=_first_str(fh_profile.get("name"), eo_search.get("Name"), yf_data.get("name")) or normalized,
+        name=_first_str(fh_profile.get("name"), eo_search.get("Name"), eo_fund.get("name")) or normalized,
         price=round(price, 4),
         change=round(change, 4),
         changePct=round(change_pct, 4),
-        currency=_first_str(fh_profile.get("currency"), eo_search.get("Currency"), yf_data.get("currency")) or "USD",
-        marketState=_normalize_market_state(raw_market_state),
-        marketCap=_first_float(fh_profile.get("marketCapitalization"), yf_data.get("marketCap")),
-        trailingPE=_first_float(fh_metrics.get("peTTM"), yf_data.get("trailingPE")),
-        forwardPE=_first_float(yf_data.get("forwardPE")),
+        currency=_first_str(fh_profile.get("currency"), eo_search.get("Currency")) or "USD",
+        marketState="UNKNOWN",
+        marketCap=_first_float(fh_profile.get("marketCapitalization"), eo_fund.get("marketCap")),
+        trailingPE=_first_float(fh_metrics.get("peTTM"), eo_fund.get("trailingPE")),
+        forwardPE=_first_float(eo_fund.get("forwardPE")),
         dividendYield=dividend_yield,
-        volume=_first_int(eo_quote.get("volume"), yf_data.get("volume")),
-        averageVolume=_first_int(fh_metrics.get("3MonthAverageTradingVolume"), yf_data.get("averageVolume")),
-        open=_first_float(fh_quote.get("o"), eo_quote.get("open"), yf_data.get("open")),
-        dayHigh=_first_float(fh_quote.get("h"), eo_quote.get("high"), yf_data.get("dayHigh")),
-        dayLow=_first_float(fh_quote.get("l"), eo_quote.get("low"), yf_data.get("dayLow")),
+        volume=_first_int(eo_quote.get("volume")),
+        averageVolume=_first_int(fh_metrics.get("3MonthAverageTradingVolume")),
+        open=_first_float(fh_quote.get("o"), eo_quote.get("open")),
+        dayHigh=_first_float(fh_quote.get("h"), eo_quote.get("high")),
+        dayLow=_first_float(fh_quote.get("l"), eo_quote.get("low")),
         previousClose=prev_close,
-        fiftyTwoWeekHigh=_first_float(fh_metrics.get("52WeekHigh"), yf_data.get("fiftyTwoWeekHigh")),
-        fiftyTwoWeekLow=_first_float(fh_metrics.get("52WeekLow"), yf_data.get("fiftyTwoWeekLow")),
-        sector=_first_str(yf_data.get("sector")),
-        industry=_first_str(yf_data.get("industry"), fh_profile.get("finnhubIndustry")),
+        fiftyTwoWeekHigh=_first_float(fh_metrics.get("52WeekHigh"), eo_fund.get("fiftyTwoWeekHigh")),
+        fiftyTwoWeekLow=_first_float(fh_metrics.get("52WeekLow"), eo_fund.get("fiftyTwoWeekLow")),
+        sector=_first_str(eo_fund.get("sector")),
+        industry=_first_str(eo_fund.get("industry"), fh_profile.get("finnhubIndustry")),
         country=_normalize_country(raw_country),
-        website=_first_str(fh_profile.get("weburl"), yf_data.get("website")),
-        longBusinessSummary=_first_str(yf_data.get("longBusinessSummary")),
+        website=_first_str(fh_profile.get("weburl"), eo_fund.get("website")),
+        longBusinessSummary=_first_str(eo_fund.get("longBusinessSummary")),
     )

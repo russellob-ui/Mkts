@@ -76,7 +76,7 @@ def _detect_format(headers: list[str], sheet_name: str) -> str:
 
 _COL_SYNONYMS = {
     "name":       ["security", "description", "stock", "holding", "asset", "instrument", "name"],
-    "isin":       ["isin"],
+    "isin":       ["isin", "security code", "stock code", "sec code", "identifier", "reference", "sedol/isin"],
     "sedol":      ["sedol"],
     "quantity":   ["quantity", "units", "shares", "nominal", "qty"],
     "unit_price": ["price", "unit price", "unit cost", "price (p)", "price (£)", "bid price"],
@@ -209,6 +209,16 @@ def _parse_sheet_rows(rows: list[list], filename: str) -> ParseResult:
     headers = [str(v).strip() if v is not None else "" for v in rows[header_row_idx]]
     result.format_detected = _detect_format(headers, filename)
     col_map = _map_columns(headers)
+
+    # If ISIN column not found via synonyms, scan first data rows for ISIN-pattern cells
+    if "isin" not in col_map:
+        for probe_row in rows[header_row_idx + 1: header_row_idx + 6]:
+            for col_idx, cell in enumerate(probe_row):
+                if cell and _ISIN_RE.match(str(cell).strip().upper()):
+                    col_map["isin"] = col_idx
+                    break
+            if "isin" in col_map:
+                break
 
     if "name" not in col_map:
         result.parse_errors.append("Could not locate security name column")
