@@ -12,6 +12,20 @@ from routers.search import router as search_router
 from routers.macro import router as macro_router
 from routers.portfolio_import import router as portfolio_router
 from routers.db_portfolio import router as db_router
+from routers.home import router as home_router
+from routers.news import router as news_router
+from routers.financials import router as financials_router
+from routers.peers import router as peers_router
+from routers.events import router as events_router
+from routers.charts import router as charts_router
+from routers.compare import router as compare_router
+from routers.markets import router as markets_router
+from routers.market_monitor import router as market_monitor_router
+from routers.options import router as options_router
+from routers.alerts import router as alerts_router
+from routers.brief import router as brief_router
+from routers.ai import router as ai_router
+from routers.ws import router as ws_router
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -41,6 +55,20 @@ app.include_router(search_router)
 app.include_router(macro_router)
 app.include_router(portfolio_router)
 app.include_router(db_router)
+app.include_router(home_router)
+app.include_router(news_router)
+app.include_router(financials_router)
+app.include_router(peers_router)
+app.include_router(events_router)
+app.include_router(charts_router)
+app.include_router(compare_router)
+app.include_router(markets_router)
+app.include_router(market_monitor_router)
+app.include_router(options_router)
+app.include_router(alerts_router)
+app.include_router(brief_router)
+app.include_router(ai_router)
+app.include_router(ws_router)
 
 # Serve Vite build assets
 _assets = DIST_DIR / "assets"
