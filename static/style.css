@@ -64,28 +64,28 @@
 /* ===== SEMANTIC TOKENS: Terminal Dark (Default) ===== */
 :root,
 [data-theme="terminal"][data-mode="dark"] {
-  --bg-app: #000000;
-  --bg-surface: #111111;
-  --bg-surface-alt: #1c1c1e;
-  --bg-overlay: rgba(0,0,0,0.92);
-  --text-primary: #ffffff;
-  --text-secondary: #aeaeb2;
-  --text-tertiary: #636366;
-  --text-accent: #00C805;
-  --border-default: #2c2c2e;
-  --border-subtle: #1c1c1e;
-  --accent: #00C805;
-  --accent-hover: #00e006;
-  --accent-bg: rgba(0,200,5,0.12);
-  --positive: #00C805;
-  --positive-bg: rgba(0,200,5,0.12);
-  --negative: #ff5000;
-  --negative-bg: rgba(255,80,0,0.12);
-  --shadow-sm: 0 2px 8px rgba(0,0,0,0.5);
-  --shadow-md: 0 8px 24px rgba(0,0,0,0.6);
-  --chart-bg: #000000;
-  --chart-grid: #1c1c1e;
-  --chart-text: #636366;
+  --bg-app: #0d0f17;
+  --bg-surface: #151821;
+  --bg-surface-alt: #1e2130;
+  --bg-overlay: rgba(13,15,23,0.95);
+  --text-primary: #e8eaf0;
+  --text-secondary: #8b90a8;
+  --text-tertiary: #4a5070;
+  --text-accent: #60a5fa;
+  --border-default: #252840;
+  --border-subtle: #1a1d2e;
+  --accent: #3b82f6;
+  --accent-hover: #60a5fa;
+  --accent-bg: rgba(59,130,246,0.15);
+  --positive: #22c55e;
+  --positive-bg: rgba(34,197,94,0.12);
+  --negative: #ef4444;
+  --negative-bg: rgba(239,68,68,0.12);
+  --shadow-sm: 0 2px 8px rgba(0,0,0,0.6);
+  --shadow-md: 0 8px 32px rgba(0,0,0,0.7);
+  --chart-bg: #0d0f17;
+  --chart-grid: #1e2130;
+  --chart-text: #4a5070;
 }
 
 [data-theme="terminal"][data-mode="light"] {
@@ -323,10 +323,10 @@ body {
   align-items: center;
   gap: var(--space-sm);
   padding: var(--space-sm) var(--space-md);
-  background: rgba(0,0,0,0.85);
+  background: var(--bg-surface);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
-  border-bottom: 1px solid var(--border-subtle);
+  border-bottom: 1px solid var(--border-default);
   position: sticky;
   top: 0;
   z-index: 100;
@@ -344,7 +344,7 @@ body {
 }
 
 .header-logo .logo-slash {
-  color: var(--positive);
+  color: var(--accent);
 }
 
 .header-search {
@@ -374,7 +374,7 @@ body {
 }
 
 .header-search input:focus {
-  border-color: var(--positive);
+  border-color: var(--accent);
 }
 
 .header-search input::placeholder {
@@ -383,8 +383,8 @@ body {
 }
 
 .header-search .btn-go {
-  background: var(--positive);
-  color: #000000;
+  background: var(--accent);
+  color: #ffffff;
   border: none;
   border-radius: var(--radius-pill);
   font-family: var(--font-sans);
@@ -606,6 +606,10 @@ body {
   color: var(--accent);
 }
 
+.btab.active {
+  border-top: 2px solid var(--accent);
+}
+
 .btab svg {
   width: 20px;
   height: 20px;
@@ -618,8 +622,8 @@ body {
 
 /* ===== WATCHLIST RAIL ===== */
 .rail {
-  background: var(--bg-app);
-  border-right: 1px solid var(--border-subtle);
+  background: var(--bg-surface);
+  border-right: 1px solid var(--border-default);
   overflow-y: auto;
   padding: var(--space-sm);
 }
@@ -1028,21 +1032,23 @@ body {
 .section-label {
   font-family: var(--font-sans);
   font-size: var(--text-section);
-  font-weight: 800;
-  color: var(--text-secondary);
-  letter-spacing: 0.12em;
+  font-weight: 700;
+  color: var(--accent);
+  letter-spacing: 0.1em;
   text-transform: uppercase;
   margin-bottom: var(--space-sm);
   display: flex;
   align-items: center;
   gap: 8px;
+  padding-left: 8px;
+  border-left: 2px solid var(--accent);
 }
 
 .section-label::after {
   content: '';
   flex: 1;
   height: 1px;
-  background: var(--border-subtle);
+  background: var(--border-default);
 }
 
 /* ===== RESPONSIVE GRIDS ===== */
@@ -1634,25 +1640,26 @@ body {
 }
 
 .home-stat {
-  background: var(--bg-surface-alt);
+  background: var(--bg-surface);
   padding: var(--space-md) var(--space-lg);
   display: flex;
   flex-direction: column;
   gap: 4px;
   border-radius: var(--radius);
-  border: 1px solid var(--border-subtle);
+  border: 1px solid var(--border-default);
   border-left: 3px solid transparent;
+  box-shadow: var(--shadow-sm);
   transition: border-left-color 0.2s, box-shadow 0.2s;
 }
 
 .home-stat.kpi-high {
   border-left-color: var(--positive);
-  box-shadow: 0 0 0 1px rgba(0,200,5,0.15), inset 0 0 20px rgba(0,200,5,0.04);
+  box-shadow: var(--shadow-sm), 0 0 0 1px rgba(34,197,94,0.1);
 }
 
 .home-stat.kpi-low {
   border-left-color: var(--negative);
-  box-shadow: 0 0 0 1px rgba(255,80,0,0.15), inset 0 0 20px rgba(255,80,0,0.04);
+  box-shadow: var(--shadow-sm), 0 0 0 1px rgba(239,68,68,0.1);
 }
 
 .home-stat.kpi-accent {

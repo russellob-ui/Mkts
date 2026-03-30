@@ -1,13 +1,9 @@
 fastapi==0.135.2
 uvicorn==0.42.0
-yfinance==1.2.0
 aiohttp==3.13.3
 
 # Environment & config
 python-dotenv
-
-# AI
-anthropic==0.86.0
 
 # Database
 sqlalchemy[asyncio]==2.0.48
@@ -16,11 +12,11 @@ aiosqlite==0.22.1
 # Cache (Redis optional — falls back to in-memory if not installed/running)
 redis[asyncio]==7.4.0
 
-# WebSocket (Finnhub live prices)
-websockets==16.0
-
 # Portfolio Excel parsing (Brewin Dolphin, HL, Quilter, etc.)
 openpyxl==3.1.5
 
 # File upload support (required by FastAPI for multipart/form-data)
 python-multipart==0.0.20
+
+# Macro data (FRED uses requests, ONS uses stdlib urllib)
+requests
