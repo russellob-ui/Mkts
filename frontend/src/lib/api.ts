@@ -1,198 +1,109 @@
-/** API client — all calls go to /api/* on the same origin */
+import type { CompanyDetail, Quote, ChartResponse, MonitorItem, MarketItem, SearchResult, ChartPeriod } from '@/types/market'
+import type { Portfolio, ImportResult } from '@/types/portfolio'
+import type { Financials } from '@/types/financials'
+import type { NewsArticle } from '@/types/news'
+import type { Brief } from '@/types/ai'
 
-const SESSION_KEY = 'mkts_session_id'
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || ''
 
 function getSessionId(): string {
-  let id = localStorage.getItem(SESSION_KEY)
-  if (!id) {
-    id = crypto.randomUUID()
-    localStorage.setItem(SESSION_KEY, id)
+  if (typeof window === 'undefined') return 'default'
+  let sid = localStorage.getItem('mkts_session_id')
+  if (!sid) {
+    sid = crypto.randomUUID()
+    localStorage.setItem('mkts_session_id', sid)
   }
-  return id
+  return sid
 }
 
-async function get<T>(path: string): Promise<T> {
-  const res = await fetch(path, {
-    headers: { 'X-Session-Id': getSessionId() },
-  })
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({}))
-    throw new Error(body.error || `HTTP ${res.status}`)
-  }
-  return res.json()
-}
-
-async function post<T>(path: string, body: unknown): Promise<T> {
-  const res = await fetch(path, {
-    method: 'POST',
+async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
+  const res = await fetch(`${API_BASE}${path}`, {
     headers: {
       'Content-Type': 'application/json',
       'X-Session-Id': getSessionId(),
+      ...options?.headers,
     },
-    body: JSON.stringify(body),
+    ...options,
   })
   if (!res.ok) {
-    const b = await res.json().catch(() => ({}))
-    throw new Error(b.error || `HTTP ${res.status}`)
+    const err = await res.json().catch(() => ({ detail: 'Unknown error' }))
+    throw new Error(err.detail || `API error ${res.status}`)
   }
-  return res.json()
+  const data = await res.json()
+  return data.data ?? data
 }
 
-async function del<T>(path: string): Promise<T> {
-  const res = await fetch(path, {
-    method: 'DELETE',
-    headers: { 'X-Session-Id': getSessionId() },
-  })
-  if (!res.ok) throw new Error(`HTTP ${res.status}`)
-  return res.json()
+export const api = {
+  // Market data
+  quote: (ticker: string) =>
+    apiFetch<Quote>(`/api/quote?ticker=${encodeURIComponent(ticker)}`),
+  company: (ticker: string) =>
+    apiFetch<CompanyDetail>(`/api/company?ticker=${encodeURIComponent(ticker)}`),
+  search: (q: string) =>
+    apiFetch<SearchResult[]>(`/api/search?q=${encodeURIComponent(q)}`),
+  charts: (ticker: string, period: ChartPeriod = '1y') =>
+    apiFetch<ChartResponse>(`/api/charts?ticker=${encodeURIComponent(ticker)}&period=${period}`),
+  financials: (ticker: string) =>
+    apiFetch<Financials>(`/api/financials?ticker=${encodeURIComponent(ticker)}`),
+  peers: (ticker: string) =>
+    apiFetch<CompanyDetail[]>(`/api/peers?ticker=${encodeURIComponent(ticker)}`),
+  options: (ticker: string) =>
+    apiFetch<unknown>(`/api/options?ticker=${encodeURIComponent(ticker)}`),
+
+  // Portfolio
+  portfolio: () => apiFetch<Portfolio>('/api/db/portfolio'),
+  portfolioAnalytics: () => apiFetch<Portfolio>('/api/portfolio/analytics'),
+  portfolioImport: (formData: FormData) =>
+    fetch(`${API_BASE}/api/portfolio/import`, {
+      method: 'POST',
+      headers: { 'X-Session-Id': getSessionId() },
+      body: formData,
+    }).then((r) => r.json()) as Promise<ImportResult>,
+
+  // Watchlist
+  watchlist: () => apiFetch<string[]>('/api/db/watchlist'),
+  watchlistAdd: (ticker: string) =>
+    apiFetch<unknown>('/api/db/watchlist', {
+      method: 'POST',
+      body: JSON.stringify({ ticker }),
+    }),
+  watchlistRemove: (ticker: string) =>
+    apiFetch<unknown>(`/api/db/watchlist/${encodeURIComponent(ticker)}`, {
+      method: 'DELETE',
+    }),
+
+  // Alerts
+  alerts: () => apiFetch<unknown[]>('/api/db/alerts'),
+  alertCreate: (alert: { ticker: string; alert_type: string; value: number }) =>
+    apiFetch<unknown>('/api/db/alerts', {
+      method: 'POST',
+      body: JSON.stringify(alert),
+    }),
+  alertDelete: (id: number) =>
+    apiFetch<unknown>(`/api/db/alerts/${id}`, { method: 'DELETE' }),
+  alertsCheck: (tickers: string) =>
+    apiFetch<unknown>(`/api/alerts/check?tickers=${encodeURIComponent(tickers)}`),
+
+  // News
+  news: (ticker?: string) =>
+    apiFetch<NewsArticle[]>(
+      `/api/news${ticker ? `?ticker=${encodeURIComponent(ticker)}` : ''}`
+    ),
+
+  // Markets
+  markets: () => apiFetch<MarketItem[]>('/api/markets'),
+  marketMonitor: () => apiFetch<MonitorItem[]>('/api/market-monitor'),
+
+  // Macro
+  macro: () => apiFetch<unknown>('/api/macro'),
+
+  // AI
+  brief: (ticker?: string, mode?: 'concise' | 'analyst') =>
+    apiFetch<Brief>(
+      `/api/brief${ticker ? `?ticker=${encodeURIComponent(ticker)}` : ''}${mode ? `${ticker ? '&' : '?'}mode=${mode}` : ''}`
+    ),
+
+  // Home (company + events + performance)
+  home: (ticker: string) =>
+    apiFetch<unknown>(`/api/home?ticker=${encodeURIComponent(ticker)}`),
 }
-
-// ── Types ────────────────────────────────────────────────────────────────────
-
-export interface QuoteData {
-  ticker: string
-  name: string
-  price: number
-  change: number
-  changePct: number
-  currency: string
-  marketState?: string
-}
-
-export interface CompanyData extends QuoteData {
-  marketCap?: number
-  trailingPE?: number
-  forwardPE?: number
-  dividendYield?: number
-  volume?: number
-  averageVolume?: number
-  open?: number
-  dayHigh?: number
-  dayLow?: number
-  previousClose?: number
-  fiftyTwoWeekHigh?: number
-  fiftyTwoWeekLow?: number
-  sector?: string
-  industry?: string
-  country?: string
-  website?: string
-  longBusinessSummary?: string
-}
-
-export interface MacroData {
-  fedRate?: number
-  boeRate?: number
-  cpiUs?: number
-  ukCpi?: number
-  ukGdp?: number
-  yield10y?: number
-  yield2y?: number
-  yieldSpread?: number
-  yieldCurve?: string
-  vix?: number
-  hasData?: boolean
-}
-
-export interface SearchResult {
-  symbol: string
-  name: string
-  type: string
-  exchange: string
-}
-
-export interface Holding {
-  name: string
-  ticker: string
-  isin: string
-  quantity?: number
-  unitPrice?: number
-  valueGbp?: number
-  costGbp?: number
-  unrealisedGl?: number
-  unrealisedGlPct?: number
-  currency: string
-  assetClass: string
-  weightPct?: number
-  resolved: boolean
-}
-
-export interface PortfolioResult {
-  success: boolean
-  formatDetected: string
-  totalHoldings: number
-  resolvedCount: number
-  totalValueGbp: number
-  totalCostGbp: number
-  holdings: Holding[]
-  parseErrors: string[]
-}
-
-export interface Alert {
-  id?: number
-  ticker: string
-  alertType: string  // "above" | "below"
-  value: number
-}
-
-// ── API calls ────────────────────────────────────────────────────────────────
-
-export async function fetchQuote(ticker: string): Promise<QuoteData> {
-  const res = await get<{ success: boolean; data: QuoteData; error?: string }>(`/api/quote?ticker=${encodeURIComponent(ticker)}`)
-  if (!res.success) throw new Error(res.error || 'Quote unavailable')
-  return res.data
-}
-
-export async function fetchCompany(ticker: string): Promise<CompanyData> {
-  const res = await get<{ success: boolean; data: CompanyData; error?: string }>(`/api/company?ticker=${encodeURIComponent(ticker)}`)
-  if (!res.success) throw new Error(res.error || 'Company data unavailable')
-  return res.data
-}
-
-export async function fetchMacro(): Promise<MacroData> {
-  const res = await get<{ success: boolean; data: MacroData }>('/api/macro/snapshot')
-  return res.data || {}
-}
-
-export async function fetchSearch(q: string): Promise<SearchResult[]> {
-  if (!q.trim()) return []
-  const res = await get<{ success: boolean; results: SearchResult[] }>(`/api/search?q=${encodeURIComponent(q)}`)
-  return res.results || []
-}
-
-export async function uploadPortfolio(file: File): Promise<PortfolioResult> {
-  const form = new FormData()
-  form.append('file', file)
-  form.append('save', 'true')
-  const res = await fetch('/api/portfolio/import', {
-    method: 'POST',
-    headers: { 'X-Session-Id': getSessionId() },
-    body: form,
-  })
-  if (!res.ok) {
-    const b = await res.json().catch(() => ({}))
-    throw new Error(b.error || `Upload failed: HTTP ${res.status}`)
-  }
-  return res.json()
-}
-
-// Watchlist (persisted in DB)
-export async function getWatchlist(): Promise<string[]> {
-  const res = await get<{ success: boolean; data: string[] }>('/api/db/watchlist')
-  return res.data || []
-}
-
-export async function saveWatchlist(tickers: string[]): Promise<void> {
-  await post('/api/db/watchlist', { tickers })
-}
-
-// Alerts (persisted in DB)
-export async function getAlerts(): Promise<Alert[]> {
-  const res = await get<{ success: boolean; data: Alert[] }>('/api/db/alerts')
-  return res.data || []
-}
-
-export async function saveAlerts(alerts: Alert[]): Promise<void> {
-  await post('/api/db/alerts', { alerts })
-}
-
-export { del }
