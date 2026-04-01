@@ -26,6 +26,7 @@ from routers.alerts import router as alerts_router
 from routers.brief import router as brief_router
 from routers.ai import router as ai_router
 from routers.ws import router as ws_router
+from routers.terminal import router as terminal_router
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -69,6 +70,7 @@ app.include_router(alerts_router)
 app.include_router(brief_router)
 app.include_router(ai_router)
 app.include_router(ws_router)
+app.include_router(terminal_router)
 
 # Serve Vite build assets
 _assets = DIST_DIR / "assets"
