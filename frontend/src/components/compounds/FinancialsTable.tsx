@@ -8,7 +8,7 @@ interface FinancialsTableProps {
   isLoading?: boolean
 }
 
-const metricRows = [
+const metricRows: Array<{ key: string; label: string; format?: string }> = [
   { key: 'revenue', label: 'Revenue' },
   { key: 'grossProfit', label: 'Gross Profit' },
   { key: 'operatingIncome', label: 'Operating Income' },
@@ -19,7 +19,7 @@ const metricRows = [
   { key: 'totalAssets', label: 'Total Assets' },
   { key: 'totalDebt', label: 'Total Debt' },
   { key: 'totalEquity', label: 'Equity' },
-] as const
+]
 
 export function FinancialsTable({ data, isLoading }: FinancialsTableProps) {
   if (isLoading) {

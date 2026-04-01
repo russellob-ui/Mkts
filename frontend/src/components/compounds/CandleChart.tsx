@@ -1,6 +1,6 @@
 'use client'
 import { useEffect, useRef } from 'react'
-import { createChart, type IChartApi, type ISeriesApi, ColorType } from 'lightweight-charts'
+import { createChart, CandlestickSeries, HistogramSeries, ColorType, type IChartApi } from 'lightweight-charts'
 import type { Candle } from '@/types/market'
 import { useUIStore } from '@/stores/uiStore'
 import { Skeleton } from '@/components/primitives/Skeleton'
@@ -14,8 +14,8 @@ interface CandleChartProps {
 export function CandleChart({ candles, isLoading, height = 360 }: CandleChartProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const chartRef = useRef<IChartApi | null>(null)
-  const seriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null)
-  const volumeRef = useRef<ISeriesApi<'Histogram'> | null>(null)
+  const seriesRef = useRef<ReturnType<IChartApi['addSeries']> | null>(null)
+  const volumeRef = useRef<ReturnType<IChartApi['addSeries']> | null>(null)
   const theme = useUIStore((s) => s.theme)
 
   const isDark = theme === 'dark'
@@ -49,7 +49,8 @@ export function CandleChart({ candles, isLoading, height = 360 }: CandleChartPro
       },
     })
 
-    const candleSeries = chart.addCandlestickSeries({
+    // lightweight-charts v5: use addSeries(SeriesType, options)
+    const candleSeries = chart.addSeries(CandlestickSeries, {
       upColor: '#10B981',
       downColor: '#EF4444',
       borderUpColor: '#10B981',
@@ -58,7 +59,7 @@ export function CandleChart({ candles, isLoading, height = 360 }: CandleChartPro
       wickDownColor: '#EF444499',
     })
 
-    const volumeSeries = chart.addHistogramSeries({
+    const volumeSeries = chart.addSeries(HistogramSeries, {
       priceFormat: { type: 'volume' },
       priceScaleId: 'volume',
     })
@@ -111,7 +112,7 @@ export function CandleChart({ candles, isLoading, height = 360 }: CandleChartPro
   }, [candles])
 
   if (isLoading) {
-    return <Skeleton className="w-full" style={{ height }} />
+    return <div style={{ height }}><Skeleton className="w-full h-full" /></div>
   }
 
   if (!candles || candles.length === 0) {
