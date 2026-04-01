@@ -82,13 +82,27 @@ export function CommandPalette() {
           </div>
 
           <Command.List className="max-h-80 overflow-y-auto py-2">
-            {/* Live search results */}
+            {/* Always show lookup option when typing */}
+            {query.length >= 1 && (
+              <Command.Group heading="Ticker" className="px-2">
+                <Command.Item
+                  value={`lookup-${query}`}
+                  onSelect={() => goToTicker(query)}
+                  className="flex items-center gap-3 px-3 py-2 rounded-lg text-[12px] cursor-pointer text-[var(--color-text-primary)] hover:bg-[var(--color-bg-elevated)] aria-selected:bg-[var(--color-accent-dim)]"
+                >
+                  <Search size={13} className="text-[var(--color-accent)]" />
+                  Look up <strong className="text-[var(--color-accent-bright)]">{query.toUpperCase()}</strong>
+                </Command.Item>
+              </Command.Group>
+            )}
+
+            {/* Live search results from Finnhub */}
             {debouncedQuery.length >= 1 && searchResults && searchResults.length > 0 && (
-              <Command.Group heading="Tickers" className="px-2">
+              <Command.Group heading="Results" className="px-2">
                 {searchResults.slice(0, 8).map((result) => (
                   <Command.Item
                     key={result.symbol}
-                    value={result.symbol}
+                    value={`result-${result.symbol}`}
                     onSelect={() => goToTicker(result.symbol)}
                     className="flex items-center gap-3 px-3 py-2 rounded-lg text-[12px] cursor-pointer text-[var(--color-text-primary)] hover:bg-[var(--color-bg-elevated)] aria-selected:bg-[var(--color-accent-dim)] aria-selected:text-[var(--color-accent-bright)]"
                   >
@@ -111,19 +125,6 @@ export function CommandPalette() {
               <div className="px-5 py-3 text-[12px] text-[var(--color-text-muted)]">
                 Searching...
               </div>
-            )}
-
-            {/* Fallback: manual ticker lookup */}
-            {query.length >= 1 && (!searchResults || searchResults.length === 0) && !searching && (
-              <Command.Group heading="Ticker" className="px-2">
-                <Command.Item
-                  onSelect={() => goToTicker(query)}
-                  className="flex items-center gap-3 px-3 py-2 rounded-lg text-[12px] cursor-pointer text-[var(--color-text-primary)] hover:bg-[var(--color-bg-elevated)] aria-selected:bg-[var(--color-accent-dim)]"
-                >
-                  <Search size={13} className="text-[var(--color-accent)]" />
-                  Look up <strong className="text-[var(--color-accent-bright)]">{query.toUpperCase()}</strong>
-                </Command.Item>
-              </Command.Group>
             )}
 
             {/* Navigate */}
