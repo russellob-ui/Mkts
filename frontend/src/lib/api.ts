@@ -39,8 +39,11 @@ export const api = {
     apiFetch<Quote>(`/api/quote?ticker=${encodeURIComponent(ticker)}`),
   company: (ticker: string) =>
     apiFetch<CompanyDetail>(`/api/company?ticker=${encodeURIComponent(ticker)}`),
-  search: (q: string) =>
-    apiFetch<SearchResult[]>(`/api/search?q=${encodeURIComponent(q)}`),
+  // Search returns { success, results: [...] } — unwrap to just the array
+  search: async (q: string): Promise<SearchResult[]> => {
+    const resp = await apiFetch<any>(`/api/search?q=${encodeURIComponent(q)}`)
+    return resp?.results ?? resp ?? []
+  },
   charts: (ticker: string, period: ChartPeriod = '1y') =>
     apiFetch<ChartResponse>(`/api/charts?ticker=${encodeURIComponent(ticker)}&period=${period}`),
   financials: (ticker: string) =>
@@ -61,7 +64,15 @@ export const api = {
     }).then((r) => r.json()) as Promise<ImportResult>,
 
   // Watchlist
-  watchlist: () => apiFetch<string[]>('/api/db/watchlist'),
+  watchlist: async (): Promise<string[]> => {
+    try {
+      const resp = await apiFetch<any>('/api/db/watchlist')
+      // Backend may return { tickers: [...] } or just [...]
+      return Array.isArray(resp) ? resp : resp?.tickers ?? []
+    } catch {
+      return []
+    }
+  },
   watchlistAdd: (ticker: string) =>
     apiFetch<unknown>('/api/db/watchlist', {
       method: 'POST',
@@ -73,7 +84,14 @@ export const api = {
     }),
 
   // Alerts
-  alerts: () => apiFetch<unknown[]>('/api/db/alerts'),
+  alerts: async (): Promise<unknown[]> => {
+    try {
+      const resp = await apiFetch<any>('/api/db/alerts')
+      return Array.isArray(resp) ? resp : resp?.alerts ?? []
+    } catch {
+      return []
+    }
+  },
   alertCreate: (alert: { ticker: string; alert_type: string; value: number }) =>
     apiFetch<unknown>('/api/db/alerts', {
       method: 'POST',
@@ -84,24 +102,58 @@ export const api = {
   alertsCheck: (tickers: string) =>
     apiFetch<unknown>(`/api/alerts/check?tickers=${encodeURIComponent(tickers)}`),
 
-  // News
-  news: (ticker?: string) =>
-    apiFetch<NewsArticle[]>(
-      `/api/news${ticker ? `?ticker=${encodeURIComponent(ticker)}` : ''}`
-    ),
+  // News — requires ticker param, backend returns 400 without it
+  news: async (ticker?: string): Promise<NewsArticle[]> => {
+    if (!ticker) return [] // Backend requires ticker
+    try {
+      const resp = await apiFetch<any>(
+        `/api/news?ticker=${encodeURIComponent(ticker)}`
+      )
+      return resp?.articles ?? (Array.isArray(resp) ? resp : [])
+    } catch {
+      return []
+    }
+  },
 
   // Markets
-  markets: () => apiFetch<MarketItem[]>('/api/markets'),
-  marketMonitor: () => apiFetch<MonitorItem[]>('/api/market-monitor'),
+  markets: async (): Promise<MarketItem[]> => {
+    try {
+      const resp = await apiFetch<any>('/api/markets')
+      return resp?.items ?? (Array.isArray(resp) ? resp : [])
+    } catch {
+      return []
+    }
+  },
+  marketMonitor: async (): Promise<MonitorItem[]> => {
+    try {
+      const resp = await apiFetch<any>('/api/market-monitor')
+      return resp?.items ?? (Array.isArray(resp) ? resp : [])
+    } catch {
+      return []
+    }
+  },
 
-  // Macro
-  macro: () => apiFetch<unknown>('/api/macro'),
+  // Macro — correct path is /api/macro/snapshot
+  macro: async (): Promise<unknown> => {
+    try {
+      return await apiFetch<unknown>('/api/macro/snapshot')
+    } catch {
+      return null
+    }
+  },
 
-  // AI
-  brief: (ticker?: string, mode?: 'concise' | 'analyst') =>
-    apiFetch<Brief>(
-      `/api/brief${ticker ? `?ticker=${encodeURIComponent(ticker)}` : ''}${mode ? `${ticker ? '&' : '?'}mode=${mode}` : ''}`
-    ),
+  // AI Brief — requires ticker, returns 400 without it
+  brief: async (ticker?: string, mode?: 'concise' | 'analyst'): Promise<Brief | null> => {
+    if (!ticker) return null // Backend requires ticker
+    try {
+      const resp = await apiFetch<any>(
+        `/api/brief?ticker=${encodeURIComponent(ticker)}${mode ? `&mode=${mode}` : ''}`
+      )
+      return resp
+    } catch {
+      return null
+    }
+  },
 
   // Home (company + events + performance)
   home: (ticker: string) =>

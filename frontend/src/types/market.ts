@@ -65,8 +65,10 @@ export interface MonitorItem extends MarketItem {
 
 export interface SearchResult {
   symbol: string
-  description: string
+  name: string
+  description?: string
   type: string
+  exchange?: string
 }
 
 export type ChartPeriod = '1d' | '1w' | '1m' | '3m' | '6m' | '1y' | '3y' | '5y'

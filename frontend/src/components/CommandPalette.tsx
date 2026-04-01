@@ -96,7 +96,7 @@ export function CommandPalette() {
                       {result.symbol}
                     </span>
                     <span className="text-[var(--color-text-secondary)] truncate flex-1">
-                      {result.description}
+                      {result.name || result.description}
                     </span>
                     <span className="text-[10px] text-[var(--color-text-muted)]">
                       {result.type}
