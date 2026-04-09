@@ -94,7 +94,19 @@ async function maybePollScores(
       for (let r = 1; r <= 4; r++) {
         const roundRow = tournamentRounds.find((rr) => rr.roundNumber === r);
         if (!roundRow) continue;
-        const score = lbPlayer.roundScores[r];
+
+        let score = lbPlayer.roundScores[r];
+
+        // Fallback: if no per-round score but this round is complete or current,
+        // infer from total (works for R1 = total, or when only one round played)
+        if (score == null && r <= lbPlayer.currentRound) {
+          if (r === 1 && lbPlayer.currentRound === 1) {
+            score = lbPlayer.scoreToPar; // R1 total = overall total
+          } else if (r === lbPlayer.currentRound && Object.values(lbPlayer.roundScores).every(v => v == null)) {
+            // No round data at all, use total for current round as approximation
+            score = lbPlayer.scoreToPar;
+          }
+        }
         if (score == null) continue;
 
         const thru =
@@ -157,10 +169,12 @@ async function maybePollScores(
           }) ?? null;
         }
         if (!lbPlayer) return null;
+        // Use per-round score if available, otherwise fall back to total
+        const roundScore = lbPlayer.roundScores[lbPlayer.currentRound] ?? lbPlayer.scoreToPar;
         return {
           golferId: golfer.id,
           totalScoreToPar: lbPlayer.scoreToPar,
-          roundScoreToPar: lbPlayer.roundScores[lbPlayer.currentRound] ?? null,
+          roundScoreToPar: roundScore,
           position: lbPlayer.position,
           thru: lbPlayer.thru,
           roundNumber: lbPlayer.currentRound,
