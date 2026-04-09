@@ -11,31 +11,159 @@ import {
   tournamentResults,
   pointsLog,
 } from "@/db/schema";
-import { eq, and, sql } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
+import {
+  getLeaderboard,
+  parseLeaderboardPlayers,
+  normalizeGolferName,
+} from "@/lib/slashgolf";
 
 export const dynamic = "force-dynamic";
 
+const POLL_INTERVAL_MS = 60_000; // Don't hit API more than once per 60s
+
+/**
+ * Inline poll: if the tournament is live and hasn't been polled
+ * in the last 60 seconds, fetch fresh scores from Slash Golf
+ * before returning the leaderboard to the client.
+ */
+async function maybePollScores(
+  tournament: { id: number; slashTournId: string | null; lastPolledAt: Date | null; status: string }
+) {
+  if (tournament.status !== "live") return;
+  if (!tournament.slashTournId) return;
+  if (!process.env.RAPIDAPI_KEY) return;
+
+  const now = Date.now();
+  const lastPoll = tournament.lastPolledAt ? tournament.lastPolledAt.getTime() : 0;
+  if (now - lastPoll < POLL_INTERVAL_MS) return; // too soon
+
+  try {
+    const lbRaw = await getLeaderboard(tournament.slashTournId, 2026);
+    const lbPlayers = parseLeaderboardPlayers(lbRaw);
+    if (lbPlayers.length === 0) return;
+
+    const tournamentPicks = await db
+      .select()
+      .from(picks)
+      .where(eq(picks.tournamentId, tournament.id));
+    const pickedGolferIds = tournamentPicks.map((p) => p.golferId);
+    const allGolfers = await db.select().from(golfers);
+    const ourGolfers = allGolfers.filter((g) => pickedGolferIds.includes(g.id));
+
+    const tournamentRounds = await db
+      .select()
+      .from(rounds)
+      .where(eq(rounds.tournamentId, tournament.id));
+
+    for (const golfer of ourGolfers) {
+      // Match by ID or name
+      let lbPlayer = golfer.slashPlayerId
+        ? lbPlayers.find((p) => p.playerId === golfer.slashPlayerId)
+        : null;
+
+      if (!lbPlayer) {
+        const normalized = normalizeGolferName(golfer.name);
+        lbPlayer = lbPlayers.find((p) => {
+          const pNorm = normalizeGolferName(p.name);
+          const pLastNorm = normalizeGolferName(p.lastName);
+          return (
+            pNorm === normalized ||
+            pNorm.includes(normalized) ||
+            normalized.includes(pNorm) ||
+            normalized.includes(pLastNorm) ||
+            (pLastNorm.length > 3 && pLastNorm.includes(normalized.split(" ").pop() ?? "____"))
+          );
+        }) ?? null;
+
+        if (lbPlayer) {
+          await db
+            .update(golfers)
+            .set({ slashPlayerId: lbPlayer.playerId })
+            .where(eq(golfers.id, golfer.id));
+        }
+      }
+
+      if (!lbPlayer) continue;
+
+      // Update round scores
+      for (let r = 1; r <= 4; r++) {
+        const roundRow = tournamentRounds.find((rr) => rr.roundNumber === r);
+        if (!roundRow) continue;
+        const score = lbPlayer.roundScores[r];
+        if (score == null) continue;
+
+        const thru =
+          r < lbPlayer.currentRound ? "F"
+            : r === lbPlayer.currentRound ? lbPlayer.thru
+              : null;
+
+        const existing = await db
+          .select()
+          .from(roundScores)
+          .where(and(eq(roundScores.golferId, golfer.id), eq(roundScores.roundId, roundRow.id)));
+
+        if (existing.length > 0) {
+          await db
+            .update(roundScores)
+            .set({ scoreToPar: score, thru, position: lbPlayer.position, updatedAt: new Date() })
+            .where(eq(roundScores.id, existing[0].id));
+        } else {
+          await db.insert(roundScores).values({
+            golferId: golfer.id, roundId: roundRow.id, scoreToPar: score, thru, position: lbPlayer.position,
+          });
+        }
+
+        if (roundRow.status === "upcoming") {
+          await db.update(rounds).set({ status: "live" }).where(eq(rounds.id, roundRow.id));
+        }
+      }
+
+      // Update tournament result
+      const existingResult = await db
+        .select()
+        .from(tournamentResults)
+        .where(and(eq(tournamentResults.golferId, golfer.id), eq(tournamentResults.tournamentId, tournament.id)));
+
+      if (existingResult.length > 0) {
+        await db
+          .update(tournamentResults)
+          .set({ finalPosition: lbPlayer.position, finalScoreToPar: lbPlayer.scoreToPar, madeCut: lbPlayer.madeCut })
+          .where(eq(tournamentResults.id, existingResult[0].id));
+      } else {
+        await db.insert(tournamentResults).values({
+          golferId: golfer.id, tournamentId: tournament.id,
+          finalPosition: lbPlayer.position, finalScoreToPar: lbPlayer.scoreToPar, madeCut: lbPlayer.madeCut,
+        });
+      }
+    }
+
+    // Mark as polled
+    await db
+      .update(tournaments)
+      .set({ lastPolledAt: new Date() })
+      .where(eq(tournaments.id, tournament.id));
+
+    console.log("[Leaderboard] Inline poll complete");
+  } catch (err) {
+    console.error("[Leaderboard] Inline poll error:", err);
+    // Non-fatal — serve stale data
+  }
+}
+
 export async function GET() {
   try {
-    // Ensure tables exist on first request
     await ensureTables();
 
-    // Seed check — auto-seed if DB is empty
     const allPlayers = await db.select().from(players);
     if (allPlayers.length === 0) {
-      // Trigger seed
       const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || process.env.VERCEL_URL
         ? `https://${process.env.VERCEL_URL}`
         : "http://localhost:3000";
-      try {
-        await fetch(`${baseUrl}/api/seed`, { method: "POST" });
-      } catch {
-        // Seed failed, return empty
-      }
+      try { await fetch(`${baseUrl}/api/seed`, { method: "POST" }); } catch {}
       return NextResponse.json({ entries: [], tournament: null, lastPolled: null });
     }
 
-    // Get live or most recent tournament
     const liveTournaments = await db
       .select()
       .from(tournaments)
@@ -49,26 +177,31 @@ export async function GET() {
       return NextResponse.json({ entries: [], tournament: null, lastPolled: null });
     }
 
-    // Get picks for this tournament with player and golfer info
+    // Auto-poll if stale
+    await maybePollScores(tournament);
+
+    // Re-read tournament for updated lastPolledAt
+    const [freshTournament] = await db
+      .select()
+      .from(tournaments)
+      .where(eq(tournaments.id, tournament.id));
+
     const tournamentPicks = await db
       .select()
       .from(picks)
       .where(eq(picks.tournamentId, tournament.id));
 
-    // Get all rounds for this tournament
     const tournamentRounds = await db
       .select()
       .from(rounds)
       .where(eq(rounds.tournamentId, tournament.id));
 
-    // Build leaderboard entries
     const entries = [];
     for (const pick of tournamentPicks) {
       const player = allPlayers.find((p) => p.id === pick.playerId);
       const golfer = (await db.select().from(golfers).where(eq(golfers.id, pick.golferId)))[0];
       if (!player || !golfer) continue;
 
-      // Get tournament result
       const [result] = await db
         .select()
         .from(tournamentResults)
@@ -79,7 +212,6 @@ export async function GET() {
           )
         );
 
-      // Get round scores
       const scores: Record<number, { scoreToPar: number | null; thru: string | null }> = {};
       for (const round of tournamentRounds) {
         const [score] = await db
@@ -99,7 +231,6 @@ export async function GET() {
         }
       }
 
-      // Get points for this tournament
       const playerPoints = await db
         .select()
         .from(pointsLog)
@@ -135,7 +266,6 @@ export async function GET() {
       });
     }
 
-    // Sort by position (numeric, nulls last)
     entries.sort((a, b) => {
       const posA = a.position ? parseInt(a.position.replace(/^T/, "")) : 999;
       const posB = b.position ? parseInt(b.position.replace(/^T/, "")) : 999;
@@ -145,12 +275,12 @@ export async function GET() {
     return NextResponse.json({
       entries,
       tournament: {
-        id: tournament.id,
-        name: tournament.name,
-        status: tournament.status,
-        lastPolledAt: tournament.lastPolledAt,
+        id: freshTournament.id,
+        name: freshTournament.name,
+        status: freshTournament.status,
+        lastPolledAt: freshTournament.lastPolledAt,
       },
-      lastPolled: tournament.lastPolledAt?.toISOString() ?? null,
+      lastPolled: freshTournament.lastPolledAt?.toISOString() ?? null,
     });
   } catch (error) {
     console.error("[Leaderboard API] Error:", error);
