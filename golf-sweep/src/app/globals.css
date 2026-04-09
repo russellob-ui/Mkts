@@ -38,3 +38,7 @@ body {
 .score-under { color: #ef4444; }
 .score-over { color: #3b82f6; }
 .score-even { color: #a3a3a3; }
+
+/* Hide scrollbar for horizontal nav */
+.scrollbar-hide::-webkit-scrollbar { display: none; }
+.scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }

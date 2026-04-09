@@ -19,6 +19,7 @@ import {
   normalizeGolferName,
 } from "@/lib/slashgolf";
 import { getOutrightOdds, normalizeOddsName } from "@/lib/oddsapi";
+import { writeScoreSnapshots, generateBanterFromSnapshot } from "@/lib/banter-engine";
 
 export const dynamic = "force-dynamic";
 
@@ -141,13 +142,49 @@ async function maybePollScores(
       }
     }
 
+    // Write score snapshots (v2) for trajectory charts
+    const snapshotData = ourGolfers
+      .map((golfer) => {
+        let lbPlayer = golfer.slashPlayerId
+          ? lbPlayers.find((p) => p.playerId === golfer.slashPlayerId)
+          : null;
+        if (!lbPlayer) {
+          const normalized = normalizeGolferName(golfer.name);
+          lbPlayer = lbPlayers.find((p) => {
+            const pNorm = normalizeGolferName(p.name);
+            const pLastNorm = normalizeGolferName(p.lastName);
+            return pNorm === normalized || pNorm.includes(normalized) || normalized.includes(pNorm) || normalized.includes(pLastNorm);
+          }) ?? null;
+        }
+        if (!lbPlayer) return null;
+        return {
+          golferId: golfer.id,
+          totalScoreToPar: lbPlayer.scoreToPar,
+          roundScoreToPar: lbPlayer.roundScores[lbPlayer.currentRound] ?? null,
+          position: lbPlayer.position,
+          thru: lbPlayer.thru,
+          roundNumber: lbPlayer.currentRound,
+        };
+      })
+      .filter(Boolean) as Array<{
+        golferId: number; totalScoreToPar: number | null; roundScoreToPar: number | null;
+        position: string | null; thru: string | null; roundNumber: number;
+      }>;
+
+    await writeScoreSnapshots(tournament.id, snapshotData);
+
+    // Generate banter events (non-blocking)
+    generateBanterFromSnapshot(tournament.id).catch((err) =>
+      console.error("[Leaderboard] Banter generation error:", err)
+    );
+
     // Mark as polled
     await db
       .update(tournaments)
       .set({ lastPolledAt: new Date() })
       .where(eq(tournaments.id, tournament.id));
 
-    console.log("[Leaderboard] Inline poll complete");
+    console.log("[Leaderboard] Inline poll + snapshots complete");
   } catch (err) {
     console.error("[Leaderboard] Inline poll error:", err);
   }

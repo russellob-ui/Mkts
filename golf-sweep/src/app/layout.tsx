@@ -8,6 +8,16 @@ export const metadata: Metadata = {
     "8 friends, 4 majors, 1 champion. Masters, PGA, US Open, The Open.",
 };
 
+const NAV_LINKS = [
+  { href: "/leaderboard", label: "Leaderboard" },
+  { href: "/trajectory", label: "Trajectory" },
+  { href: "/banter", label: "Banter" },
+  { href: "/season", label: "Season" },
+  { href: "/season-chart", label: "Chart" },
+  { href: "/archive", label: "Archive" },
+  { href: "/draft", label: "Draft" },
+];
+
 export default function RootLayout({
   children,
 }: {
@@ -25,26 +35,30 @@ export default function RootLayout({
           href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=Inter:wght@400;500;600;700&display=swap"
           rel="stylesheet"
         />
+        <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
       </head>
       <body className="min-h-dvh flex flex-col bg-dark text-cream">
         <nav className="border-b border-dark-border bg-dark/80 backdrop-blur-sm sticky top-0 z-50">
-          <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
+          <div className="max-w-5xl mx-auto px-4 pt-3 pb-0 flex items-center justify-between">
             <Link
               href="/"
-              className="font-serif text-lg font-bold text-augusta-light hover:text-cream transition-colors"
+              className="font-serif text-lg font-bold text-augusta-light hover:text-cream transition-colors shrink-0"
             >
               LB&amp;W
             </Link>
-            <div className="flex gap-4 text-sm">
-              <Link href="/leaderboard" className="hover:text-augusta-light transition-colors">
-                Leaderboard
-              </Link>
-              <Link href="/season" className="hover:text-augusta-light transition-colors">
-                Season
-              </Link>
-              <Link href="/draft" className="hover:text-augusta-light transition-colors">
-                Draft
-              </Link>
+          </div>
+          {/* Horizontal scroll strip */}
+          <div className="overflow-x-auto scrollbar-hide">
+            <div className="flex gap-1 px-4 py-2 max-w-5xl mx-auto min-w-max">
+              {NAV_LINKS.map((link) => (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  className="px-3 py-1.5 text-xs font-medium text-cream/60 hover:text-cream hover:bg-dark-border/40 rounded-full transition-colors whitespace-nowrap"
+                >
+                  {link.label}
+                </Link>
+              ))}
             </div>
           </div>
         </nav>

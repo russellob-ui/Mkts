@@ -152,6 +152,53 @@ export const pointsLog = pgTable("points_log", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+export const scoreSnapshots = pgTable("score_snapshots", {
+  id: serial("id").primaryKey(),
+  golferId: integer("golfer_id")
+    .notNull()
+    .references(() => golfers.id),
+  tournamentId: integer("tournament_id")
+    .notNull()
+    .references(() => tournaments.id),
+  roundNumber: integer("round_number").notNull(),
+  totalScoreToPar: integer("total_score_to_par"),
+  roundScoreToPar: integer("round_score_to_par"),
+  position: text("position"),
+  positionNumeric: integer("position_numeric"),
+  thru: text("thru"),
+  thruNumeric: integer("thru_numeric"),
+  capturedAt: timestamp("captured_at").defaultNow().notNull(),
+});
+
+export const banterEvents = pgTable("banter_events", {
+  id: serial("id").primaryKey(),
+  tournamentId: integer("tournament_id")
+    .notNull()
+    .references(() => tournaments.id),
+  roundNumber: integer("round_number"),
+  playerId: integer("player_id").references(() => players.id),
+  golferId: integer("golfer_id").references(() => golfers.id),
+  eventType: text("event_type").notNull(),
+  headline: text("headline").notNull(),
+  detail: text("detail"),
+  emoji: text("emoji"),
+  importance: integer("importance").notNull().default(5),
+  source: text("source").notNull().default("auto"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const seasonSnapshots = pgTable("season_snapshots", {
+  id: serial("id").primaryKey(),
+  playerId: integer("player_id")
+    .notNull()
+    .references(() => players.id),
+  cumulativePoints: real("cumulative_points").notNull(),
+  throughTournamentId: integer("through_tournament_id")
+    .notNull()
+    .references(() => tournaments.id),
+  capturedAt: timestamp("captured_at").defaultNow().notNull(),
+});
+
 export const draftState = pgTable("draft_state", {
   id: serial("id").primaryKey(),
   tournamentId: integer("tournament_id")

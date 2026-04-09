@@ -126,6 +126,54 @@ export async function ensureTables() {
     )
   `);
 
+  // v2 tables
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS score_snapshots (
+      id SERIAL PRIMARY KEY,
+      golfer_id INTEGER NOT NULL REFERENCES golfers(id),
+      tournament_id INTEGER NOT NULL REFERENCES tournaments(id),
+      round_number INTEGER NOT NULL,
+      total_score_to_par INTEGER,
+      round_score_to_par INTEGER,
+      position TEXT,
+      position_numeric INTEGER,
+      thru TEXT,
+      thru_numeric INTEGER,
+      captured_at TIMESTAMP DEFAULT NOW() NOT NULL
+    )
+  `);
+  await db.execute(sql`CREATE INDEX IF NOT EXISTS score_snapshots_tourn_golfer_idx ON score_snapshots(tournament_id, golfer_id, captured_at)`);
+  await db.execute(sql`CREATE INDEX IF NOT EXISTS score_snapshots_tourn_time_idx ON score_snapshots(tournament_id, captured_at)`);
+
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS banter_events (
+      id SERIAL PRIMARY KEY,
+      tournament_id INTEGER NOT NULL REFERENCES tournaments(id),
+      round_number INTEGER,
+      player_id INTEGER REFERENCES players(id),
+      golfer_id INTEGER REFERENCES golfers(id),
+      event_type TEXT NOT NULL,
+      headline TEXT NOT NULL,
+      detail TEXT,
+      emoji TEXT,
+      importance INTEGER NOT NULL DEFAULT 5,
+      source TEXT NOT NULL DEFAULT 'auto',
+      created_at TIMESTAMP DEFAULT NOW() NOT NULL
+    )
+  `);
+  await db.execute(sql`CREATE INDEX IF NOT EXISTS banter_events_tourn_time_idx ON banter_events(tournament_id, created_at DESC)`);
+
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS season_snapshots (
+      id SERIAL PRIMARY KEY,
+      player_id INTEGER NOT NULL REFERENCES players(id),
+      cumulative_points REAL NOT NULL,
+      through_tournament_id INTEGER NOT NULL REFERENCES tournaments(id),
+      captured_at TIMESTAMP DEFAULT NOW() NOT NULL
+    )
+  `);
+  await db.execute(sql`CREATE INDEX IF NOT EXISTS season_snapshots_player_idx ON season_snapshots(player_id, captured_at)`);
+
   // Add columns that might be missing from older schema versions
   const safeAdd = async (table: string, column: string, type: string) => {
     try {
