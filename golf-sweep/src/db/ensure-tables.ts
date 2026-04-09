@@ -189,5 +189,157 @@ export async function ensureTables() {
   await safeAdd("round_scores", "round_score", "INTEGER");
   await safeAdd("tournament_results", "final_position_display", "TEXT");
 
-  console.log("[DB] All tables ensured");
+  // v3 avatar fields
+  await safeAdd("players", "avatar_image_base64", "TEXT");
+  await safeAdd("players", "avatar_mime_type", "TEXT");
+  await safeAdd("players", "avatar_uploaded_at", "TIMESTAMP");
+
+  // v3.5 season_id on tournaments
+  await safeAdd("tournaments", "season_id", "INTEGER");
+
+  // ═══ v3: Social Layer tables ═══
+
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS seasons (
+      id SERIAL PRIMARY KEY,
+      year INTEGER NOT NULL UNIQUE,
+      status TEXT NOT NULL DEFAULT 'upcoming',
+      started_at TIMESTAMP,
+      completed_at TIMESTAMP,
+      champion_player_id INTEGER REFERENCES players(id),
+      champion_total_points REAL,
+      notes TEXT
+    )
+  `);
+
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS commissioner_actions (
+      id SERIAL PRIMARY KEY,
+      tournament_id INTEGER REFERENCES tournaments(id),
+      affected_player_id INTEGER REFERENCES players(id),
+      action_type TEXT NOT NULL,
+      points_delta REAL,
+      headline TEXT NOT NULL,
+      reason TEXT,
+      emoji TEXT,
+      visible BOOLEAN NOT NULL DEFAULT true,
+      created_at TIMESTAMP DEFAULT NOW() NOT NULL
+    )
+  `);
+
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS round_predictions (
+      id SERIAL PRIMARY KEY,
+      predictor_player_id INTEGER NOT NULL REFERENCES players(id),
+      subject_player_id INTEGER NOT NULL REFERENCES players(id),
+      tournament_id INTEGER NOT NULL REFERENCES tournaments(id),
+      round_number INTEGER NOT NULL,
+      predicted_score_to_par INTEGER NOT NULL,
+      predicted_outcome TEXT NOT NULL,
+      submitted_at TIMESTAMP DEFAULT NOW() NOT NULL,
+      actual_score_to_par INTEGER,
+      actual_outcome TEXT,
+      outcome_correct BOOLEAN,
+      exact_correct BOOLEAN,
+      points_awarded REAL,
+      resolved_at TIMESTAMP
+    )
+  `);
+  await db.execute(sql`CREATE UNIQUE INDEX IF NOT EXISTS predictions_unique_idx ON round_predictions(predictor_player_id, subject_player_id, tournament_id, round_number)`);
+
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS hot_takes (
+      id SERIAL PRIMARY KEY,
+      player_id INTEGER NOT NULL REFERENCES players(id),
+      tournament_id INTEGER NOT NULL REFERENCES tournaments(id),
+      take_text TEXT NOT NULL,
+      category TEXT,
+      submitted_at TIMESTAMP DEFAULT NOW() NOT NULL,
+      graded_at TIMESTAMP,
+      outcome TEXT,
+      points_awarded REAL,
+      grading_notes TEXT
+    )
+  `);
+
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS records (
+      id SERIAL PRIMARY KEY,
+      record_type TEXT NOT NULL,
+      player_id INTEGER REFERENCES players(id),
+      golfer_id INTEGER REFERENCES golfers(id),
+      tournament_id INTEGER REFERENCES tournaments(id),
+      season_id INTEGER REFERENCES seasons(id),
+      scope TEXT NOT NULL DEFAULT 'season',
+      numeric_value REAL,
+      display_value TEXT,
+      description TEXT NOT NULL,
+      set_at TIMESTAMP DEFAULT NOW() NOT NULL,
+      superseded_at TIMESTAMP
+    )
+  `);
+
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS yearbook_overrides (
+      id SERIAL PRIMARY KEY,
+      player_id INTEGER NOT NULL REFERENCES players(id),
+      field_name TEXT NOT NULL,
+      override_value TEXT NOT NULL,
+      set_by_commissioner BOOLEAN DEFAULT true,
+      created_at TIMESTAMP DEFAULT NOW()
+    )
+  `);
+  await db.execute(sql`CREATE UNIQUE INDEX IF NOT EXISTS yearbook_overrides_player_field_idx ON yearbook_overrides(player_id, field_name)`);
+
+  // ═══ v3.5: Chat + Persistence ═══
+
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS chat_messages (
+      id SERIAL PRIMARY KEY,
+      player_id INTEGER REFERENCES players(id),
+      player_name_snapshot TEXT NOT NULL,
+      player_avatar_snapshot TEXT,
+      body TEXT NOT NULL,
+      context_type TEXT DEFAULT 'general',
+      context_id INTEGER,
+      reply_to_message_id INTEGER,
+      reactions JSONB DEFAULT '{}',
+      edited_at TIMESTAMP,
+      deleted_at TIMESTAMP,
+      created_at TIMESTAMP DEFAULT NOW() NOT NULL
+    )
+  `);
+  await db.execute(sql`CREATE INDEX IF NOT EXISTS chat_messages_time_idx ON chat_messages(created_at DESC)`);
+
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS chat_archive (
+      id SERIAL PRIMARY KEY,
+      archive_date TEXT NOT NULL UNIQUE,
+      message_count INTEGER NOT NULL,
+      archive_data JSONB NOT NULL,
+      archived_at TIMESTAMP DEFAULT NOW() NOT NULL
+    )
+  `);
+
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS system_health (
+      id SERIAL PRIMARY KEY,
+      check_type TEXT NOT NULL,
+      status TEXT NOT NULL,
+      details JSONB,
+      created_at TIMESTAMP DEFAULT NOW() NOT NULL
+    )
+  `);
+
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS backup_snapshots (
+      id SERIAL PRIMARY KEY,
+      snapshot_data JSONB NOT NULL,
+      size_bytes INTEGER,
+      triggered_by TEXT,
+      created_at TIMESTAMP DEFAULT NOW() NOT NULL
+    )
+  `);
+
+  console.log("[DB] All tables ensured (v1+v2+v3+v3.5)");
 }

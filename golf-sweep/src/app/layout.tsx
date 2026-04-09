@@ -8,14 +8,47 @@ export const metadata: Metadata = {
     "8 friends, 4 majors, 1 champion. Masters, PGA, US Open, The Open.",
 };
 
-const NAV_LINKS = [
-  { href: "/leaderboard", label: "Leaderboard" },
-  { href: "/trajectory", label: "Trajectory" },
-  { href: "/banter", label: "Banter" },
-  { href: "/season", label: "Season" },
-  { href: "/season-chart", label: "Chart" },
-  { href: "/archive", label: "Archive" },
-  { href: "/draft", label: "Draft" },
+const NAV_GROUPS = [
+  {
+    label: "LIVE",
+    links: [
+      { href: "/leaderboard", label: "Leaderboard" },
+      { href: "/banter", label: "Banter" },
+      { href: "/trajectory", label: "Trajectory" },
+      { href: "/chat", label: "Chat" },
+    ],
+  },
+  {
+    label: "THE GAME",
+    links: [
+      { href: "/predictions", label: "Predictions" },
+      { href: "/hot-takes", label: "Hot Takes" },
+      { href: "/records", label: "Records" },
+    ],
+  },
+  {
+    label: "HEAD TO HEAD",
+    links: [
+      { href: "/rivalry", label: "Rivalry" },
+      { href: "/season", label: "Season" },
+      { href: "/season-chart", label: "Season Chart" },
+    ],
+  },
+  {
+    label: "THE ARCHIVE",
+    links: [
+      { href: "/archive", label: "Past Majors" },
+      { href: "/yearbook", label: "Yearbook" },
+      { href: "/draft", label: "Draft" },
+    ],
+  },
+  {
+    label: "ADMIN",
+    links: [
+      { href: "/admin", label: "Admin" },
+      { href: "/commissioner", label: "Commissioner" },
+    ],
+  },
 ];
 
 export default function RootLayout({
@@ -39,26 +72,46 @@ export default function RootLayout({
       </head>
       <body className="min-h-dvh flex flex-col bg-dark text-cream">
         <nav className="border-b border-dark-border bg-dark/80 backdrop-blur-sm sticky top-0 z-50">
-          <div className="max-w-5xl mx-auto px-4 pt-3 pb-0 flex items-center justify-between">
+          <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
             <Link
               href="/"
               className="font-serif text-lg font-bold text-augusta-light hover:text-cream transition-colors shrink-0"
             >
               LB&amp;W
             </Link>
-          </div>
-          {/* Horizontal scroll strip */}
-          <div className="overflow-x-auto scrollbar-hide">
-            <div className="flex gap-1 px-4 py-2 max-w-5xl mx-auto min-w-max">
-              {NAV_LINKS.map((link) => (
-                <Link
-                  key={link.href}
-                  href={link.href}
-                  className="px-3 py-1.5 text-xs font-medium text-cream/60 hover:text-cream hover:bg-dark-border/40 rounded-full transition-colors whitespace-nowrap"
-                >
-                  {link.label}
-                </Link>
-              ))}
+            {/* Mobile: hamburger via CSS checkbox hack */}
+            <input type="checkbox" id="nav-toggle" className="hidden peer" />
+            <label
+              htmlFor="nav-toggle"
+              className="cursor-pointer p-2 hover:bg-dark-border rounded-lg transition-colors"
+            >
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor" className="text-cream/70">
+                <rect y="3" width="20" height="2" rx="1" />
+                <rect y="9" width="20" height="2" rx="1" />
+                <rect y="15" width="20" height="2" rx="1" />
+              </svg>
+            </label>
+            {/* Dropdown menu */}
+            <div className="hidden peer-checked:block fixed inset-0 top-14 bg-dark/95 backdrop-blur-md z-50 overflow-y-auto">
+              <div className="max-w-5xl mx-auto px-4 py-4">
+                {NAV_GROUPS.map((group) => (
+                  <div key={group.label} className="mb-4">
+                    <div className="text-[10px] uppercase tracking-widest text-cream/30 mb-2 px-2">
+                      {group.label}
+                    </div>
+                    {group.links.map((link) => (
+                      <label key={link.href} htmlFor="nav-toggle">
+                        <Link
+                          href={link.href}
+                          className="block px-3 py-2.5 text-sm font-medium text-cream/80 hover:text-cream hover:bg-dark-border/40 rounded-lg transition-colors"
+                        >
+                          {link.label}
+                        </Link>
+                      </label>
+                    ))}
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         </nav>
