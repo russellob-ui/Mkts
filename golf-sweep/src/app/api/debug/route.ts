@@ -67,16 +67,37 @@ export async function GET(request: NextRequest) {
           `https://live-golf-data.p.rapidapi.com/leaderboard?orgId=1&tournId=${masters.tournId}&year=2026`,
           { headers }
         );
-        const lbData = await lbRes.json();
+        const lbText = await lbRes.text();
+        results.leaderboardRaw = lbText.slice(0, 5000);
+        results.leaderboardStatus = lbRes.status;
 
-        // Parse leaderboard - try different structures
-        const lbItems =
-          lbData.leaderboard ?? lbData.results ?? lbData.players ?? lbData.rows ?? lbData;
-        const playerList: unknown[] = Array.isArray(lbItems)
-          ? lbItems
-          : Array.isArray((lbItems as Record<string, unknown>)?.rows)
-            ? ((lbItems as Record<string, unknown>).rows as unknown[])
-            : [];
+        let lbData: Record<string, unknown> = {};
+        try { lbData = JSON.parse(lbText); } catch { lbData = {}; }
+        results.leaderboardKeys = Object.keys(lbData);
+
+        // Try ALL possible nested structures
+        let playerList: unknown[] = [];
+        for (const key of Object.keys(lbData)) {
+          const val = lbData[key];
+          if (Array.isArray(val) && val.length > 0) {
+            playerList = val;
+            results.leaderboardArrayKey = key;
+            results.leaderboardFirstItem = val[0];
+            break;
+          }
+          if (val && typeof val === "object" && !Array.isArray(val)) {
+            const nested = val as Record<string, unknown>;
+            for (const nk of Object.keys(nested)) {
+              if (Array.isArray(nested[nk]) && (nested[nk] as unknown[]).length > 0) {
+                playerList = nested[nk] as unknown[];
+                results.leaderboardArrayKey = `${key}.${nk}`;
+                results.leaderboardFirstItem = (nested[nk] as unknown[])[0];
+                break;
+              }
+            }
+            if (playerList.length > 0) break;
+          }
+        }
 
         results.leaderboardCount = playerList.length;
         results.leaderboardSample = playerList.slice(0, 3);
