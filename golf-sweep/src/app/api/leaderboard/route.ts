@@ -18,10 +18,12 @@ import {
   parseLeaderboardPlayers,
   normalizeGolferName,
 } from "@/lib/slashgolf";
+import { getOutrightOdds, normalizeOddsName } from "@/lib/oddsapi";
 
 export const dynamic = "force-dynamic";
 
-const POLL_INTERVAL_MS = 60_000; // Don't hit API more than once per 60s
+const POLL_INTERVAL_MS = 60_000; // Scores: don't hit API more than once per 60s
+const ODDS_POLL_INTERVAL_MS = 15 * 60_000; // Odds: every 15 minutes
 
 /**
  * Inline poll: if the tournament is live and hasn't been polled
@@ -148,7 +150,74 @@ async function maybePollScores(
     console.log("[Leaderboard] Inline poll complete");
   } catch (err) {
     console.error("[Leaderboard] Inline poll error:", err);
-    // Non-fatal — serve stale data
+  }
+}
+
+/**
+ * Inline odds poll: auto-fetch odds from The Odds API if stale (>15 min).
+ */
+async function maybePollOdds(
+  tournament: { id: number; oddsApiSportKey: string | null; lastOddsPolledAt: Date | null; status: string }
+) {
+  if (tournament.status !== "live") return;
+  if (!tournament.oddsApiSportKey) return;
+  if (!process.env.ODDS_API_KEY) return;
+
+  const now = Date.now();
+  const lastPoll = tournament.lastOddsPolledAt ? tournament.lastOddsPolledAt.getTime() : 0;
+  if (now - lastPoll < ODDS_POLL_INTERVAL_MS) return;
+
+  try {
+    const { golferOdds } = await getOutrightOdds(tournament.oddsApiSportKey);
+    if (golferOdds.size === 0) return;
+
+    const tournamentPicks = await db
+      .select()
+      .from(picks)
+      .where(eq(picks.tournamentId, tournament.id));
+    const pickedGolferIds = tournamentPicks.map((p) => p.golferId);
+    const allGolfers = await db.select().from(golfers);
+    const ourGolfers = allGolfers.filter((g) => pickedGolferIds.includes(g.id));
+
+    for (const golfer of ourGolfers) {
+      const normalized = normalizeGolferName(golfer.name);
+      let matchedOdds: { fractional: string; decimal: number; bookmaker: string } | null = null;
+
+      for (const [oddsName, odds] of golferOdds) {
+        const oddsNorm = normalizeOddsName(oddsName);
+        if (oddsNorm === normalized || oddsNorm.includes(normalized) || normalized.includes(oddsNorm)) {
+          matchedOdds = odds;
+          break;
+        }
+      }
+      if (!matchedOdds) continue;
+
+      const existing = await db
+        .select()
+        .from(liveOdds)
+        .where(and(eq(liveOdds.golferId, golfer.id), eq(liveOdds.tournamentId, tournament.id)));
+
+      if (existing.length > 0) {
+        await db
+          .update(liveOdds)
+          .set({ fractional: matchedOdds.fractional, decimal: matchedOdds.decimal, bookmaker: matchedOdds.bookmaker, updatedAt: new Date() })
+          .where(eq(liveOdds.id, existing[0].id));
+      } else {
+        await db.insert(liveOdds).values({
+          golferId: golfer.id, tournamentId: tournament.id,
+          fractional: matchedOdds.fractional, decimal: matchedOdds.decimal, bookmaker: matchedOdds.bookmaker,
+        });
+      }
+    }
+
+    await db
+      .update(tournaments)
+      .set({ lastOddsPolledAt: new Date() })
+      .where(eq(tournaments.id, tournament.id));
+
+    console.log("[Leaderboard] Inline odds poll complete");
+  } catch (err) {
+    console.error("[Leaderboard] Inline odds poll error:", err);
   }
 }
 
@@ -178,10 +247,11 @@ export async function GET() {
       return NextResponse.json({ entries: [], tournament: null, lastPolled: null });
     }
 
-    // Auto-poll if stale
+    // Auto-poll scores (every 60s) and odds (every 15 min) if stale
     await maybePollScores(tournament);
+    await maybePollOdds(tournament);
 
-    // Re-read tournament for updated lastPolledAt
+    // Re-read tournament for updated timestamps
     const [freshTournament] = await db
       .select()
       .from(tournaments)
