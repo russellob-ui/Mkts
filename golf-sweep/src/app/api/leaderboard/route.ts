@@ -10,6 +10,7 @@ import {
   roundScores,
   tournamentResults,
   pointsLog,
+  liveOdds,
 } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import {
@@ -242,12 +243,24 @@ export async function GET() {
         );
       const totalPoints = playerPoints.reduce((sum, p) => sum + p.points, 0);
 
+      // Get live odds
+      const [currentOdds] = await db
+        .select()
+        .from(liveOdds)
+        .where(
+          and(
+            eq(liveOdds.golferId, golfer.id),
+            eq(liveOdds.tournamentId, tournament.id)
+          )
+        );
+
       entries.push({
         player: {
           id: player.id,
           name: player.name,
           slug: player.slug,
           color: player.color,
+          rowColor: player.rowColor,
           avatarEmoji: player.avatarEmoji,
         },
         golfer: {
@@ -261,6 +274,9 @@ export async function GET() {
         madeCut: result?.madeCut,
         thru: scores[Math.max(...Object.keys(scores).map(Number), 0)]?.thru ?? null,
         openingOdds: pick.openingOdds,
+        openingOddsDecimal: pick.openingOddsDecimal,
+        currentOdds: currentOdds?.fractional ?? null,
+        currentOddsDecimal: currentOdds?.decimal ?? null,
         roundScores: scores,
         points: totalPoints,
       });
@@ -279,8 +295,10 @@ export async function GET() {
         name: freshTournament.name,
         status: freshTournament.status,
         lastPolledAt: freshTournament.lastPolledAt,
+        lastOddsPolledAt: freshTournament.lastOddsPolledAt,
       },
       lastPolled: freshTournament.lastPolledAt?.toISOString() ?? null,
+      lastOddsPolled: freshTournament.lastOddsPolledAt?.toISOString() ?? null,
     });
   } catch (error) {
     console.error("[Leaderboard API] Error:", error);

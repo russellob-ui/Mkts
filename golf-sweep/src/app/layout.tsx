@@ -36,24 +36,21 @@ export default function RootLayout({
               LB&amp;W
             </Link>
             <div className="flex gap-4 text-sm">
-              <Link
-                href="/leaderboard"
-                className="hover:text-augusta-light transition-colors"
-              >
+              <Link href="/leaderboard" className="hover:text-augusta-light transition-colors">
                 Leaderboard
               </Link>
-              <Link
-                href="/season"
-                className="hover:text-augusta-light transition-colors"
-              >
+              <Link href="/season" className="hover:text-augusta-light transition-colors">
                 Season
+              </Link>
+              <Link href="/draft" className="hover:text-augusta-light transition-colors">
+                Draft
               </Link>
             </div>
           </div>
         </nav>
         <main className="flex-1">{children}</main>
         <footer className="border-t border-dark-border py-4 text-center text-xs text-cream/40">
-          London Banter &amp; Woody &middot; Major Sweep 2026
+          Bragging rights only. No money. Wooden spoon forfeit applies. &middot; London Banter &amp; Woody 2026
         </footer>
       </body>
     </html>

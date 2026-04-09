@@ -2,20 +2,18 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import {
-  formatScore,
-  scoreClass,
-  timeAgo,
-  getBanterLine,
-} from "@/lib/banter";
+import { timeAgo, getBanterLine } from "@/lib/banter";
 
 interface LeaderboardEntry {
-  player: { name: string; slug: string; color: string | null; avatarEmoji: string | null };
+  player: { name: string; slug: string; color: string | null; rowColor: string | null; avatarEmoji: string | null };
   golfer: { name: string; country: string | null; flagEmoji: string | null };
   position: string | null;
   scoreToPar: number | null;
   thru: string | null;
   openingOdds: string | null;
+  openingOddsDecimal: number | null;
+  currentOdds: string | null;
+  currentOddsDecimal: number | null;
   roundScores: Record<number, { scoreToPar: number | null; thru: string | null }>;
   points: number;
 }
@@ -24,12 +22,46 @@ interface TournamentInfo {
   name: string;
   status: string;
   lastPolledAt: string | null;
+  lastOddsPolledAt: string | null;
+}
+
+function formatScore(score: number | null): string {
+  if (score === null || score === undefined) return "-";
+  if (score === 0) return "E";
+  if (score > 0) return `+${score}`;
+  return String(score);
+}
+
+/** Spec-compliant score colors */
+function scoreColorClass(score: number | null): string {
+  if (score === null || score === undefined) return "text-cream/40";
+  if (score <= -3) return "text-red-500"; // deep red for -3 or better
+  if (score < 0) return "text-red-400"; // red for -1, -2
+  if (score === 0) return "text-gray-400"; // grey for even
+  if (score <= 2) return "text-white"; // white for +1, +2
+  return "text-gray-500"; // dim grey for +3+
+}
+
+/** Odds movement arrow */
+function oddsArrow(opening: number | null, current: number | null): string {
+  if (!opening || !current) return "";
+  if (current < opening - 0.5) return " ↓"; // shortened (better chance)
+  if (current > opening + 0.5) return " ↑"; // drifted (worse chance)
+  return "";
+}
+
+function oddsArrowColor(opening: number | null, current: number | null): string {
+  if (!opening || !current) return "";
+  if (current < opening - 0.5) return "text-red-400"; // shortened = good
+  if (current > opening + 0.5) return "text-gray-500"; // drifted = bad
+  return "text-cream/40";
 }
 
 export default function LeaderboardPage() {
   const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
   const [tournament, setTournament] = useState<TournamentInfo | null>(null);
   const [lastPolled, setLastPolled] = useState<string | null>(null);
+  const [lastOddsPolled, setLastOddsPolled] = useState<string | null>(null);
   const [banter, setBanter] = useState("");
 
   async function fetchData() {
@@ -38,6 +70,7 @@ export default function LeaderboardPage() {
     setEntries(json.entries ?? []);
     setTournament(json.tournament);
     setLastPolled(json.lastPolled);
+    setLastOddsPolled(json.lastOddsPolled);
 
     if (json.entries?.length > 0) {
       const leader = json.entries[0];
@@ -53,8 +86,6 @@ export default function LeaderboardPage() {
   }, []);
 
   const isLive = tournament?.status === "live";
-
-  // Determine which rounds have any data
   const activeRounds = [1, 2, 3, 4].filter((r) =>
     entries.some((e) => e.roundScores?.[r]?.scoreToPar != null)
   );
@@ -71,9 +102,6 @@ export default function LeaderboardPage() {
             {tournament?.name ?? "Leaderboard"}
           </h1>
         </div>
-        <div className="text-xs text-cream/40">
-          Updated {timeAgo(lastPolled)}
-        </div>
       </div>
 
       {/* Banter strip */}
@@ -83,15 +111,15 @@ export default function LeaderboardPage() {
         </div>
       )}
 
-      {/* Leaderboard table */}
+      {/* Leaderboard */}
       <div className="bg-dark-card border border-dark-border rounded-xl overflow-hidden">
-        {/* Header row */}
+        {/* Header */}
         <div className="flex items-center gap-1 px-3 py-2 text-[10px] text-cream/40 uppercase tracking-wider border-b border-dark-border">
           <span className="w-9">Pos</span>
           <span className="flex-1">Player / Golfer</span>
           <span className="w-10 text-right">Score</span>
           <span className="w-8 text-right">Thru</span>
-          <span className="w-10 text-right">Odds</span>
+          <span className="w-20 text-right">Odds</span>
           {activeRounds.map((r) => (
             <span key={r} className="w-8 text-right">R{r}</span>
           ))}
@@ -105,6 +133,9 @@ export default function LeaderboardPage() {
             className="flex items-center gap-1 px-3 py-3 border-b border-dark-border/40 last:border-0 hover:bg-dark-border/20 transition-colors"
             style={{
               borderLeft: `4px solid ${entry.player.color ?? "#006747"}`,
+              backgroundColor: entry.player.rowColor
+                ? undefined
+                : `${entry.player.color ?? "#006747"}08`,
             }}
           >
             {/* Position */}
@@ -115,7 +146,7 @@ export default function LeaderboardPage() {
             {/* Player + Golfer */}
             <div className="flex-1 min-w-0">
               <div className="font-bold text-sm truncate">
-                {entry.player.name}
+                {entry.player.avatarEmoji} {entry.player.name}
               </div>
               <div className="text-xs text-cream/50 truncate">
                 {entry.golfer.flagEmoji} {entry.golfer.name}
@@ -123,9 +154,7 @@ export default function LeaderboardPage() {
             </div>
 
             {/* Score */}
-            <span
-              className={`w-10 text-right font-mono font-bold text-base ${scoreClass(entry.scoreToPar)}`}
-            >
+            <span className={`w-10 text-right font-mono font-bold text-base ${scoreColorClass(entry.scoreToPar)}`}>
               {formatScore(entry.scoreToPar)}
             </span>
 
@@ -134,16 +163,27 @@ export default function LeaderboardPage() {
               {entry.thru ?? "-"}
             </span>
 
-            {/* Odds */}
-            <span className="w-10 text-right text-xs text-cream/40">
-              {entry.openingOdds ?? "-"}
+            {/* Odds: opening → current with arrow */}
+            <span className="w-20 text-right text-xs">
+              {entry.currentOdds ? (
+                <>
+                  <span className="text-cream/30">{entry.openingOdds}</span>
+                  <span className="text-cream/20"> → </span>
+                  <span className={oddsArrowColor(entry.openingOddsDecimal, entry.currentOddsDecimal)}>
+                    {entry.currentOdds}
+                    {oddsArrow(entry.openingOddsDecimal, entry.currentOddsDecimal)}
+                  </span>
+                </>
+              ) : (
+                <span className="text-cream/40">{entry.openingOdds ?? "-"}</span>
+              )}
             </span>
 
             {/* Round scores */}
             {activeRounds.map((r) => (
               <span
                 key={r}
-                className={`w-8 text-right text-xs font-mono ${scoreClass(entry.roundScores?.[r]?.scoreToPar ?? null)}`}
+                className={`w-8 text-right text-xs font-mono ${scoreColorClass(entry.roundScores?.[r]?.scoreToPar ?? null)}`}
               >
                 {entry.roundScores?.[r]
                   ? formatScore(entry.roundScores[r].scoreToPar)
@@ -165,11 +205,15 @@ export default function LeaderboardPage() {
         )}
       </div>
 
-      {/* Scoring guide */}
-      <div className="mt-6 bg-dark-card border border-dark-border rounded-xl p-4">
-        <h3 className="font-serif text-sm font-bold mb-2 text-cream/60">
-          Points Guide
-        </h3>
+      {/* Last updated */}
+      <div className="mt-3 text-center text-xs text-cream/30">
+        Scores updated {timeAgo(lastPolled)}
+        {lastOddsPolled && <> · Odds updated {timeAgo(lastOddsPolled)}</>}
+      </div>
+
+      {/* Points guide */}
+      <div className="mt-4 bg-dark-card border border-dark-border rounded-xl p-4">
+        <h3 className="font-serif text-sm font-bold mb-2 text-cream/60">Points Guide</h3>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs text-cream/40">
           <span>1st: 50pts</span>
           <span>2nd: 30pts</span>

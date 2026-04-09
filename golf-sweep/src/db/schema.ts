@@ -7,6 +7,8 @@ import {
   real,
   boolean,
   uniqueIndex,
+  jsonb,
+  date,
 } from "drizzle-orm/pg-core";
 
 export const players = pgTable("players", {
@@ -16,16 +18,20 @@ export const players = pgTable("players", {
   avatarEmoji: text("avatar_emoji"),
   passcode: text("passcode"),
   color: text("color"),
+  rowColor: text("row_color"), // tailwind class e.g. "bg-red-900/20"
 });
 
 export const tournaments = pgTable("tournaments", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
+  slug: text("tournament_slug").unique(),
   slashTournId: text("slash_tourn_id"),
+  oddsApiSportKey: text("odds_api_sport_key"),
   startDate: text("start_date"),
   endDate: text("end_date"),
-  status: text("status").notNull().default("upcoming"), // upcoming|live|finished
+  status: text("status").notNull().default("upcoming"),
   lastPolledAt: timestamp("last_polled_at"),
+  lastOddsPolledAt: timestamp("last_odds_polled_at"),
   lastPollResult: text("last_poll_result"),
 });
 
@@ -51,6 +57,8 @@ export const picks = pgTable(
       .notNull()
       .references(() => golfers.id),
     openingOdds: text("opening_odds"),
+    openingOddsDecimal: real("opening_odds_decimal"),
+    draftPickOrder: integer("draft_pick_order"),
   },
   (table) => [
     uniqueIndex("picks_player_tournament_idx").on(
@@ -66,7 +74,7 @@ export const rounds = pgTable("rounds", {
     .notNull()
     .references(() => tournaments.id),
   roundNumber: integer("round_number").notNull(),
-  status: text("status").notNull().default("upcoming"), // upcoming|live|finished
+  status: text("status").notNull().default("upcoming"),
 });
 
 export const roundScores = pgTable(
@@ -82,6 +90,7 @@ export const roundScores = pgTable(
     scoreToPar: integer("score_to_par"),
     thru: text("thru"),
     position: text("position"),
+    roundScore: integer("round_score"), // absolute score e.g. 68
     updatedAt: timestamp("updated_at").defaultNow(),
   },
   (table) => [
@@ -103,6 +112,7 @@ export const tournamentResults = pgTable(
       .notNull()
       .references(() => tournaments.id),
     finalPosition: text("final_position"),
+    finalPositionDisplay: text("final_position_display"),
     finalScoreToPar: integer("final_score_to_par"),
     madeCut: boolean("made_cut"),
   },
@@ -114,6 +124,20 @@ export const tournamentResults = pgTable(
   ]
 );
 
+export const liveOdds = pgTable("live_odds", {
+  id: serial("id").primaryKey(),
+  golferId: integer("golfer_id")
+    .notNull()
+    .references(() => golfers.id),
+  tournamentId: integer("tournament_id")
+    .notNull()
+    .references(() => tournaments.id),
+  fractional: text("fractional"), // "12/1"
+  decimal: real("decimal"), // 13.0
+  bookmaker: text("bookmaker"), // "average" or specific book
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 export const pointsLog = pgTable("points_log", {
   id: serial("id").primaryKey(),
   playerId: integer("player_id")
@@ -122,8 +146,20 @@ export const pointsLog = pgTable("points_log", {
   tournamentId: integer("tournament_id")
     .notNull()
     .references(() => tournaments.id),
-  source: text("source").notNull(), // finish|rotd|bor
+  source: text("source").notNull(),
   points: real("points").notNull(),
   note: text("note"),
   createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const draftState = pgTable("draft_state", {
+  id: serial("id").primaryKey(),
+  tournamentId: integer("tournament_id")
+    .notNull()
+    .references(() => tournaments.id)
+    .unique(),
+  status: text("status").notNull().default("not_started"),
+  currentPickIndex: integer("current_pick_index"),
+  pickOrder: jsonb("pick_order"), // array of player_ids
+  deadline: timestamp("deadline"),
 });

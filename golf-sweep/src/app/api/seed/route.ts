@@ -10,7 +10,7 @@ import {
   roundScores,
   tournamentResults,
 } from "@/db/schema";
-import { PLAYERS, GOLFERS, PICKS } from "@/lib/seed-data";
+import { PLAYERS, GOLFERS, PICKS, TOURNAMENTS } from "@/lib/seed-data";
 import {
   getSchedule,
   getLeaderboard,
@@ -60,26 +60,37 @@ export async function POST() {
       .returning();
     console.log(`[Seed] Inserted ${insertedGolfers.length} golfers`);
 
-    // 3. Try to get Masters from Slash Golf
-    let tournamentRow;
+    // 3. Insert all 4 tournaments
+    const insertedTournaments = await db
+      .insert(tournaments)
+      .values(
+        TOURNAMENTS.map((t) => ({
+          name: t.name,
+          slug: t.slug,
+          startDate: t.startDate,
+          endDate: t.endDate,
+          status: t.status,
+          oddsApiSportKey: t.oddsApiSportKey,
+        }))
+      )
+      .returning();
+    console.log(`[Seed] Inserted ${insertedTournaments.length} tournaments`);
+
+    let tournamentRow = insertedTournaments.find((t) => t.status === "live") ?? insertedTournaments[0];
     let leaderboardData;
+
+    // 4. Try to get Masters tournId from Slash Golf
     try {
       const schedule = await getSchedule(2026);
       const masters = findMastersTournament(schedule);
 
       if (masters) {
         console.log(`[Seed] Found Masters: ${masters.name} (ID: ${masters.tournId})`);
-        const [inserted] = await db
-          .insert(tournaments)
-          .values({
-            name: masters.name,
-            slashTournId: masters.tournId,
-            startDate: masters.startDate,
-            endDate: masters.endDate,
-            status: "live",
-          })
-          .returning();
-        tournamentRow = inserted;
+        await db
+          .update(tournaments)
+          .set({ slashTournId: masters.tournId })
+          .where(eq(tournaments.id, tournamentRow.id));
+        tournamentRow = { ...tournamentRow, slashTournId: masters.tournId };
 
         // Get leaderboard and match golfers
         try {
@@ -121,22 +132,7 @@ export async function POST() {
       console.warn("[Seed] Slash Golf unreachable:", schedErr);
     }
 
-    // Fallback: create empty tournament shell if API failed
-    if (!tournamentRow) {
-      const [inserted] = await db
-        .insert(tournaments)
-        .values({
-          name: "The Masters",
-          slashTournId: null,
-          startDate: "2026-04-09",
-          endDate: "2026-04-12",
-          status: "live",
-        })
-        .returning();
-      tournamentRow = inserted;
-    }
-
-    // 4. Create picks
+    // 5. Create picks (for Masters only — future majors use snake draft)
     for (const pick of PICKS) {
       const player = insertedPlayers.find((p) => p.slug === pick.playerSlug);
       const golfer = insertedGolfers.find((g) => g.name === pick.golferName);
@@ -144,6 +140,7 @@ export async function POST() {
         await db.insert(picks).values({
           playerId: player.id,
           tournamentId: tournamentRow.id,
+          openingOddsDecimal: pick.oddsDecimal,
           golferId: golfer.id,
           openingOdds: pick.odds,
         });

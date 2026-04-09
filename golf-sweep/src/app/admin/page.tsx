@@ -57,6 +57,22 @@ export default function AdminPage() {
     setPollLoading(false);
   }
 
+  async function pollOddsNow() {
+    setPollLoading(true);
+    setPollResult("");
+    try {
+      const res = await fetch("/api/cron/poll-odds", {
+        method: "POST",
+        headers: { "x-admin-passcode": passcode },
+      });
+      const json = await res.json();
+      setPollResult(JSON.stringify(json, null, 2));
+    } catch (err) {
+      setPollResult(`Error: ${err}`);
+    }
+    setPollLoading(false);
+  }
+
   async function pasteScores() {
     try {
       const res = await fetch("/api/admin/paste-scores", {
@@ -188,6 +204,21 @@ export default function AdminPage() {
           className="ml-3 bg-dark-border hover:bg-cream/20 text-cream px-4 py-2 rounded-lg text-sm transition-colors"
         >
           Re-seed DB
+        </button>
+      </div>
+
+      {/* Poll Odds */}
+      <div className="bg-dark-card border border-dark-border rounded-xl p-4">
+        <h2 className="font-bold mb-2">Live Odds Polling</h2>
+        <p className="text-xs text-cream/40 mb-3">
+          Fetches outright winner odds from The Odds API (requires ODDS_API_KEY env var)
+        </p>
+        <button
+          onClick={pollOddsNow}
+          disabled={pollLoading}
+          className="bg-augusta hover:bg-augusta-light disabled:opacity-50 text-cream px-6 py-2 rounded-lg font-bold transition-colors"
+        >
+          {pollLoading ? "Polling..." : "Poll Odds Now"}
         </button>
       </div>
 
