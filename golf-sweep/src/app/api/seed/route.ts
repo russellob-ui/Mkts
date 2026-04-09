@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
+import { ensureTables } from "@/db/ensure-tables";
 import {
   players,
   tournaments,
@@ -21,6 +22,9 @@ import { eq } from "drizzle-orm";
 
 export async function POST() {
   try {
+    // Ensure tables exist
+    await ensureTables();
+
     // Check if already seeded
     const existingPlayers = await db.select().from(players);
     if (existingPlayers.length > 0) {

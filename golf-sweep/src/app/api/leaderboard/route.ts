@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
+import { ensureTables } from "@/db/ensure-tables";
 import {
   players,
   tournaments,
@@ -16,6 +17,9 @@ export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
+    // Ensure tables exist on first request
+    await ensureTables();
+
     // Seed check — auto-seed if DB is empty
     const allPlayers = await db.select().from(players);
     if (allPlayers.length === 0) {
