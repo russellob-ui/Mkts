@@ -45,9 +45,7 @@ export default function AdminPage() {
     try {
       const res = await fetch("/api/cron/poll-scores", {
         headers: {
-          "x-cron-secret": passcode === (process.env.NEXT_PUBLIC_CRON_SECRET ?? "")
-            ? passcode
-            : passcode, // Admin uses passcode as fallback
+          "x-admin-passcode": passcode,
         },
       });
       const json = await res.json();

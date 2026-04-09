@@ -12,10 +12,16 @@ import { eq, and } from "drizzle-orm";
 import { getLeaderboard, parseLeaderboardPlayers } from "@/lib/slashgolf";
 
 export async function GET(request: NextRequest) {
-  // Auth check
+  // Auth check — accept either CRON_SECRET or ADMIN_PASSCODE
   const cronSecret = process.env.CRON_SECRET;
+  const adminPasscode = process.env.ADMIN_PASSCODE;
   const providedSecret = request.headers.get("x-cron-secret");
-  if (cronSecret && providedSecret !== cronSecret) {
+  const providedPasscode = request.headers.get("x-admin-passcode");
+  const isAuthed =
+    (cronSecret && providedSecret === cronSecret) ||
+    (adminPasscode && providedPasscode === adminPasscode) ||
+    (adminPasscode && providedSecret === adminPasscode);
+  if (cronSecret && !isAuthed) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
