@@ -40,7 +40,12 @@ async function maybePollScores(
 
   const now = Date.now();
   const lastPoll = tournament.lastPolledAt ? tournament.lastPolledAt.getTime() : 0;
-  if (now - lastPoll < POLL_INTERVAL_MS) return; // too soon
+
+  // Check if round_scores is empty — if so, force a poll to bootstrap
+  const existingScores = await db.select().from(roundScores).limit(1);
+  const needsBootstrap = existingScores.length === 0;
+
+  if (!needsBootstrap && now - lastPoll < POLL_INTERVAL_MS) return; // too soon
 
   try {
     const lbRaw = await getLeaderboard(tournament.slashTournId, 2026);
