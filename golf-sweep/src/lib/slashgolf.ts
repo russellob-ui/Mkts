@@ -157,20 +157,25 @@ export function parseLeaderboardPlayers(
   madeCut: boolean;
 }> {
   try {
-    const lb =
-      (leaderboard as Record<string, unknown>).leaderboard ??
-      (leaderboard as Record<string, unknown>).results ??
-      (leaderboard as Record<string, unknown>).players ??
-      (leaderboard as Record<string, unknown>).rows ??
-      leaderboard;
+    const data = leaderboard as Record<string, unknown>;
 
-    const items: unknown[] = Array.isArray(lb)
-      ? lb
-      : Array.isArray((lb as Record<string, unknown>)?.rows)
-        ? ((lb as Record<string, unknown>).rows as unknown[])
-        : Array.isArray((lb as Record<string, unknown>)?.players)
-          ? ((lb as Record<string, unknown>).players as unknown[])
-          : [];
+    // Find the player array — try known keys
+    let items: unknown[] = [];
+    for (const key of ["leaderboardRows", "leaderboard", "results", "players", "rows"]) {
+      if (Array.isArray(data[key])) {
+        items = data[key] as unknown[];
+        break;
+      }
+    }
+    // Fallback: search all keys for the first array
+    if (items.length === 0) {
+      for (const key of Object.keys(data)) {
+        if (Array.isArray(data[key]) && (data[key] as unknown[]).length > 0) {
+          items = data[key] as unknown[];
+          break;
+        }
+      }
+    }
 
     return items.map((item) => {
       const obj = item as Record<string, unknown>;
@@ -180,22 +185,43 @@ export function parseLeaderboardPlayers(
         obj.name ?? obj.playerName ?? obj.player_name ?? `${firstName} ${lastName}`
       ).trim();
 
-      // Parse round scores
+      // Parse round scores — handle array of round objects
       const roundScores: Record<number, number | null> = {};
-      for (let r = 1; r <= 4; r++) {
-        const key = `round${r}` as string;
-        const altKey = `r${r}` as string;
-        const val = obj[key] ?? obj[altKey] ?? (obj.rounds as Record<string, unknown>)?.[String(r)];
-        roundScores[r] = val != null && val !== "" && val !== "-" ? Number(val) : null;
+      const roundsArr = obj.rounds;
+      if (Array.isArray(roundsArr)) {
+        for (const rd of roundsArr) {
+          const rdObj = rd as Record<string, unknown>;
+          const rNum = Number(rdObj.roundNumber ?? rdObj.round_number ?? rdObj.round ?? 0);
+          const scoreToPar = rdObj.scoreToPar ?? rdObj.score_to_par ?? rdObj.strokes ?? null;
+          if (rNum >= 1 && rNum <= 4 && scoreToPar != null && scoreToPar !== "" && scoreToPar !== "-") {
+            roundScores[rNum] = Number(scoreToPar);
+          }
+        }
+      } else {
+        for (let r = 1; r <= 4; r++) {
+          const val = obj[`round${r}`] ?? obj[`r${r}`];
+          roundScores[r] = val != null && val !== "" && val !== "-" ? Number(val) : null;
+        }
       }
 
       // Parse score to par
       let scoreToPar = 0;
-      const rawScore = obj.scoreToPar ?? obj.score_to_par ?? obj.total ?? obj.totalToPar ?? obj.toPar;
+      const rawScore = obj.total ?? obj.scoreToPar ?? obj.score_to_par ?? obj.totalToPar ?? obj.toPar;
       if (rawScore === "E" || rawScore === "even" || rawScore === "0") {
         scoreToPar = 0;
       } else if (rawScore != null && rawScore !== "" && rawScore !== "-") {
         scoreToPar = Number(rawScore);
+      }
+
+      // Parse thru
+      const thruVal = obj.thru ?? obj.hole ?? obj.holes;
+      let thru = "";
+      if (thruVal != null && thruVal !== "") {
+        thru = String(thruVal);
+      }
+      // Check if round is complete
+      if (obj.roundComplete === true || thru === "18" || thru === "F") {
+        thru = "F";
       }
 
       return {
@@ -205,7 +231,7 @@ export function parseLeaderboardPlayers(
         lastName,
         position: String(obj.position ?? obj.pos ?? obj.rank ?? ""),
         scoreToPar,
-        thru: String(obj.thru ?? obj.hole ?? obj.holes ?? ""),
+        thru,
         currentRound: Number(obj.currentRound ?? obj.current_round ?? obj.round ?? 1),
         roundScores,
         madeCut: obj.madeCut !== false && obj.made_cut !== false && obj.status !== "CUT" && obj.status !== "MC",
