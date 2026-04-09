@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
+import { ensureTables } from "@/db/ensure-tables";
 import { scoreSnapshots, picks, players, golfers } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
+  await ensureTables();
   const tournamentId = Number(request.nextUrl.searchParams.get("tournamentId") ?? "1");
 
   const tournamentPicks = await db.select().from(picks).where(eq(picks.tournamentId, tournamentId));

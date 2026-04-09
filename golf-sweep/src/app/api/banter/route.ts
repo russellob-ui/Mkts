@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
+import { ensureTables } from "@/db/ensure-tables";
 import { banterEvents, players, golfers } from "@/db/schema";
 import { eq, and, gte, desc } from "drizzle-orm";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
+  await ensureTables();
   const tournamentId = Number(request.nextUrl.searchParams.get("tournamentId") ?? "1");
   const limit = Number(request.nextUrl.searchParams.get("limit") ?? "50");
   const minImportance = Number(request.nextUrl.searchParams.get("minImportance") ?? "0");

@@ -21,6 +21,9 @@ export default function BanterPage() {
   const [filter, setFilter] = useState<"all" | "big">("all");
 
   async function fetchData() {
+    // Trigger leaderboard first to ensure tables + snapshots + banter generation
+    await fetch("/api/leaderboard");
+
     const minImportance = filter === "big" ? 7 : 0;
     const res = await fetch(`/api/banter?tournamentId=1&minImportance=${minImportance}`);
     const json = await res.json();

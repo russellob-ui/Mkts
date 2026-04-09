@@ -37,12 +37,22 @@ export default function TrajectoryPage() {
   const [tournamentId, setTournamentId] = useState(1);
 
   useEffect(() => {
-    fetch(`/api/trajectory?tournamentId=${tournamentId}`)
-      .then((r) => r.json())
-      .then((d) => setData(d.trajectories ?? []));
-    fetch(`/api/heatmap?tournamentId=${tournamentId}`)
-      .then((r) => r.json())
-      .then((d) => setHeatmapData(d.heatmap ?? []));
+    async function load() {
+      // Trigger a leaderboard fetch first — this ensures tables exist
+      // and writes score snapshots if scores are stale
+      await fetch("/api/leaderboard");
+
+      // Now fetch trajectory + heatmap data
+      const [trajRes, heatRes] = await Promise.all([
+        fetch(`/api/trajectory?tournamentId=${tournamentId}`),
+        fetch(`/api/heatmap?tournamentId=${tournamentId}`),
+      ]);
+      const trajData = await trajRes.json();
+      const heatData = await heatRes.json();
+      setData(trajData.trajectories ?? []);
+      setHeatmapData(heatData.heatmap ?? []);
+    }
+    load();
   }, [tournamentId]);
 
   const tabs: { key: Tab; label: string }[] = [
