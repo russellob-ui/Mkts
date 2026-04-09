@@ -10,6 +10,7 @@ interface LeaderboardEntry {
   position: string | null;
   scoreToPar: number | null;
   thru: string | null;
+  openingOdds: string | null;
   points: number;
 }
 
@@ -149,6 +150,9 @@ export default function HomePage() {
                   <span className="text-cream/50 text-sm ml-2">
                     {entry.golfer.name} {entry.golfer.flagEmoji}
                   </span>
+                  {entry.openingOdds && (
+                    <span className="text-cream/30 text-xs ml-1">({entry.openingOdds})</span>
+                  )}
                 </div>
               </div>
               <div className="flex items-center gap-4 text-sm">

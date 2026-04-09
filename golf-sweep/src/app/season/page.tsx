@@ -35,9 +35,18 @@ export default function SeasonPage() {
     "The Open Championship",
   ];
 
-  // Sort tournaments by major order
+  // Sort tournaments by major order — match carefully to avoid collisions
+  const majorMatch = (tournName: string, majorName: string) => {
+    const t = tournName.toLowerCase();
+    if (majorName === "The Masters") return t.includes("masters");
+    if (majorName === "PGA Championship") return t.includes("pga");
+    if (majorName === "U.S. Open") return t.includes("u.s. open") || t.includes("us open");
+    if (majorName === "The Open Championship")
+      return (t.includes("open championship") || t === "the open") && !t.includes("u.s.");
+    return false;
+  };
   const orderedTournaments = majorOrder
-    .map((name) => tournaments.find((t) => t.name.includes(name.split(" ")[1] ?? name)) ?? null)
+    .map((name) => tournaments.find((t) => majorMatch(t.name, name)) ?? null)
     .filter(Boolean) as TournamentInfo[];
 
   // Fallback: if no matches, use all tournaments

@@ -48,11 +48,16 @@ export default function LeaderboardPage() {
 
   useEffect(() => {
     fetchData();
-    const interval = setInterval(fetchData, 30000); // 30s refresh
+    const interval = setInterval(fetchData, 30000);
     return () => clearInterval(interval);
   }, []);
 
   const isLive = tournament?.status === "live";
+
+  // Determine which rounds have any data
+  const activeRounds = [1, 2, 3, 4].filter((r) =>
+    entries.some((e) => e.roundScores?.[r]?.scoreToPar != null)
+  );
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-6">
@@ -81,32 +86,34 @@ export default function LeaderboardPage() {
       {/* Leaderboard table */}
       <div className="bg-dark-card border border-dark-border rounded-xl overflow-hidden">
         {/* Header row */}
-        <div className="grid grid-cols-[auto_1fr_auto_auto_auto_auto] md:grid-cols-[auto_1fr_auto_auto_auto_auto_auto] gap-2 px-4 py-2 text-xs text-cream/40 uppercase tracking-wider border-b border-dark-border">
-          <span>Pos</span>
-          <span>Player / Golfer</span>
-          <span className="text-right">Score</span>
-          <span className="text-right">Thru</span>
-          <span className="text-right hidden md:block">Odds</span>
-          <span className="text-right">R1</span>
-          <span className="text-right">Pts</span>
+        <div className="flex items-center gap-1 px-3 py-2 text-[10px] text-cream/40 uppercase tracking-wider border-b border-dark-border">
+          <span className="w-9">Pos</span>
+          <span className="flex-1">Player / Golfer</span>
+          <span className="w-10 text-right">Score</span>
+          <span className="w-8 text-right">Thru</span>
+          <span className="w-10 text-right">Odds</span>
+          {activeRounds.map((r) => (
+            <span key={r} className="w-8 text-right">R{r}</span>
+          ))}
+          <span className="w-8 text-right">Pts</span>
         </div>
 
         {entries.map((entry) => (
           <Link
             key={entry.player.slug}
             href={`/player/${entry.player.slug}`}
-            className="grid grid-cols-[auto_1fr_auto_auto_auto_auto] md:grid-cols-[auto_1fr_auto_auto_auto_auto_auto] gap-2 items-center px-4 py-3 border-b border-dark-border/40 last:border-0 hover:bg-dark-border/20 transition-colors"
+            className="flex items-center gap-1 px-3 py-3 border-b border-dark-border/40 last:border-0 hover:bg-dark-border/20 transition-colors"
             style={{
               borderLeft: `4px solid ${entry.player.color ?? "#006747"}`,
             }}
           >
             {/* Position */}
-            <span className="text-sm font-mono font-bold text-cream/80 w-8">
+            <span className="text-sm font-mono font-bold text-cream/80 w-9">
               {entry.position ?? "-"}
             </span>
 
             {/* Player + Golfer */}
-            <div className="min-w-0">
+            <div className="flex-1 min-w-0">
               <div className="font-bold text-sm truncate">
                 {entry.player.name}
               </div>
@@ -117,32 +124,35 @@ export default function LeaderboardPage() {
 
             {/* Score */}
             <span
-              className={`text-right font-mono font-bold text-lg ${scoreClass(entry.scoreToPar)}`}
+              className={`w-10 text-right font-mono font-bold text-base ${scoreClass(entry.scoreToPar)}`}
             >
               {formatScore(entry.scoreToPar)}
             </span>
 
             {/* Thru */}
-            <span className="text-right text-sm text-cream/60 w-8">
+            <span className="w-8 text-right text-xs text-cream/60">
               {entry.thru ?? "-"}
             </span>
 
             {/* Odds */}
-            <span className="text-right text-xs text-cream/40 hidden md:block w-10">
+            <span className="w-10 text-right text-xs text-cream/40">
               {entry.openingOdds ?? "-"}
             </span>
 
-            {/* Round 1 score */}
-            <span
-              className={`text-right text-sm font-mono ${scoreClass(entry.roundScores?.[1]?.scoreToPar ?? null)}`}
-            >
-              {entry.roundScores?.[1]
-                ? formatScore(entry.roundScores[1].scoreToPar)
-                : "-"}
-            </span>
+            {/* Round scores */}
+            {activeRounds.map((r) => (
+              <span
+                key={r}
+                className={`w-8 text-right text-xs font-mono ${scoreClass(entry.roundScores?.[r]?.scoreToPar ?? null)}`}
+              >
+                {entry.roundScores?.[r]
+                  ? formatScore(entry.roundScores[r].scoreToPar)
+                  : "-"}
+              </span>
+            ))}
 
             {/* Points */}
-            <span className="text-right font-bold text-gold text-sm w-8">
+            <span className="w-8 text-right font-bold text-gold text-xs">
               {entry.points > 0 ? entry.points : "-"}
             </span>
           </Link>
