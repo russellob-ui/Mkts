@@ -9,7 +9,7 @@ import {
   tournamentResults,
 } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
-import { getLeaderboard, parseLeaderboardPlayers } from "@/lib/slashgolf";
+import { getLeaderboard, parseLeaderboardPlayers, normalizeGolferName } from "@/lib/slashgolf";
 
 export async function GET(request: NextRequest) {
   // Auth check — accept either CRON_SECRET or ADMIN_PASSCODE
@@ -39,16 +39,37 @@ export async function GET(request: NextRequest) {
     const changes: Array<Record<string, unknown>> = [];
 
     for (const tournament of liveTournaments) {
-      if (!tournament.slashTournId) {
+      let tournId = tournament.slashTournId;
+
+      // If no tournId, try to find it from the schedule
+      if (!tournId) {
+        try {
+          const { getSchedule, findMastersTournament } = await import("@/lib/slashgolf");
+          const schedule = await getSchedule(2026);
+          const masters = findMastersTournament(schedule);
+          if (masters) {
+            tournId = masters.tournId;
+            await db
+              .update(tournaments)
+              .set({ slashTournId: tournId })
+              .where(eq(tournaments.id, tournament.id));
+            console.log(`[Poll] Found tournament ID: ${tournId}`);
+          }
+        } catch (err) {
+          console.warn("[Poll] Could not fetch schedule:", err);
+        }
+      }
+
+      if (!tournId) {
         changes.push({
           tournament: tournament.name,
-          error: "No slash_tourn_id set",
+          error: "No slash_tourn_id set and could not find from schedule",
         });
         continue;
       }
 
       // Fetch leaderboard
-      const lbRaw = await getLeaderboard(tournament.slashTournId, 2026);
+      const lbRaw = await getLeaderboard(tournId, 2026);
       const lbPlayers = parseLeaderboardPlayers(lbRaw);
 
       // Get our 8 picked golfers for this tournament
@@ -70,11 +91,36 @@ export async function GET(request: NextRequest) {
         .where(eq(rounds.tournamentId, tournament.id));
 
       for (const golfer of ourGolfers) {
-        if (!golfer.slashPlayerId) continue;
+        // Match by slash_player_id first, then by name
+        let lbPlayer = golfer.slashPlayerId
+          ? lbPlayers.find((p) => p.playerId === golfer.slashPlayerId)
+          : null;
 
-        const lbPlayer = lbPlayers.find(
-          (p) => p.playerId === golfer.slashPlayerId
-        );
+        if (!lbPlayer) {
+          // Fuzzy match by name
+          const normalized = normalizeGolferName(golfer.name);
+          lbPlayer = lbPlayers.find((p) => {
+            const pNorm = normalizeGolferName(p.name);
+            const pLastNorm = normalizeGolferName(p.lastName);
+            return (
+              pNorm === normalized ||
+              pNorm.includes(normalized) ||
+              normalized.includes(pNorm) ||
+              normalized.includes(pLastNorm) ||
+              pLastNorm.includes(normalized.split(" ").pop() ?? "")
+            );
+          }) ?? null;
+
+          // Save the matched player ID for future polls
+          if (lbPlayer) {
+            await db
+              .update(golfers)
+              .set({ slashPlayerId: lbPlayer.playerId })
+              .where(eq(golfers.id, golfer.id));
+            console.log(`[Poll] Matched ${golfer.name} → ${lbPlayer.name} (${lbPlayer.playerId})`);
+          }
+        }
+
         if (!lbPlayer) continue;
 
         // Update round scores
