@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { timeAgo, getBanterLine } from "@/lib/banter";
+import ChatPanel from "@/components/ChatPanel";
 
 interface LeaderboardEntry {
   player: { name: string; slug: string; color: string | null; rowColor: string | null; avatarEmoji: string | null };
@@ -209,6 +210,11 @@ export default function LeaderboardPage() {
       <div className="mt-3 text-center text-xs text-cream/30">
         Scores updated {timeAgo(lastPolled)}
         {lastOddsPolled && <> · Odds updated {timeAgo(lastOddsPolled)}</>}
+      </div>
+
+      {/* Live Chat — per v3.5 spec, split-screen chat on leaderboard */}
+      <div className="mt-4 h-[45dvh] md:h-[50dvh]">
+        <ChatPanel />
       </div>
 
       {/* Points guide */}
