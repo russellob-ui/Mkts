@@ -444,6 +444,8 @@ export async function GET() {
         },
         position: latestSnapshot?.position ?? result?.finalPosition ?? null,
         scoreToPar: latestSnapshot?.totalScoreToPar ?? result?.finalScoreToPar ?? null,
+        todayScore: latestSnapshot?.roundScoreToPar ?? null,
+        currentRound: latestSnapshot?.roundNumber ?? null,
         madeCut: result?.madeCut,
         thru:
           latestSnapshot?.thru && latestSnapshot.thru !== ""

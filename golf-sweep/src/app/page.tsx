@@ -10,6 +10,8 @@ interface LeaderboardEntry {
   golfer: { name: string; country: string | null; flagEmoji: string | null };
   position: string | null;
   scoreToPar: number | null;
+  todayScore: number | null;
+  currentRound: number | null;
   thru: string | null;
   openingOdds: string | null;
   openingOddsDecimal: number | null;
@@ -100,9 +102,6 @@ export default function HomePage() {
   }, []);
 
   const isLive = tournament?.status === "live";
-  const activeRounds = [1, 2, 3, 4].filter((r) =>
-    entries.some((e) => e.roundScores?.[r]?.scoreToPar != null)
-  );
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-3">
@@ -150,12 +149,10 @@ export default function HomePage() {
         <div className="flex items-center gap-1 px-3 py-1.5 text-[10px] text-cream/40 uppercase tracking-wider border-b border-dark-border">
           <span className="w-8">Pos</span>
           <span className="flex-1">Player / Golfer</span>
-          <span className="w-10 text-right">Score</span>
+          <span className="w-10 text-right">Tot</span>
+          <span className="w-10 text-right">Rd</span>
           <span className="w-8 text-right">Thru</span>
-          <span className="w-16 text-right">Odds</span>
-          {activeRounds.map((r) => (
-            <span key={r} className="w-7 text-right">R{r}</span>
-          ))}
+          <span className="w-12 text-right">Odds</span>
           <span className="w-7 text-right">Pts</span>
         </div>
 
@@ -182,15 +179,23 @@ export default function HomePage() {
               </div>
             </div>
 
+            {/* Total (tournament to par) */}
             <span className={`w-10 text-right font-mono font-bold text-sm ${scoreColorClass(entry.scoreToPar)}`}>
               {formatScore(entry.scoreToPar)}
             </span>
 
+            {/* Today (current round score to par) */}
+            <span className={`w-10 text-right font-mono text-xs ${scoreColorClass(entry.todayScore)}`}>
+              {entry.todayScore != null ? formatScore(entry.todayScore) : "-"}
+            </span>
+
+            {/* Thru */}
             <span className="w-8 text-right text-[10px] text-cream/60">
               {entry.thru ?? "-"}
             </span>
 
-            <span className="w-16 text-right text-[10px]">
+            {/* Odds */}
+            <span className="w-12 text-right text-[10px]">
               {entry.currentOdds ? (
                 <span className={oddsArrowColor(entry.openingOddsDecimal, entry.currentOddsDecimal)}>
                   {entry.currentOdds}
@@ -201,17 +206,7 @@ export default function HomePage() {
               )}
             </span>
 
-            {activeRounds.map((r) => (
-              <span
-                key={r}
-                className={`w-7 text-right text-[10px] font-mono ${scoreColorClass(entry.roundScores?.[r]?.scoreToPar ?? null)}`}
-              >
-                {entry.roundScores?.[r]
-                  ? formatScore(entry.roundScores[r].scoreToPar)
-                  : "-"}
-              </span>
-            ))}
-
+            {/* Points */}
             <span className="w-7 text-right font-bold text-gold text-[10px]">
               {entry.points > 0 ? entry.points : "-"}
             </span>
