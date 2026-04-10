@@ -162,18 +162,24 @@ export async function GET() {
     const debugFirstPlayer = rows[0] as Record<string, unknown> | undefined;
     const debugRoundsStructure = debugFirstPlayer?.rounds;
 
+    // Put debug at the TOP so it's visible without scrolling
     return NextResponse.json({
-      players: mapped,
-      tournament: tournament.name,
-      cachedAgo: 0,
       _debug: {
         firstPlayerKeys: debugFirstPlayer ? Object.keys(debugFirstPlayer) : [],
         firstPlayerName: debugFirstPlayer?.name ?? debugFirstPlayer?.lastName,
-        roundsArray: debugRoundsStructure,
+        firstPlayerRoundsField: debugRoundsStructure,
+        roundsIsArray: Array.isArray(debugRoundsStructure),
+        roundsLength: Array.isArray(debugRoundsStructure) ? debugRoundsStructure.length : 0,
+        roundsFirstItem: Array.isArray(debugRoundsStructure) && debugRoundsStructure[0]
+          ? debugRoundsStructure[0]
+          : null,
         roundsFirstItemKeys: Array.isArray(debugRoundsStructure) && debugRoundsStructure[0]
           ? Object.keys(debugRoundsStructure[0] as object)
           : null,
       },
+      tournament: tournament.name,
+      playerCount: mapped.length,
+      players: mapped.slice(0, 3), // Just show first 3 players to keep response short
     });
   } catch (error) {
     console.error("[Full Leaderboard] Error:", error);
