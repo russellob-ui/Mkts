@@ -48,17 +48,26 @@ export async function writeScoreSnapshots(
   }>
 ) {
   for (const g of golferData) {
-    await db.insert(scoreSnapshots).values({
-      golferId: g.golferId,
-      tournamentId,
-      roundNumber: g.roundNumber,
-      totalScoreToPar: g.totalScoreToPar,
-      roundScoreToPar: g.roundScoreToPar,
-      position: g.position,
-      positionNumeric: parsePositionNumeric(g.position),
-      thru: g.thru,
-      thruNumeric: parseThruNumeric(g.thru),
-    });
+    try {
+      // Defensive: round number must be 1-4, fallback to 1
+      const rn = Number.isFinite(g.roundNumber) && g.roundNumber >= 1 && g.roundNumber <= 4
+        ? g.roundNumber
+        : 1;
+      await db.insert(scoreSnapshots).values({
+        golferId: g.golferId,
+        tournamentId,
+        roundNumber: rn,
+        totalScoreToPar: g.totalScoreToPar,
+        roundScoreToPar: g.roundScoreToPar,
+        position: g.position,
+        positionNumeric: parsePositionNumeric(g.position),
+        thru: g.thru,
+        thruNumeric: parseThruNumeric(g.thru),
+      });
+    } catch (err) {
+      console.error(`[Snapshots] Insert failed for golfer ${g.golferId}:`, err);
+      // Continue with other golfers
+    }
   }
 }
 

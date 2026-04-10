@@ -47,10 +47,19 @@ async function maybePollScores(
 
   if (!needsBootstrap && now - lastPoll < POLL_INTERVAL_MS) return; // too soon
 
+  let pollSucceeded = false;
   try {
     const lbRaw = await getLeaderboard(tournament.slashTournId, 2026);
     const lbPlayers = parseLeaderboardPlayers(lbRaw);
-    if (lbPlayers.length === 0) return;
+    if (lbPlayers.length === 0) {
+      console.warn("[Leaderboard] API returned 0 players");
+      // Still mark as polled to avoid hammering the API
+      await db
+        .update(tournaments)
+        .set({ lastPolledAt: new Date() })
+        .where(eq(tournaments.id, tournament.id));
+      return;
+    }
 
     const tournamentPicks = await db
       .select()
@@ -175,14 +184,17 @@ async function maybePollScores(
         }
         if (!lbPlayer) return null;
         // Use per-round score if available, otherwise fall back to total
-        const roundScore = lbPlayer.roundScores[lbPlayer.currentRound] ?? lbPlayer.scoreToPar;
+        const currentRound = lbPlayer.currentRound && lbPlayer.currentRound >= 1 && lbPlayer.currentRound <= 4
+          ? lbPlayer.currentRound
+          : 1;
+        const roundScore = lbPlayer.roundScores[currentRound] ?? lbPlayer.scoreToPar;
         return {
           golferId: golfer.id,
           totalScoreToPar: lbPlayer.scoreToPar,
           roundScoreToPar: roundScore,
           position: lbPlayer.position,
           thru: lbPlayer.thru,
-          roundNumber: lbPlayer.currentRound,
+          roundNumber: currentRound,
         };
       })
       .filter(Boolean) as Array<{
@@ -190,22 +202,42 @@ async function maybePollScores(
         position: string | null; thru: string | null; roundNumber: number;
       }>;
 
-    await writeScoreSnapshots(tournament.id, snapshotData);
-
-    // Generate banter events (non-blocking)
-    generateBanterFromSnapshot(tournament.id).catch((err) =>
-      console.error("[Leaderboard] Banter generation error:", err)
-    );
-
-    // Mark as polled
+    // Mark scores as polled — core work is done, v3 extras are best-effort
+    pollSucceeded = true;
     await db
       .update(tournaments)
       .set({ lastPolledAt: new Date() })
       .where(eq(tournaments.id, tournament.id));
 
-    console.log("[Leaderboard] Inline poll + snapshots complete");
+    // Best-effort: write score snapshots (v2) for trajectory charts
+    try {
+      await writeScoreSnapshots(tournament.id, snapshotData);
+    } catch (err) {
+      console.error("[Leaderboard] Snapshot write error (non-fatal):", err);
+    }
+
+    // Best-effort: generate banter events
+    try {
+      generateBanterFromSnapshot(tournament.id).catch((err) =>
+        console.error("[Leaderboard] Banter generation error:", err)
+      );
+    } catch (err) {
+      console.error("[Leaderboard] Banter trigger error (non-fatal):", err);
+    }
+
+    console.log("[Leaderboard] Inline poll complete");
   } catch (err) {
     console.error("[Leaderboard] Inline poll error:", err);
+    // If poll didn't succeed, still bump lastPolledAt to avoid hammering
+    // failed API. 60s cooldown will kick in.
+    if (!pollSucceeded) {
+      try {
+        await db
+          .update(tournaments)
+          .set({ lastPolledAt: new Date() })
+          .where(eq(tournaments.id, tournament.id));
+      } catch {}
+    }
   }
 }
 
