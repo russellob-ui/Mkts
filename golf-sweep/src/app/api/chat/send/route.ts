@@ -8,19 +8,31 @@ export async function POST(request: NextRequest) {
   try {
     await ensureTables();
 
-    const { playerPasscode, body, contextType, contextId, replyToMessageId } =
-      await request.json();
+    const body_json = await request.json();
+    // Accept either { playerPasscode } or { passcode } for backwards compat
+    const passcode = body_json.playerPasscode ?? body_json.passcode;
+    const body = body_json.body;
+    const contextType = body_json.contextType;
+    const contextId = body_json.contextId;
+    const replyToMessageId = body_json.replyToMessageId;
 
-    if (!playerPasscode || !body) {
+    if (!passcode || !body) {
       return NextResponse.json(
-        { error: "playerPasscode and body are required" },
+        { error: "passcode and body are required" },
+        { status: 400 }
+      );
+    }
+
+    if (typeof body !== "string" || body.trim().length === 0) {
+      return NextResponse.json(
+        { error: "Message body cannot be empty" },
         { status: 400 }
       );
     }
 
     // Validate passcode
     const allPlayers = await db.select().from(players);
-    const player = allPlayers.find((p) => p.passcode === playerPasscode);
+    const player = allPlayers.find((p) => p.passcode === passcode);
     if (!player) {
       return NextResponse.json({ error: "Invalid passcode" }, { status: 401 });
     }
@@ -31,7 +43,7 @@ export async function POST(request: NextRequest) {
         playerId: player.id,
         playerNameSnapshot: player.name,
         playerAvatarSnapshot: player.avatarEmoji ?? null,
-        body,
+        body: body.trim(),
         contextType: contextType ?? "general",
         contextId: contextId ?? null,
         replyToMessageId: replyToMessageId ?? null,
@@ -39,22 +51,28 @@ export async function POST(request: NextRequest) {
       })
       .returning();
 
-    // Persist to JSONL backup
-    appendChatToJSONL({
-      id: message.id,
-      playerId: message.playerId,
-      playerNameSnapshot: message.playerNameSnapshot,
-      playerAvatarSnapshot: message.playerAvatarSnapshot,
-      body: message.body,
-      contextType: message.contextType,
-      contextId: message.contextId,
-      replyToMessageId: message.replyToMessageId,
-      reactions: message.reactions,
-      createdAt: message.createdAt.toISOString(),
-    });
+    // Persist to JSONL backup (non-fatal if volume not mounted)
+    try {
+      appendChatToJSONL({
+        id: message.id,
+        playerId: message.playerId,
+        playerNameSnapshot: message.playerNameSnapshot,
+        playerAvatarSnapshot: message.playerAvatarSnapshot,
+        body: message.body,
+        contextType: message.contextType,
+        contextId: message.contextId,
+        replyToMessageId: message.replyToMessageId,
+        reactions: message.reactions,
+        createdAt: message.createdAt.toISOString(),
+      });
+    } catch (err) {
+      console.error("[Chat] JSONL append failed (non-fatal):", err);
+    }
 
     return NextResponse.json({ message });
   } catch (error) {
+    console.error("[Chat Send] Error:", error);
     return NextResponse.json({ error: String(error) }, { status: 500 });
   }
 }
+

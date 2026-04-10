@@ -53,6 +53,9 @@ export async function GET(request: NextRequest) {
       return {
         id: msg.id,
         playerId: msg.playerId,
+        // Both naming conventions for backwards compat
+        playerName: msg.playerNameSnapshot,
+        playerAvatar: msg.playerAvatarSnapshot,
         playerNameSnapshot: msg.playerNameSnapshot,
         playerAvatarSnapshot: msg.playerAvatarSnapshot,
         playerColor: player?.color ?? null,
