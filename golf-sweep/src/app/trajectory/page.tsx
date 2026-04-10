@@ -85,7 +85,7 @@ export default function TrajectoryPage() {
         ))}
       </div>
 
-      {!hasSnapshots && tab !== "heatmap" && (
+      {!hasSnapshots && tab === "evolution" && (
         <div className="bg-dark-card border border-dark-border rounded-xl p-8 text-center text-cream/40">
           Trajectory will appear once the tournament is underway and scores are being polled.
         </div>
