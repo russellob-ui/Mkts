@@ -94,11 +94,11 @@ export default function PredictionsPage() {
         setRoundComplete(d.roundComplete ?? false);
         if (d.results) setResults(d.results);
         else setResults(null);
-        // Auto-jump to the tournament's live round the first time
-        // we land on a tournament (only if we're still on the default R1)
-        const live = d.currentTournamentRound;
-        if (live && live >= 1 && live <= 4) {
-          setSelectedRound((prev) => (prev === 1 && live !== 1 ? live : prev));
+        // Auto-jump to the first round whose prediction window is still
+        // open, but only while the user hasn't changed tabs manually.
+        const next = d.nextOpenRound;
+        if (next && next >= 1 && next <= 4) {
+          setSelectedRound((prev) => (prev === 1 && next !== 1 ? next : prev));
         }
       })
       .catch(() => {});

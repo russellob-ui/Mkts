@@ -144,18 +144,25 @@ export async function GET(request: NextRequest) {
     // Window-open logic:
     //   open when we're ON the selected round AND no picked golfer has teed off yet
     //   OR the selected round is strictly in the future (currentRound < selectedRound)
-    let windowOpen = false;
-    if (currentTournamentRound !== null) {
-      if (currentTournamentRound < roundNumber) {
-        windowOpen = true; // future round — always open
-      } else if (currentTournamentRound === roundNumber) {
-        windowOpen = !roundStarted;
-      } else {
-        windowOpen = false; // past round
+    const isRoundOpen = (r: number): boolean => {
+      if (currentTournamentRound === null) {
+        return tournament.status !== "finished";
       }
-    } else {
-      // No live data → assume pre-tournament → open
-      windowOpen = tournament.status !== "finished";
+      if (currentTournamentRound < r) return true; // future round
+      if (currentTournamentRound === r) return !roundStarted;
+      return false; // past round
+    };
+
+    const windowOpen = isRoundOpen(roundNumber);
+
+    // Compute the first round whose window is still open so clients
+    // can auto-jump to the "active" prediction round.
+    let nextOpenRound: number | null = null;
+    for (const r of [1, 2, 3, 4]) {
+      if (isRoundOpen(r)) {
+        nextOpenRound = r;
+        break;
+      }
     }
 
     // Load results if the round is complete
@@ -230,6 +237,7 @@ export async function GET(request: NextRequest) {
       windowOpen,
       roundComplete,
       currentTournamentRound,
+      nextOpenRound,
       results,
     });
   } catch (error) {
