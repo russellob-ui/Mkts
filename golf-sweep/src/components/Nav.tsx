@@ -6,7 +6,8 @@ const NAV_GROUPS = [
   {
     label: "LIVE",
     links: [
-      { href: "/leaderboard", label: "Leaderboard" },
+      { href: "/leaderboard", label: "Our Picks" },
+      { href: "/full-leaderboard", label: "Full Field" },
       { href: "/banter", label: "Banter" },
       { href: "/trajectory", label: "Trajectory" },
       { href: "/chat", label: "Chat" },

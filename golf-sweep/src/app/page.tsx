@@ -89,16 +89,14 @@ export default function HomePage() {
   }, null);
 
   return (
-    <div className="max-w-5xl mx-auto px-4 py-8">
-      {/* Hero */}
-      <div className="text-center py-12">
-        <h1 className="font-serif text-4xl md:text-6xl font-bold text-cream mb-2">
-          LONDON BANTER
+    <div className="max-w-5xl mx-auto px-4 py-4">
+      {/* Hero — compact */}
+      <div className="text-center py-4">
+        <h1 className="font-serif text-2xl md:text-4xl font-bold text-cream leading-tight">
+          LONDON BANTER{" "}
+          <span className="text-augusta-light">&amp; WOODY</span>
         </h1>
-        <h1 className="font-serif text-4xl md:text-6xl font-bold text-augusta-light mb-4">
-          &amp; WOODY
-        </h1>
-        <p className="text-xl text-gold font-serif italic">Major Sweep 2026</p>
+        <p className="text-sm text-gold font-serif italic mt-0.5">Major Sweep 2026</p>
       </div>
 
       {seeding && (
