@@ -11,6 +11,7 @@ export async function POST(request: NextRequest) {
     const body_json = await request.json();
     // Accept either { playerPasscode } or { passcode } for backwards compat
     const passcode = body_json.playerPasscode ?? body_json.passcode;
+    const playerId = body_json.playerId ?? null;
     const body = body_json.body;
     const contextType = body_json.contextType;
     const contextId = body_json.contextId;
@@ -30,11 +31,27 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate passcode
+    // Validate passcode — if playerId is supplied, verify the passcode
+    // matches THAT specific player (prevents picking wrong player when
+    // multiple players share a passcode). Otherwise fall back to global
+    // passcode lookup (backwards compat).
     const allPlayers = await db.select().from(players);
-    const player = allPlayers.find((p) => p.passcode === passcode);
-    if (!player) {
-      return NextResponse.json({ error: "Invalid passcode" }, { status: 401 });
+    let player;
+    if (playerId) {
+      player = allPlayers.find(
+        (p) => p.id === Number(playerId) && p.passcode === passcode
+      );
+      if (!player) {
+        return NextResponse.json(
+          { error: "Invalid passcode for this player" },
+          { status: 401 }
+        );
+      }
+    } else {
+      player = allPlayers.find((p) => p.passcode === passcode);
+      if (!player) {
+        return NextResponse.json({ error: "Invalid passcode" }, { status: 401 });
+      }
     }
 
     const [message] = await db

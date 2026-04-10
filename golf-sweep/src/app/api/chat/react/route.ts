@@ -8,20 +8,36 @@ export async function POST(request: NextRequest) {
   try {
     await ensureTables();
 
-    const { playerPasscode, messageId, emoji } = await request.json();
+    const body_json = await request.json();
+    const passcode = body_json.playerPasscode ?? body_json.passcode;
+    const playerId = body_json.playerId ?? null;
+    const { messageId, emoji } = body_json;
 
-    if (!playerPasscode || !messageId || !emoji) {
+    if (!passcode || !messageId || !emoji) {
       return NextResponse.json(
-        { error: "playerPasscode, messageId, and emoji are required" },
+        { error: "passcode, messageId, and emoji are required" },
         { status: 400 }
       );
     }
 
-    // Validate passcode
+    // Validate passcode — if playerId supplied, verify it matches
     const allPlayers = await db.select().from(players);
-    const player = allPlayers.find((p) => p.passcode === playerPasscode);
-    if (!player) {
-      return NextResponse.json({ error: "Invalid passcode" }, { status: 401 });
+    let player;
+    if (playerId) {
+      player = allPlayers.find(
+        (p) => p.id === Number(playerId) && p.passcode === passcode
+      );
+      if (!player) {
+        return NextResponse.json(
+          { error: "Invalid passcode for this player" },
+          { status: 401 }
+        );
+      }
+    } else {
+      player = allPlayers.find((p) => p.passcode === passcode);
+      if (!player) {
+        return NextResponse.json({ error: "Invalid passcode" }, { status: 401 });
+      }
     }
 
     // Get the message
