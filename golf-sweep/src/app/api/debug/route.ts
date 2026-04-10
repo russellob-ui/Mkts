@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { ensureTables } from "@/db/ensure-tables";
-import { tournaments, golfers, roundScores, tournamentResults, scoreSnapshots, banterEvents, rounds } from "@/db/schema";
-import { eq, sql } from "drizzle-orm";
+import { tournaments } from "@/db/schema";
+import { eq } from "drizzle-orm";
 
 export const dynamic = "force-dynamic";
 
@@ -16,32 +16,64 @@ export async function GET(request: NextRequest) {
 
   const results: Record<string, unknown> = {};
 
-  // Count all key tables
-  const [snapshotCount] = await db.execute(sql`SELECT count(*) as c FROM score_snapshots`);
-  const [banterCount] = await db.execute(sql`SELECT count(*) as c FROM banter_events`);
-  const [roundScoreCount] = await db.execute(sql`SELECT count(*) as c FROM round_scores`);
-  const [resultCount] = await db.execute(sql`SELECT count(*) as c FROM tournament_results`);
-  const allRounds = await db.select().from(rounds);
+  // Get live tournament
+  const [tournament] = await db
+    .select()
+    .from(tournaments)
+    .where(eq(tournaments.status, "live"));
 
-  results.counts = {
-    score_snapshots: snapshotCount,
-    banter_events: banterCount,
-    round_scores: roundScoreCount,
-    tournament_results: resultCount,
+  if (!tournament || !tournament.slashTournId) {
+    return NextResponse.json({ error: "No live tournament with slashTournId" });
+  }
+
+  results.tournament = {
+    id: tournament.id,
+    name: tournament.name,
+    slashTournId: tournament.slashTournId,
+    lastPolledAt: tournament.lastPolledAt,
   };
-  results.rounds = allRounds;
 
-  // Sample round_scores
-  const sampleScores = await db.select().from(roundScores).limit(5);
-  results.sampleRoundScores = sampleScores;
+  // Fetch raw leaderboard
+  try {
+    const apiKey = process.env.RAPIDAPI_KEY;
+    const res = await fetch(
+      `https://live-golf-data.p.rapidapi.com/leaderboard?orgId=1&tournId=${tournament.slashTournId}&year=2026`,
+      {
+        headers: {
+          "x-rapidapi-host": "live-golf-data.p.rapidapi.com",
+          "x-rapidapi-key": apiKey!,
+        },
+      }
+    );
+    const raw = await res.json();
 
-  // Sample snapshots
-  const sampleSnapshots = await db.select().from(scoreSnapshots).limit(5);
-  results.sampleSnapshots = sampleSnapshots;
+    // Find the leaderboard rows array
+    const rowsKey = Object.keys(raw).find(
+      (k) => Array.isArray((raw as Record<string, unknown>)[k]) && ((raw as Record<string, unknown>)[k] as unknown[]).length > 0
+    );
+    results.topLevelKeys = Object.keys(raw);
+    results.rowsKey = rowsKey;
 
-  // Sample tournament_results
-  const sampleResults = await db.select().from(tournamentResults).limit(5);
-  results.sampleResults = sampleResults;
+    if (rowsKey) {
+      const rows = (raw as Record<string, unknown[]>)[rowsKey];
+      // Find Rose specifically
+      const rose = (rows as Array<Record<string, unknown>>).find((r) => {
+        const name = String(r.lastName ?? r.lname ?? "").toLowerCase();
+        const first = String(r.firstName ?? r.fname ?? "").toLowerCase();
+        return name.includes("rose") || first.includes("justin");
+      });
+      results.roseRaw = rose ?? "Rose not found";
+      results.firstRowRaw = rows[0];
+      results.rowCount = rows.length;
+
+      // Show keys on first row
+      if (rows[0]) {
+        results.fieldsOnFirstRow = Object.keys(rows[0] as object);
+      }
+    }
+  } catch (err) {
+    results.error = String(err);
+  }
 
   return NextResponse.json(results);
 }
