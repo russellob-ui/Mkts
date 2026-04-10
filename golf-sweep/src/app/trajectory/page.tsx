@@ -149,12 +149,15 @@ export default function TrajectoryPage() {
               <CartesianGrid strokeDasharray="3 3" stroke="#2a2a2a" />
               <XAxis
                 dataKey="capturedAt"
-                type="category"
-                allowDuplicatedCategory={false}
+                type="number"
+                scale="time"
+                domain={["dataMin", "dataMax"]}
                 tick={{ fontSize: 10, fill: "#9ca3af" }}
                 tickFormatter={(v) => {
-                  const d = new Date(v);
-                  return `${d.getHours()}:${String(d.getMinutes()).padStart(2, "0")}`;
+                  const d = new Date(Number(v));
+                  const hh = String(d.getHours()).padStart(2, "0");
+                  const mm = String(d.getMinutes()).padStart(2, "0");
+                  return `${hh}:${mm}`;
                 }}
               />
               <YAxis
@@ -165,28 +168,35 @@ export default function TrajectoryPage() {
               />
               <Tooltip
                 contentStyle={{ background: "#1a1a1a", border: "1px solid #2a2a2a", borderRadius: 8, fontSize: 12 }}
-                labelFormatter={(v) => new Date(v as string).toLocaleTimeString()}
+                labelFormatter={(v) => new Date(Number(v)).toLocaleString("en-GB", { weekday: "short", hour: "2-digit", minute: "2-digit" })}
                 formatter={(value: unknown, name: unknown) => {
                   const v = Number(value);
                   return [v === 0 ? "E" : v > 0 ? `+${v}` : v, String(name)];
                 }}
               />
               <ReferenceLine y={0} stroke="#9ca3af" strokeDasharray="3 3" label={{ value: "E", fill: "#9ca3af", fontSize: 10 }} />
-              {data.map((entry) => (
-                <Line
-                  key={entry.player.slug}
-                  data={entry.snapshots.map((s) => ({
-                    capturedAt: s.capturedAt,
+              {data.map((entry) => {
+                // Pre-sort and convert to numeric timestamps so Recharts
+                // can render all players on a shared chronological axis.
+                const lineData = entry.snapshots
+                  .map((s) => ({
+                    capturedAt: new Date(s.capturedAt).getTime(),
                     [entry.player.name]: s.totalScoreToPar,
-                  }))}
-                  dataKey={entry.player.name}
-                  name={entry.player.name}
-                  stroke={entry.player.color ?? "#006747"}
-                  strokeWidth={2}
-                  dot={false}
-                  connectNulls
-                />
-              ))}
+                  }))
+                  .sort((a, b) => a.capturedAt - b.capturedAt);
+                return (
+                  <Line
+                    key={entry.player.slug}
+                    data={lineData}
+                    dataKey={entry.player.name}
+                    name={entry.player.name}
+                    stroke={entry.player.color ?? "#006747"}
+                    strokeWidth={2}
+                    dot={false}
+                    connectNulls
+                  />
+                );
+              })}
             </LineChart>
           </ResponsiveContainer>
           {/* Legend */}

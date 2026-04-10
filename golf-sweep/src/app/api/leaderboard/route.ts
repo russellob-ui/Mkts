@@ -171,7 +171,14 @@ async function maybePollScores(
       }
     }
 
-    // Write score snapshots (v2) for trajectory charts
+    // Write score snapshots (v2) for trajectory charts.
+    //
+    // Timing + logic notes:
+    //   - totalScoreToPar  = CUMULATIVE tournament score (all rounds so far)
+    //   - roundScoreToPar  = THIS round's score ONLY (nullable if unknown)
+    //     It must NOT fall back to the total — conflating round-only with
+    //     cumulative produced garbage in the trajectory chart.
+    //   - roundNumber      = the tournament's current round (1-4), clamped.
     const snapshotData = ourGolfers
       .map((golfer) => {
         let lbPlayer = golfer.slashPlayerId
@@ -186,11 +193,12 @@ async function maybePollScores(
           }) ?? null;
         }
         if (!lbPlayer) return null;
-        // Use per-round score if available, otherwise fall back to total
-        const currentRound = lbPlayer.currentRound && lbPlayer.currentRound >= 1 && lbPlayer.currentRound <= 4
-          ? lbPlayer.currentRound
-          : 1;
-        const roundScore = lbPlayer.roundScores[currentRound] ?? lbPlayer.scoreToPar;
+        const currentRound =
+          lbPlayer.currentRound && lbPlayer.currentRound >= 1 && lbPlayer.currentRound <= 4
+            ? lbPlayer.currentRound
+            : 1;
+        // Per-round score ONLY — no fallback to total
+        const roundScore = lbPlayer.roundScores[currentRound] ?? null;
         return {
           golferId: golfer.id,
           totalScoreToPar: lbPlayer.scoreToPar,
