@@ -11,8 +11,9 @@ import {
   tournamentResults,
   pointsLog,
   liveOdds,
+  scoreSnapshots,
 } from "@/db/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, desc } from "drizzle-orm";
 import {
   getLeaderboard,
   parseLeaderboardPlayers,
@@ -412,6 +413,20 @@ export async function GET() {
           )
         );
 
+      // Get latest snapshot for live thru/position (snapshots are populated
+      // by inline poll, round_scores often isn't)
+      const [latestSnapshot] = await db
+        .select()
+        .from(scoreSnapshots)
+        .where(
+          and(
+            eq(scoreSnapshots.golferId, golfer.id),
+            eq(scoreSnapshots.tournamentId, tournament.id)
+          )
+        )
+        .orderBy(desc(scoreSnapshots.capturedAt))
+        .limit(1);
+
       entries.push({
         player: {
           id: player.id,
@@ -427,10 +442,13 @@ export async function GET() {
           country: golfer.country,
           flagEmoji: golfer.flagEmoji,
         },
-        position: result?.finalPosition ?? null,
-        scoreToPar: result?.finalScoreToPar ?? null,
+        position: latestSnapshot?.position ?? result?.finalPosition ?? null,
+        scoreToPar: latestSnapshot?.totalScoreToPar ?? result?.finalScoreToPar ?? null,
         madeCut: result?.madeCut,
-        thru: scores[Math.max(...Object.keys(scores).map(Number), 0)]?.thru ?? null,
+        thru:
+          latestSnapshot?.thru && latestSnapshot.thru !== ""
+            ? latestSnapshot.thru
+            : scores[Math.max(...Object.keys(scores).map(Number), 0)]?.thru ?? null,
         openingOdds: pick.openingOdds,
         openingOddsDecimal: pick.openingOddsDecimal,
         currentOdds: currentOdds?.fractional ?? null,
