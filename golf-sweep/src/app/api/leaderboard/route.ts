@@ -349,6 +349,15 @@ export async function GET() {
     // ALSO fetch raw Slash Golf leaderboard for this request so we can
     // extract per-round strokes/scoreToPar directly from the API response.
     // This is the authoritative source for "today's round score".
+    //
+    // Slash Golf API schema (from openapi.yaml):
+    //   Leaderboard: { roundId, roundStatus, leaderboardRows[] }
+    //   LeaderboardRow: {
+    //     firstName, lastName, playerId, status (active|complete|cut|wd|dq),
+    //     total (string), currentRoundScore (string), position, teeTime,
+    //     currentHole (int), startingHole (int), roundComplete (bool),
+    //     rounds: [{ roundId (int), scoreToPar (string), strokes (int), ... }]
+    //   }
     const liveApiData = new Map<string, {
       name: string;
       currentRoundNumber: number | null;
@@ -361,82 +370,85 @@ export async function GET() {
       try {
         const lbRaw = await getLeaderboard(tournament.slashTournId, 2026);
         const lbRoot = lbRaw as Record<string, unknown>;
-        // Find the array key — usually "leaderboardRows"
-        let rows: unknown[] = [];
-        for (const key of ["leaderboardRows", "leaderboard", "results", "rows", "players"]) {
-          if (Array.isArray(lbRoot[key])) {
-            rows = lbRoot[key] as unknown[];
-            break;
-          }
-        }
+        // Top-level roundId tells us which round the tournament is currently on
+        const currentTournamentRound = Number(lbRoot.roundId ?? 0) || null;
+        const rows: unknown[] = Array.isArray(lbRoot.leaderboardRows)
+          ? (lbRoot.leaderboardRows as unknown[])
+          : [];
+
+        const parseScoreStr = (v: unknown): number | null => {
+          if (v === "E" || v === "even" || v === 0 || v === "0") return 0;
+          if (v == null || v === "" || v === "-") return null;
+          const n = Number(v);
+          return isNaN(n) ? null : n;
+        };
 
         for (const row of rows) {
           const obj = row as Record<string, unknown>;
-          const firstName = String(obj.firstName ?? obj.first_name ?? obj.fname ?? "");
-          const lastName = String(obj.lastName ?? obj.last_name ?? obj.lname ?? "");
-          const fullName = String(
-            obj.name ?? obj.playerName ?? `${firstName} ${lastName}`
-          ).trim();
+          const firstName = String(obj.firstName ?? "");
+          const lastName = String(obj.lastName ?? "");
+          const fullName = `${firstName} ${lastName}`.trim();
 
-          const currentRound = Number(
-            obj.currentRound ?? obj.current_round ?? obj.round ?? 0
-          );
+          // Tournament-level current round (same for every player)
+          const currentRound = currentTournamentRound;
 
-          // Parse total score to par
-          let totalScoreToPar: number | null = null;
-          const rawTotal = obj.total ?? obj.scoreToPar ?? obj.totalToPar ?? obj.toPar;
-          if (rawTotal === "E" || rawTotal === "even") totalScoreToPar = 0;
-          else if (rawTotal != null && rawTotal !== "" && rawTotal !== "-")
-            totalScoreToPar = Number(rawTotal);
+          // Parse total score to par (string field, e.g. "E", "-3", "+2")
+          const totalScoreToPar = parseScoreStr(obj.total);
 
-          // Extract current round's score from the rounds array
+          // For the in-progress round, use currentRoundScore (string).
+          // For completed rounds, we look them up in the rounds array below.
           let currentRoundScoreToPar: number | null = null;
-          const roundsArr = obj.rounds;
-          if (Array.isArray(roundsArr) && currentRound >= 1) {
-            for (const rd of roundsArr) {
-              const rdObj = rd as Record<string, unknown>;
-              const rNum = Number(rdObj.roundId ?? rdObj.roundNumber ?? rdObj.round_number ?? rdObj.round ?? 0);
-              if (rNum === currentRound) {
-                // Try all possible score field names
-                const raw =
-                  rdObj.scoreToPar ??
-                  rdObj.score_to_par ??
-                  rdObj.toPar ??
-                  rdObj.strokes ??
-                  rdObj.total ??
-                  rdObj.score;
-                if (raw === "E" || raw === "even") currentRoundScoreToPar = 0;
-                else if (raw != null && raw !== "" && raw !== "-")
-                  currentRoundScoreToPar = Number(raw);
-                break;
+          const status = String(obj.status ?? "").toLowerCase();
+          const roundComplete = obj.roundComplete === true;
+
+          if (currentRound && currentRound >= 1 && currentRound <= 4) {
+            // Try the rounds array first (for completed rounds this holds the score)
+            const roundsArr = obj.rounds;
+            let roundScoreFromArray: number | null = null;
+            if (Array.isArray(roundsArr)) {
+              for (const rd of roundsArr) {
+                const rdObj = rd as Record<string, unknown>;
+                const rNum = Number(rdObj.roundId ?? 0);
+                if (rNum === currentRound) {
+                  roundScoreFromArray = parseScoreStr(rdObj.scoreToPar);
+                  break;
+                }
               }
             }
+            // If the round is in progress, currentRoundScore is authoritative
+            const liveRoundScore = parseScoreStr(obj.currentRoundScore);
+            currentRoundScoreToPar =
+              liveRoundScore !== null ? liveRoundScore : roundScoreFromArray;
           }
 
-          // Parse thru
+          // Calculate thru from currentHole / startingHole
+          const currentHole = Number(obj.currentHole ?? 0);
+          const startingHole = Number(obj.startingHole ?? 0);
           let thru: string | null = null;
-          const thruVal = obj.thru ?? obj.hole ?? obj.holes;
-          if (thruVal != null && thruVal !== "") thru = String(thruVal);
-          if (thru === "18") thru = "F";
+          if (status === "cut") thru = "CUT";
+          else if (status === "wd") thru = "WD";
+          else if (status === "dq") thru = "DQ";
+          else if (roundComplete || status === "complete") thru = "F";
+          else if (currentHole > 0 && startingHole > 0) {
+            // Number of holes completed = wrap-around difference
+            const holesPlayed = ((currentHole - startingHole + 18) % 18);
+            thru = holesPlayed === 0 ? "—" : String(holesPlayed);
+          } else if (obj.teeTime) {
+            thru = String(obj.teeTime);
+          }
 
-          const playerId = String(obj.playerId ?? obj.player_id ?? obj.id ?? "");
-          liveApiData.set(playerId, {
+          const playerId = String(obj.playerId ?? "");
+          const data = {
             name: fullName,
-            currentRoundNumber: currentRound || null,
+            currentRoundNumber: currentRound,
             currentRoundScoreToPar,
             thru,
-            position: String(obj.position ?? obj.pos ?? ""),
+            position: String(obj.position ?? ""),
             totalScoreToPar,
-          });
+          };
+          if (playerId) liveApiData.set(playerId, data);
           // Also index by normalized name for fallback matching
-          liveApiData.set(`name:${normalizeGolferName(fullName)}`, {
-            name: fullName,
-            currentRoundNumber: currentRound || null,
-            currentRoundScoreToPar,
-            thru,
-            position: String(obj.position ?? obj.pos ?? ""),
-            totalScoreToPar,
-          });
+          liveApiData.set(`name:${normalizeGolferName(fullName)}`, data);
         }
       } catch (err) {
         console.error("[Leaderboard] Direct API fetch error:", err);

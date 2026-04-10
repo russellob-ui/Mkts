@@ -177,64 +177,76 @@ export function parseLeaderboardPlayers(
       }
     }
 
+    // Top-level roundId = the tournament's current round (1-4)
+    const currentTournamentRound = Number(data.roundId ?? 0) || 1;
+
+    const parseScoreStr = (v: unknown): number | null => {
+      if (v === "E" || v === "even" || v === 0 || v === "0") return 0;
+      if (v == null || v === "" || v === "-") return null;
+      const n = Number(v);
+      return isNaN(n) ? null : n;
+    };
+
     return items.map((item) => {
       const obj = item as Record<string, unknown>;
-      const firstName = String(obj.firstName ?? obj.first_name ?? obj.fname ?? "");
-      const lastName = String(obj.lastName ?? obj.last_name ?? obj.lname ?? "");
-      const fullName = String(
-        obj.name ?? obj.playerName ?? obj.player_name ?? `${firstName} ${lastName}`
-      ).trim();
+      const firstName = String(obj.firstName ?? "");
+      const lastName = String(obj.lastName ?? "");
+      const fullName = `${firstName} ${lastName}`.trim();
 
-      // Parse round scores — handle array of round objects
+      // Parse per-round scores from the rounds array.
+      // Slash Golf schema: rounds[].roundId (int), rounds[].scoreToPar (string)
       const roundScores: Record<number, number | null> = {};
       const roundsArr = obj.rounds;
       if (Array.isArray(roundsArr)) {
         for (const rd of roundsArr) {
           const rdObj = rd as Record<string, unknown>;
-          const rNum = Number(rdObj.roundNumber ?? rdObj.round_number ?? rdObj.round ?? 0);
-          const scoreToPar = rdObj.scoreToPar ?? rdObj.score_to_par ?? rdObj.strokes ?? null;
-          if (rNum >= 1 && rNum <= 4 && scoreToPar != null && scoreToPar !== "" && scoreToPar !== "-") {
-            roundScores[rNum] = Number(scoreToPar);
+          const rNum = Number(rdObj.roundId ?? 0);
+          if (rNum >= 1 && rNum <= 4) {
+            roundScores[rNum] = parseScoreStr(rdObj.scoreToPar);
           }
         }
-      } else {
-        for (let r = 1; r <= 4; r++) {
-          const val = obj[`round${r}`] ?? obj[`r${r}`];
-          roundScores[r] = val != null && val !== "" && val !== "-" ? Number(val) : null;
+      }
+      // For an in-progress round, currentRoundScore is authoritative
+      const roundComplete = obj.roundComplete === true;
+      if (
+        currentTournamentRound >= 1 &&
+        currentTournamentRound <= 4 &&
+        !roundComplete
+      ) {
+        const liveRoundScore = parseScoreStr(obj.currentRoundScore);
+        if (liveRoundScore !== null) {
+          roundScores[currentTournamentRound] = liveRoundScore;
         }
       }
 
-      // Parse score to par
-      let scoreToPar = 0;
-      const rawScore = obj.total ?? obj.scoreToPar ?? obj.score_to_par ?? obj.totalToPar ?? obj.toPar;
-      if (rawScore === "E" || rawScore === "even" || rawScore === "0") {
-        scoreToPar = 0;
-      } else if (rawScore != null && rawScore !== "" && rawScore !== "-") {
-        scoreToPar = Number(rawScore);
-      }
+      // Overall tournament total
+      const scoreToPar = parseScoreStr(obj.total) ?? 0;
 
-      // Parse thru
-      const thruVal = obj.thru ?? obj.hole ?? obj.holes;
+      // Calculate thru from currentHole / startingHole
+      const status = String(obj.status ?? "").toLowerCase();
+      const currentHole = Number(obj.currentHole ?? 0);
+      const startingHole = Number(obj.startingHole ?? 0);
       let thru = "";
-      if (thruVal != null && thruVal !== "") {
-        thru = String(thruVal);
-      }
-      // Check if round is complete
-      if (obj.roundComplete === true || thru === "18" || thru === "F") {
-        thru = "F";
+      if (status === "cut") thru = "CUT";
+      else if (status === "wd") thru = "WD";
+      else if (status === "dq") thru = "DQ";
+      else if (roundComplete || status === "complete") thru = "F";
+      else if (currentHole > 0 && startingHole > 0) {
+        const holesPlayed = ((currentHole - startingHole + 18) % 18);
+        thru = holesPlayed === 0 ? "" : String(holesPlayed);
       }
 
       return {
-        playerId: String(obj.playerId ?? obj.player_id ?? obj.id ?? ""),
+        playerId: String(obj.playerId ?? ""),
         name: fullName,
         firstName,
         lastName,
-        position: String(obj.position ?? obj.pos ?? obj.rank ?? ""),
+        position: String(obj.position ?? ""),
         scoreToPar,
         thru,
-        currentRound: Number(obj.currentRound ?? obj.current_round ?? obj.round ?? 1),
+        currentRound: currentTournamentRound,
         roundScores,
-        madeCut: obj.madeCut !== false && obj.made_cut !== false && obj.status !== "CUT" && obj.status !== "MC",
+        madeCut: status !== "cut" && status !== "wd" && status !== "dq",
       };
     });
   } catch (err) {
