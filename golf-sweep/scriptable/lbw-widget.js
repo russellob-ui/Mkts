@@ -157,7 +157,7 @@ function buildWidget(data) {
     // Thru (medium/large only)
     if (showThru) {
       const thru = row.addText(` ${fmtThru(e.thru)}`);
-      thru.font = Font.monospacedSystemFont(9);
+      thru.font = Font.regularMonospacedSystemFont(9);
       thru.textColor = DIM;
       thru.lineLimit = 1;
     }
