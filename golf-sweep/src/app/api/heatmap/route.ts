@@ -1,24 +1,120 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { ensureTables } from "@/db/ensure-tables";
-import { picks, players, golfers, rounds, roundScores, tournamentResults } from "@/db/schema";
-import { eq, and } from "drizzle-orm";
+import {
+  picks,
+  players,
+  golfers,
+  tournaments,
+} from "@/db/schema";
+import { eq } from "drizzle-orm";
+import { getLeaderboard, normalizeGolferName } from "@/lib/slashgolf";
 
 export const dynamic = "force-dynamic";
 
+/**
+ * GET /api/heatmap?tournamentId=1
+ *
+ * Per-round scores for our 8 picks, pulled LIVE from Slash Golf.
+ * Matches the field parsing in /api/leaderboard and /api/full-leaderboard
+ * so R1/R2/R3/R4 actually populate from the rounds[] array.
+ */
 export async function GET(request: NextRequest) {
   try {
     await ensureTables();
-    const tournamentId = Number(request.nextUrl.searchParams.get("tournamentId") ?? "1");
+    const tournamentId = Number(
+      request.nextUrl.searchParams.get("tournamentId") ?? "1"
+    );
 
-    const tournamentPicks = await db.select().from(picks).where(eq(picks.tournamentId, tournamentId));
+    const [tournament] = await db
+      .select()
+      .from(tournaments)
+      .where(eq(tournaments.id, tournamentId));
+
+    const tournamentPicks = await db
+      .select()
+      .from(picks)
+      .where(eq(picks.tournamentId, tournamentId));
     const allPlayers = await db.select().from(players);
     const allGolfers = await db.select().from(golfers);
-    const tournamentRounds = await db.select().from(rounds).where(eq(rounds.tournamentId, tournamentId));
 
-    // Determine which rounds have finished — if R2-R4 are all unfinished,
-    // the total score IS the R1 score.
-    const completedRounds = tournamentRounds.filter((r) => r.status === "finished").length;
+    const parseScoreStr = (v: unknown): number | null => {
+      if (v === "E" || v === "even" || v === 0 || v === "0") return 0;
+      if (v == null || v === "" || v === "-") return null;
+      const n = Number(v);
+      return isNaN(n) ? null : n;
+    };
+
+    // Fetch live leaderboard once and index by normalized name
+    type LiveData = {
+      rounds: Record<number, number | null>;
+      total: number | null;
+      position: string | null;
+    };
+    const liveByName = new Map<string, LiveData>();
+    let currentTournamentRound: number | null = null;
+
+    if (
+      tournament?.slashTournId &&
+      tournament.status !== "finished" &&
+      process.env.RAPIDAPI_KEY
+    ) {
+      try {
+        const lbRaw = await getLeaderboard(tournament.slashTournId, 2026);
+        const lbRoot = lbRaw as Record<string, unknown>;
+        currentTournamentRound = Number(lbRoot.roundId ?? 0) || null;
+        const rows: unknown[] = Array.isArray(lbRoot.leaderboardRows)
+          ? (lbRoot.leaderboardRows as unknown[])
+          : [];
+
+        for (const row of rows) {
+          const obj = row as Record<string, unknown>;
+          const firstName = String(obj.firstName ?? "");
+          const lastName = String(obj.lastName ?? "");
+          const fullName = `${firstName} ${lastName}`.trim();
+          const norm = normalizeGolferName(fullName);
+
+          const roundScores: Record<number, number | null> = {
+            1: null,
+            2: null,
+            3: null,
+            4: null,
+          };
+          // Completed rounds from rounds[] array
+          const roundsArr = obj.rounds;
+          if (Array.isArray(roundsArr)) {
+            for (const rd of roundsArr) {
+              const rdObj = rd as Record<string, unknown>;
+              const rNum = Number(rdObj.roundId ?? 0);
+              if (rNum >= 1 && rNum <= 4) {
+                roundScores[rNum] = parseScoreStr(rdObj.scoreToPar);
+              }
+            }
+          }
+          // In-progress round from currentRoundScore
+          const roundComplete = obj.roundComplete === true;
+          if (
+            currentTournamentRound &&
+            currentTournamentRound >= 1 &&
+            currentTournamentRound <= 4 &&
+            !roundComplete
+          ) {
+            const live = parseScoreStr(obj.currentRoundScore);
+            if (live !== null) {
+              roundScores[currentTournamentRound] = live;
+            }
+          }
+
+          liveByName.set(norm, {
+            rounds: roundScores,
+            total: parseScoreStr(obj.total),
+            position: String(obj.position ?? "") || null,
+          });
+        }
+      } catch (err) {
+        console.error("[Heatmap] Slash Golf fetch failed:", err);
+      }
+    }
 
     const data = [];
     for (const pick of tournamentPicks) {
@@ -26,34 +122,24 @@ export async function GET(request: NextRequest) {
       const golfer = allGolfers.find((g) => g.id === pick.golferId);
       if (!player || !golfer) continue;
 
-      const [result] = await db.select().from(tournamentResults)
-        .where(and(eq(tournamentResults.golferId, golfer.id), eq(tournamentResults.tournamentId, tournamentId)));
-
-      const roundData: Record<number, number | null> = {};
-      let hasAnyRoundScore = false;
-      for (const round of tournamentRounds) {
-        const [score] = await db.select().from(roundScores)
-          .where(and(eq(roundScores.golferId, golfer.id), eq(roundScores.roundId, round.id)));
-        roundData[round.roundNumber] = score?.scoreToPar ?? null;
-        if (score?.scoreToPar != null) hasAnyRoundScore = true;
-      }
-
-      // FALLBACK: If round_scores is completely empty for this golfer but we
-      // have a tournament total, and the total presumably reflects only the
-      // rounds played so far, distribute it to the played rounds.
-      // Simplest case: only R1 has any scores anywhere, so total = R1 score.
-      if (!hasAnyRoundScore && result?.finalScoreToPar != null) {
-        // Assume the total represents completed rounds only
-        // For now, put it all in R1 (which is almost always the case for early poll)
-        roundData[1] = result.finalScoreToPar;
+      const golferNorm = normalizeGolferName(golfer.name);
+      let live = liveByName.get(golferNorm);
+      // Fuzzy fallback
+      if (!live) {
+        for (const [k, v] of liveByName.entries()) {
+          if (k.includes(golferNorm) || golferNorm.includes(k)) {
+            live = v;
+            break;
+          }
+        }
       }
 
       data.push({
         player: { name: player.name, slug: player.slug, color: player.color },
         golfer: { name: golfer.name, flagEmoji: golfer.flagEmoji },
-        rounds: roundData,
-        totalToPar: result?.finalScoreToPar ?? null,
-        position: result?.finalPosition ?? null,
+        rounds: live?.rounds ?? { 1: null, 2: null, 3: null, 4: null },
+        totalToPar: live?.total ?? null,
+        position: live?.position ?? null,
       });
     }
 
@@ -64,8 +150,9 @@ export async function GET(request: NextRequest) {
       return posA - posB;
     });
 
-    return NextResponse.json({ heatmap: data });
+    return NextResponse.json({ heatmap: data, currentTournamentRound });
   } catch (error) {
-    return NextResponse.json({ error: String(error) }, { status: 500 });
+    console.error("[Heatmap] Error:", error);
+    return NextResponse.json({ error: String(error), heatmap: [] }, { status: 500 });
   }
 }
