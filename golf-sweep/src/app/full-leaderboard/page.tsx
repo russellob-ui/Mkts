@@ -7,6 +7,8 @@ interface FullLeaderboardEntry {
   position: string | null;
   scoreToPar: number;
   thru: string | null;
+  currentRoundNumber: number | null;
+  roundScores: Record<number, number | null>;
   isOurPick: boolean;
   ourPlayerName?: string;
   ourPlayerColor?: string | null;
@@ -14,12 +16,14 @@ interface FullLeaderboardEntry {
   flagEmoji?: string | null;
 }
 
-function formatScore(s: number): string {
+function formatScore(s: number | null): string {
+  if (s === null) return "-";
   if (s === 0) return "E";
   return s > 0 ? `+${s}` : String(s);
 }
 
-function scoreColor(s: number): string {
+function scoreColor(s: number | null): string {
+  if (s === null) return "text-cream/30";
   if (s <= -3) return "text-red-500";
   if (s < 0) return "text-red-400";
   if (s === 0) return "text-gray-400";
@@ -88,18 +92,22 @@ export default function FullLeaderboardPage() {
       {!loading && filtered.length > 0 && (
         <div className="bg-dark-card border border-dark-border rounded-xl overflow-hidden">
           {/* Header */}
-          <div className="grid grid-cols-[auto_1fr_auto_auto] gap-2 px-3 py-2 text-[10px] text-cream/40 uppercase tracking-wider border-b border-dark-border">
-            <span className="w-10">Pos</span>
-            <span>Player</span>
-            <span className="w-10 text-right">Score</span>
-            <span className="w-10 text-right">Thru</span>
+          <div className="flex items-center gap-1 px-2 py-1.5 text-[9px] text-cream/40 uppercase tracking-wider border-b border-dark-border">
+            <span className="w-8">Pos</span>
+            <span className="flex-1 min-w-0">Player</span>
+            <span className="w-8 text-right">Tot</span>
+            <span className="w-7 text-right">R1</span>
+            <span className="w-7 text-right">R2</span>
+            <span className="w-7 text-right">R3</span>
+            <span className="w-7 text-right">R4</span>
+            <span className="w-7 text-right">Thru</span>
           </div>
 
           {/* Rows */}
           {filtered.map((entry, i) => (
             <div
               key={`${entry.playerId}-${i}`}
-              className="grid grid-cols-[auto_1fr_auto_auto] gap-2 px-3 py-2 text-sm border-b border-dark-border/30 last:border-0"
+              className="flex items-center gap-1 px-2 py-2 text-xs border-b border-dark-border/30 last:border-0"
               style={
                 entry.isOurPick
                   ? {
@@ -109,23 +117,35 @@ export default function FullLeaderboardPage() {
                   : { borderLeft: "3px solid transparent" }
               }
             >
-              <span className="w-10 font-mono font-bold text-cream/80">
+              <span className="w-8 font-mono font-bold text-cream/80 text-[10px]">
                 {entry.position ?? "-"}
               </span>
-              <div className="min-w-0">
-                <div className="font-bold truncate">
+              <div className="flex-1 min-w-0">
+                <div className="font-bold truncate text-[11px]">
                   {entry.flagEmoji ?? ""} {entry.name}
                 </div>
                 {entry.isOurPick && entry.ourPlayerName && (
-                  <div className="text-[10px] text-cream/50">
+                  <div className="text-[9px] text-cream/50 truncate">
                     {entry.ourPlayerName}&apos;s pick
                   </div>
                 )}
               </div>
-              <span className={`w-10 text-right font-mono font-bold ${scoreColor(entry.scoreToPar)}`}>
+              <span className={`w-8 text-right font-mono font-bold text-xs ${scoreColor(entry.scoreToPar)}`}>
                 {formatScore(entry.scoreToPar)}
               </span>
-              <span className="w-10 text-right text-xs text-cream/50">
+              <span className={`w-7 text-right font-mono text-[10px] ${scoreColor(entry.roundScores?.[1] ?? null)}`}>
+                {entry.roundScores?.[1] != null ? formatScore(entry.roundScores[1]) : "-"}
+              </span>
+              <span className={`w-7 text-right font-mono text-[10px] ${scoreColor(entry.roundScores?.[2] ?? null)}`}>
+                {entry.roundScores?.[2] != null ? formatScore(entry.roundScores[2]) : "-"}
+              </span>
+              <span className={`w-7 text-right font-mono text-[10px] ${scoreColor(entry.roundScores?.[3] ?? null)}`}>
+                {entry.roundScores?.[3] != null ? formatScore(entry.roundScores[3]) : "-"}
+              </span>
+              <span className={`w-7 text-right font-mono text-[10px] ${scoreColor(entry.roundScores?.[4] ?? null)}`}>
+                {entry.roundScores?.[4] != null ? formatScore(entry.roundScores[4]) : "-"}
+              </span>
+              <span className="w-7 text-right text-[10px] text-cream/50">
                 {entry.thru ?? "-"}
               </span>
             </div>

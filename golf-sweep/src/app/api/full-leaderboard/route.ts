@@ -3,7 +3,7 @@ import { db } from "@/db";
 import { ensureTables } from "@/db/ensure-tables";
 import { tournaments, golfers, picks, players } from "@/db/schema";
 import { eq } from "drizzle-orm";
-import { getLeaderboard, parseLeaderboardPlayers, normalizeGolferName } from "@/lib/slashgolf";
+import { getLeaderboard, normalizeGolferName } from "@/lib/slashgolf";
 
 export const dynamic = "force-dynamic";
 
@@ -15,6 +15,8 @@ let cachedPlayers: Array<{
   position: string | null;
   scoreToPar: number;
   thru: string | null;
+  currentRoundNumber: number | null;
+  roundScores: Record<number, number | null>;
   isOurPick: boolean;
   ourPlayerName?: string;
   ourPlayerColor?: string | null;
@@ -58,7 +60,16 @@ export async function GET() {
     }
 
     const lbRaw = await getLeaderboard(tournament.slashTournId, 2026);
-    const lbPlayers = parseLeaderboardPlayers(lbRaw);
+
+    // Parse the raw response and extract per-round scores directly from the API
+    const lbRoot = lbRaw as Record<string, unknown>;
+    let rows: unknown[] = [];
+    for (const key of ["leaderboardRows", "leaderboard", "results", "rows", "players"]) {
+      if (Array.isArray(lbRoot[key])) {
+        rows = lbRoot[key] as unknown[];
+        break;
+      }
+    }
 
     // Figure out which players are "our picks" (any of our 8 golfers)
     const allGolfers = await db.select().from(golfers);
@@ -76,23 +87,56 @@ export async function GET() {
       }
     }
 
-    const mapped = lbPlayers.map((lbp) => {
-      const normalized = normalizeGolferName(lbp.name);
+    const parseNum = (v: unknown): number | null => {
+      if (v === "E" || v === "even") return 0;
+      if (v == null || v === "" || v === "-") return null;
+      const n = Number(v);
+      return isNaN(n) ? null : n;
+    };
+
+    const mapped = rows.map((row) => {
+      const obj = row as Record<string, unknown>;
+      const firstName = String(obj.firstName ?? obj.first_name ?? "");
+      const lastName = String(obj.lastName ?? obj.last_name ?? "");
+      const name = String(obj.name ?? obj.playerName ?? `${firstName} ${lastName}`).trim();
+
+      const total = parseNum(obj.total ?? obj.scoreToPar ?? obj.toPar);
+      const position = String(obj.position ?? obj.pos ?? "");
+      const thruVal = obj.thru ?? obj.hole ?? obj.holes;
+      const thru = thruVal != null && thruVal !== "" ? String(thruVal) : null;
+      const currentRoundNumber = Number(obj.currentRound ?? obj.round ?? 0) || null;
+
+      // Parse per-round scores from the rounds array
+      const roundScores: Record<number, number | null> = { 1: null, 2: null, 3: null, 4: null };
+      const roundsArr = obj.rounds;
+      if (Array.isArray(roundsArr)) {
+        for (const rd of roundsArr) {
+          const rdObj = rd as Record<string, unknown>;
+          const rNum = Number(rdObj.roundId ?? rdObj.roundNumber ?? rdObj.round_number ?? rdObj.round ?? 0);
+          if (rNum >= 1 && rNum <= 4) {
+            const val = parseNum(
+              rdObj.scoreToPar ?? rdObj.score_to_par ?? rdObj.toPar ?? rdObj.strokes ?? rdObj.total
+            );
+            roundScores[rNum] = val;
+          }
+        }
+      }
+
+      const normalized = normalizeGolferName(name);
       const matched = allGolfers.find((g) => {
         const gNorm = normalizeGolferName(g.name);
-        return (
-          gNorm === normalized ||
-          gNorm.includes(normalized) ||
-          normalized.includes(gNorm)
-        );
+        return gNorm === normalized || gNorm.includes(normalized) || normalized.includes(gNorm);
       });
       const ourPlayer = matched ? golferIdToPlayer.get(matched.id) : null;
+
       return {
-        playerId: lbp.playerId,
-        name: lbp.name,
-        position: lbp.position,
-        scoreToPar: lbp.scoreToPar,
-        thru: lbp.thru,
+        playerId: String(obj.playerId ?? obj.player_id ?? obj.id ?? ""),
+        name,
+        position,
+        scoreToPar: total ?? 0,
+        thru,
+        currentRoundNumber,
+        roundScores,
         country: matched?.country ?? null,
         flagEmoji: matched?.flagEmoji ?? null,
         isOurPick: !!ourPlayer,

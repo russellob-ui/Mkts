@@ -346,6 +346,103 @@ export async function GET() {
       .from(tournaments)
       .where(eq(tournaments.id, tournament.id));
 
+    // ALSO fetch raw Slash Golf leaderboard for this request so we can
+    // extract per-round strokes/scoreToPar directly from the API response.
+    // This is the authoritative source for "today's round score".
+    const liveApiData = new Map<string, {
+      name: string;
+      currentRoundNumber: number | null;
+      currentRoundScoreToPar: number | null;
+      thru: string | null;
+      position: string | null;
+      totalScoreToPar: number | null;
+    }>();
+    if (tournament.slashTournId && process.env.RAPIDAPI_KEY) {
+      try {
+        const lbRaw = await getLeaderboard(tournament.slashTournId, 2026);
+        const lbRoot = lbRaw as Record<string, unknown>;
+        // Find the array key — usually "leaderboardRows"
+        let rows: unknown[] = [];
+        for (const key of ["leaderboardRows", "leaderboard", "results", "rows", "players"]) {
+          if (Array.isArray(lbRoot[key])) {
+            rows = lbRoot[key] as unknown[];
+            break;
+          }
+        }
+
+        for (const row of rows) {
+          const obj = row as Record<string, unknown>;
+          const firstName = String(obj.firstName ?? obj.first_name ?? obj.fname ?? "");
+          const lastName = String(obj.lastName ?? obj.last_name ?? obj.lname ?? "");
+          const fullName = String(
+            obj.name ?? obj.playerName ?? `${firstName} ${lastName}`
+          ).trim();
+
+          const currentRound = Number(
+            obj.currentRound ?? obj.current_round ?? obj.round ?? 0
+          );
+
+          // Parse total score to par
+          let totalScoreToPar: number | null = null;
+          const rawTotal = obj.total ?? obj.scoreToPar ?? obj.totalToPar ?? obj.toPar;
+          if (rawTotal === "E" || rawTotal === "even") totalScoreToPar = 0;
+          else if (rawTotal != null && rawTotal !== "" && rawTotal !== "-")
+            totalScoreToPar = Number(rawTotal);
+
+          // Extract current round's score from the rounds array
+          let currentRoundScoreToPar: number | null = null;
+          const roundsArr = obj.rounds;
+          if (Array.isArray(roundsArr) && currentRound >= 1) {
+            for (const rd of roundsArr) {
+              const rdObj = rd as Record<string, unknown>;
+              const rNum = Number(rdObj.roundId ?? rdObj.roundNumber ?? rdObj.round_number ?? rdObj.round ?? 0);
+              if (rNum === currentRound) {
+                // Try all possible score field names
+                const raw =
+                  rdObj.scoreToPar ??
+                  rdObj.score_to_par ??
+                  rdObj.toPar ??
+                  rdObj.strokes ??
+                  rdObj.total ??
+                  rdObj.score;
+                if (raw === "E" || raw === "even") currentRoundScoreToPar = 0;
+                else if (raw != null && raw !== "" && raw !== "-")
+                  currentRoundScoreToPar = Number(raw);
+                break;
+              }
+            }
+          }
+
+          // Parse thru
+          let thru: string | null = null;
+          const thruVal = obj.thru ?? obj.hole ?? obj.holes;
+          if (thruVal != null && thruVal !== "") thru = String(thruVal);
+          if (thru === "18") thru = "F";
+
+          const playerId = String(obj.playerId ?? obj.player_id ?? obj.id ?? "");
+          liveApiData.set(playerId, {
+            name: fullName,
+            currentRoundNumber: currentRound || null,
+            currentRoundScoreToPar,
+            thru,
+            position: String(obj.position ?? obj.pos ?? ""),
+            totalScoreToPar,
+          });
+          // Also index by normalized name for fallback matching
+          liveApiData.set(`name:${normalizeGolferName(fullName)}`, {
+            name: fullName,
+            currentRoundNumber: currentRound || null,
+            currentRoundScoreToPar,
+            thru,
+            position: String(obj.position ?? obj.pos ?? ""),
+            totalScoreToPar,
+          });
+        }
+      } catch (err) {
+        console.error("[Leaderboard] Direct API fetch error:", err);
+      }
+    }
+
     const tournamentPicks = await db
       .select()
       .from(picks)
@@ -427,41 +524,18 @@ export async function GET() {
         .orderBy(desc(scoreSnapshots.capturedAt))
         .limit(1);
 
-      // Compute today's round score: find the latest snapshot from a PREVIOUS
-      // round and subtract. This gives us "how many shots they've gained/lost
-      // today" regardless of whether the parser extracted per-round data.
-      let todayScore: number | null = null;
-      if (latestSnapshot && latestSnapshot.roundNumber && latestSnapshot.totalScoreToPar != null) {
-        if (latestSnapshot.roundNumber === 1) {
-          // Round 1 — today = total (no prior round to subtract)
-          todayScore = latestSnapshot.totalScoreToPar;
-        } else {
-          // Find the last snapshot from a previous round
-          const priorSnapshots = await db
-            .select()
-            .from(scoreSnapshots)
-            .where(
-              and(
-                eq(scoreSnapshots.golferId, golfer.id),
-                eq(scoreSnapshots.tournamentId, tournament.id)
-              )
-            )
-            .orderBy(desc(scoreSnapshots.capturedAt))
-            .limit(200);
+      // Look up this golfer's live data from the direct API fetch
+      const liveData =
+        (golfer.slashPlayerId ? liveApiData.get(golfer.slashPlayerId) : null) ??
+        liveApiData.get(`name:${normalizeGolferName(golfer.name)}`) ??
+        null;
 
-          // Find the most recent snapshot from a round BEFORE the current round
-          const priorRoundSnapshot = priorSnapshots.find(
-            (s) => s.roundNumber !== null && s.roundNumber < latestSnapshot.roundNumber!
-          );
-
-          if (priorRoundSnapshot && priorRoundSnapshot.totalScoreToPar != null) {
-            todayScore = latestSnapshot.totalScoreToPar - priorRoundSnapshot.totalScoreToPar;
-          } else {
-            // No prior round snapshot — use stored roundScoreToPar as fallback
-            todayScore = latestSnapshot.roundScoreToPar;
-          }
-        }
-      }
+      // Today's score comes directly from the API's current-round data
+      const todayScore = liveData?.currentRoundScoreToPar ?? null;
+      const liveTotal = liveData?.totalScoreToPar ?? null;
+      const livePosition = liveData?.position ?? null;
+      const liveThru = liveData?.thru ?? null;
+      const liveCurrentRound = liveData?.currentRoundNumber ?? null;
 
       entries.push({
         player: {
@@ -478,15 +552,17 @@ export async function GET() {
           country: golfer.country,
           flagEmoji: golfer.flagEmoji,
         },
-        position: latestSnapshot?.position ?? result?.finalPosition ?? null,
-        scoreToPar: latestSnapshot?.totalScoreToPar ?? result?.finalScoreToPar ?? null,
+        position: livePosition ?? latestSnapshot?.position ?? result?.finalPosition ?? null,
+        scoreToPar: liveTotal ?? latestSnapshot?.totalScoreToPar ?? result?.finalScoreToPar ?? null,
         todayScore,
-        currentRound: latestSnapshot?.roundNumber ?? null,
+        currentRound: liveCurrentRound ?? latestSnapshot?.roundNumber ?? null,
         madeCut: result?.madeCut,
         thru:
-          latestSnapshot?.thru && latestSnapshot.thru !== ""
-            ? latestSnapshot.thru
-            : scores[Math.max(...Object.keys(scores).map(Number), 0)]?.thru ?? null,
+          liveThru && liveThru !== ""
+            ? liveThru
+            : latestSnapshot?.thru && latestSnapshot.thru !== ""
+              ? latestSnapshot.thru
+              : scores[Math.max(...Object.keys(scores).map(Number), 0)]?.thru ?? null,
         openingOdds: pick.openingOdds,
         openingOddsDecimal: pick.openingOddsDecimal,
         currentOdds: currentOdds?.fractional ?? null,
