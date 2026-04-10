@@ -3,7 +3,12 @@ import { db } from "@/db";
 import { ensureTables } from "@/db/ensure-tables";
 import { tournaments, golfers, picks, players } from "@/db/schema";
 import { eq } from "drizzle-orm";
-import { getLeaderboard, normalizeGolferName } from "@/lib/slashgolf";
+import {
+  getLeaderboard,
+  normalizeGolferName,
+  parseScoreStr,
+  unwrapBson,
+} from "@/lib/slashgolf";
 
 export const dynamic = "force-dynamic";
 
@@ -24,14 +29,6 @@ let cachedPlayers: Array<{
   flagEmoji?: string | null;
 }> = [];
 let cachedTournamentName = "";
-
-// Parse a Slash Golf score string ("E", "-3", "+2", "") into a number or null
-function parseScoreStr(v: unknown): number | null {
-  if (v === "E" || v === "even" || v === 0 || v === "0") return 0;
-  if (v == null || v === "" || v === "-") return null;
-  const n = Number(v);
-  return isNaN(n) ? null : n;
-}
 
 export async function GET() {
   try {
@@ -78,7 +75,8 @@ export async function GET() {
     //     rounds: [{ roundId (int), scoreToPar (string), strokes (int), ... }]
     //   }
     const lbRoot = lbRaw as Record<string, unknown>;
-    const currentTournamentRound = Number(lbRoot.roundId ?? 0) || null;
+    const currentTournamentRound =
+      Number(unwrapBson(lbRoot.roundId) ?? 0) || null;
     const rows: unknown[] = Array.isArray(lbRoot.leaderboardRows)
       ? (lbRoot.leaderboardRows as unknown[])
       : [];
@@ -105,14 +103,14 @@ export async function GET() {
       const lastName = String(obj.lastName ?? "");
       const name = `${firstName} ${lastName}`.trim();
 
-      const total = parseScoreStr(obj.total);
+      const total = parseScoreStr(obj.total ?? obj.totalToPar ?? obj.scoreToPar);
       const position = String(obj.position ?? "");
       const status = String(obj.status ?? "").toLowerCase();
       const roundComplete = obj.roundComplete === true;
 
       // Calculate thru from currentHole / startingHole
-      const currentHole = Number(obj.currentHole ?? 0);
-      const startingHole = Number(obj.startingHole ?? 0);
+      const currentHole = Number(unwrapBson(obj.currentHole) ?? 0);
+      const startingHole = Number(unwrapBson(obj.startingHole) ?? 0);
       let thru: string | null = null;
       if (status === "cut") thru = "CUT";
       else if (status === "wd") thru = "WD";
@@ -125,17 +123,23 @@ export async function GET() {
         thru = String(obj.teeTime);
       }
 
-      // Parse per-round scores from the rounds array (completed rounds only)
+      // Parse per-round scores from the rounds array (completed rounds only).
+      // Defensive: if roundId missing/invalid, fall back to array index.
       const roundScores: Record<number, number | null> = { 1: null, 2: null, 3: null, 4: null };
       const roundsArr = obj.rounds;
       if (Array.isArray(roundsArr)) {
-        for (const rd of roundsArr) {
+        roundsArr.forEach((rd, i) => {
           const rdObj = rd as Record<string, unknown>;
-          const rNum = Number(rdObj.roundId ?? 0);
+          let rNum = Number(
+            unwrapBson(rdObj.roundId ?? rdObj.roundNumber ?? rdObj.round) ?? 0
+          );
+          if (rNum < 1 || rNum > 4) rNum = i + 1;
           if (rNum >= 1 && rNum <= 4) {
-            roundScores[rNum] = parseScoreStr(rdObj.scoreToPar);
+            roundScores[rNum] = parseScoreStr(
+              rdObj.scoreToPar ?? rdObj.score ?? rdObj.toPar
+            );
           }
-        }
+        });
       }
       // For an in-progress round, currentRoundScore is authoritative
       if (
@@ -144,7 +148,11 @@ export async function GET() {
         currentTournamentRound <= 4 &&
         !roundComplete
       ) {
-        const liveRoundScore = parseScoreStr(obj.currentRoundScore);
+        const liveRoundScore = parseScoreStr(
+          obj.currentRoundScore ??
+            obj.currentRoundScoreToPar ??
+            obj.todayScore
+        );
         if (liveRoundScore !== null) {
           roundScores[currentTournamentRound] = liveRoundScore;
         }

@@ -1,5 +1,36 @@
 const BASE_URL = "https://live-golf-data.p.rapidapi.com";
 
+/**
+ * Slash Golf returns MongoDB Extended JSON, which wraps numbers in objects:
+ *   { "$numberInt": "1" }   { "$numberLong": "-7" }   { "$numberDouble": "3.5" }
+ * This unwraps them to raw primitives so parseScoreStr etc. just work.
+ */
+export function unwrapBson(v: unknown): unknown {
+  if (v && typeof v === "object" && !Array.isArray(v)) {
+    const o = v as Record<string, unknown>;
+    if ("$numberInt" in o) return Number(o.$numberInt);
+    if ("$numberLong" in o) return Number(o.$numberLong);
+    if ("$numberDouble" in o) return Number(o.$numberDouble);
+    if ("$numberDecimal" in o) return Number(o.$numberDecimal);
+  }
+  return v;
+}
+
+/**
+ * Parse a Slash Golf score field. Accepts:
+ *   - raw strings: "E", "even", "-3", "+2", "0"
+ *   - raw numbers: 0, -3, 2
+ *   - BSON-wrapped numbers: { "$numberInt": "-3" }
+ * Returns a number or null.
+ */
+export function parseScoreStr(raw: unknown): number | null {
+  const v = unwrapBson(raw);
+  if (v === "E" || v === "even" || v === 0 || v === "0") return 0;
+  if (v == null || v === "" || v === "-") return null;
+  const n = Number(v);
+  return isNaN(n) ? null : n;
+}
+
 function getHeaders(): Record<string, string> {
   const apiKey = process.env.RAPIDAPI_KEY;
   if (!apiKey) {
@@ -60,9 +91,18 @@ export async function getLeaderboard(
   }
 
   const data = await res.json();
+  // Log the first player's full structure so we can diagnose field names
+  // from Railway logs without needing a debug endpoint hit.
+  const root = data as Record<string, unknown>;
+  const firstArrayKey = Object.keys(root).find((k) => Array.isArray(root[k]));
+  const firstPlayer = firstArrayKey
+    ? ((root[firstArrayKey] as unknown[])[0] ?? null)
+    : null;
+  console.log("[SlashGolf] Leaderboard top-level keys:", Object.keys(root));
+  console.log("[SlashGolf] Leaderboard top-level roundId:", root.roundId);
   console.log(
-    "[SlashGolf] Leaderboard response shape (first 2000 chars):",
-    JSON.stringify(data, null, 2).slice(0, 2000)
+    "[SlashGolf] First player (full):",
+    JSON.stringify(firstPlayer, null, 2).slice(0, 3000)
   );
   return data;
 }
@@ -177,15 +217,9 @@ export function parseLeaderboardPlayers(
       }
     }
 
-    // Top-level roundId = the tournament's current round (1-4)
-    const currentTournamentRound = Number(data.roundId ?? 0) || 1;
-
-    const parseScoreStr = (v: unknown): number | null => {
-      if (v === "E" || v === "even" || v === 0 || v === "0") return 0;
-      if (v == null || v === "" || v === "-") return null;
-      const n = Number(v);
-      return isNaN(n) ? null : n;
-    };
+    // Top-level roundId = the tournament's current round (1-4).
+    // Slash Golf may wrap this in MongoDB Extended JSON.
+    const currentTournamentRound = Number(unwrapBson(data.roundId) ?? 0) || 1;
 
     return items.map((item) => {
       const obj = item as Record<string, unknown>;
@@ -195,16 +229,22 @@ export function parseLeaderboardPlayers(
 
       // Parse per-round scores from the rounds array.
       // Slash Golf schema: rounds[].roundId (int), rounds[].scoreToPar (string)
+      // Defensive: if roundId missing/invalid, fall back to array index.
       const roundScores: Record<number, number | null> = {};
       const roundsArr = obj.rounds;
       if (Array.isArray(roundsArr)) {
-        for (const rd of roundsArr) {
+        roundsArr.forEach((rd, i) => {
           const rdObj = rd as Record<string, unknown>;
-          const rNum = Number(rdObj.roundId ?? 0);
+          let rNum = Number(
+            unwrapBson(rdObj.roundId ?? rdObj.roundNumber ?? rdObj.round) ?? 0
+          );
+          if (rNum < 1 || rNum > 4) rNum = i + 1; // fallback: position
           if (rNum >= 1 && rNum <= 4) {
-            roundScores[rNum] = parseScoreStr(rdObj.scoreToPar);
+            roundScores[rNum] = parseScoreStr(
+              rdObj.scoreToPar ?? rdObj.score ?? rdObj.toPar
+            );
           }
-        }
+        });
       }
       // For an in-progress round, currentRoundScore is authoritative
       const roundComplete = obj.roundComplete === true;
@@ -213,19 +253,22 @@ export function parseLeaderboardPlayers(
         currentTournamentRound <= 4 &&
         !roundComplete
       ) {
-        const liveRoundScore = parseScoreStr(obj.currentRoundScore);
+        const liveRoundScore = parseScoreStr(
+          obj.currentRoundScore ?? obj.currentRoundScoreToPar ?? obj.todayScore
+        );
         if (liveRoundScore !== null) {
           roundScores[currentTournamentRound] = liveRoundScore;
         }
       }
 
       // Overall tournament total
-      const scoreToPar = parseScoreStr(obj.total) ?? 0;
+      const scoreToPar =
+        parseScoreStr(obj.total ?? obj.totalToPar ?? obj.scoreToPar) ?? 0;
 
       // Calculate thru from currentHole / startingHole
       const status = String(obj.status ?? "").toLowerCase();
-      const currentHole = Number(obj.currentHole ?? 0);
-      const startingHole = Number(obj.startingHole ?? 0);
+      const currentHole = Number(unwrapBson(obj.currentHole) ?? 0);
+      const startingHole = Number(unwrapBson(obj.startingHole) ?? 0);
       let thru = "";
       if (status === "cut") thru = "CUT";
       else if (status === "wd") thru = "WD";

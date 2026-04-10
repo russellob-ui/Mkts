@@ -8,7 +8,12 @@ import {
   tournaments,
 } from "@/db/schema";
 import { eq } from "drizzle-orm";
-import { getLeaderboard, normalizeGolferName } from "@/lib/slashgolf";
+import {
+  getLeaderboard,
+  normalizeGolferName,
+  parseScoreStr,
+  unwrapBson,
+} from "@/lib/slashgolf";
 
 export const dynamic = "force-dynamic";
 
@@ -38,13 +43,6 @@ export async function GET(request: NextRequest) {
     const allPlayers = await db.select().from(players);
     const allGolfers = await db.select().from(golfers);
 
-    const parseScoreStr = (v: unknown): number | null => {
-      if (v === "E" || v === "even" || v === 0 || v === "0") return 0;
-      if (v == null || v === "" || v === "-") return null;
-      const n = Number(v);
-      return isNaN(n) ? null : n;
-    };
-
     // Fetch live leaderboard once and index by normalized name
     type LiveData = {
       rounds: Record<number, number | null>;
@@ -62,7 +60,8 @@ export async function GET(request: NextRequest) {
       try {
         const lbRaw = await getLeaderboard(tournament.slashTournId, 2026);
         const lbRoot = lbRaw as Record<string, unknown>;
-        currentTournamentRound = Number(lbRoot.roundId ?? 0) || null;
+        currentTournamentRound =
+          Number(unwrapBson(lbRoot.roundId) ?? 0) || null;
         const rows: unknown[] = Array.isArray(lbRoot.leaderboardRows)
           ? (lbRoot.leaderboardRows as unknown[])
           : [];
@@ -80,16 +79,24 @@ export async function GET(request: NextRequest) {
             3: null,
             4: null,
           };
-          // Completed rounds from rounds[] array
+          // Completed rounds from rounds[] array.
+          // Defensive: if roundId missing/invalid, fall back to array index.
           const roundsArr = obj.rounds;
           if (Array.isArray(roundsArr)) {
-            for (const rd of roundsArr) {
+            roundsArr.forEach((rd, i) => {
               const rdObj = rd as Record<string, unknown>;
-              const rNum = Number(rdObj.roundId ?? 0);
+              let rNum = Number(
+                unwrapBson(
+                  rdObj.roundId ?? rdObj.roundNumber ?? rdObj.round
+                ) ?? 0
+              );
+              if (rNum < 1 || rNum > 4) rNum = i + 1;
               if (rNum >= 1 && rNum <= 4) {
-                roundScores[rNum] = parseScoreStr(rdObj.scoreToPar);
+                roundScores[rNum] = parseScoreStr(
+                  rdObj.scoreToPar ?? rdObj.score ?? rdObj.toPar
+                );
               }
-            }
+            });
           }
           // In-progress round from currentRoundScore
           const roundComplete = obj.roundComplete === true;
@@ -99,7 +106,11 @@ export async function GET(request: NextRequest) {
             currentTournamentRound <= 4 &&
             !roundComplete
           ) {
-            const live = parseScoreStr(obj.currentRoundScore);
+            const live = parseScoreStr(
+              obj.currentRoundScore ??
+                obj.currentRoundScoreToPar ??
+                obj.todayScore
+            );
             if (live !== null) {
               roundScores[currentTournamentRound] = live;
             }
@@ -107,7 +118,7 @@ export async function GET(request: NextRequest) {
 
           liveByName.set(norm, {
             rounds: roundScores,
-            total: parseScoreStr(obj.total),
+            total: parseScoreStr(obj.total ?? obj.totalToPar ?? obj.scoreToPar),
             position: String(obj.position ?? "") || null,
           });
         }

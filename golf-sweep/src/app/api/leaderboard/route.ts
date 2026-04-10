@@ -18,6 +18,8 @@ import {
   getLeaderboard,
   parseLeaderboardPlayers,
   normalizeGolferName,
+  parseScoreStr,
+  unwrapBson,
 } from "@/lib/slashgolf";
 import { getOutrightOdds, normalizeOddsName } from "@/lib/oddsapi";
 import { writeScoreSnapshots, generateBanterFromSnapshot } from "@/lib/banter-engine";
@@ -370,18 +372,13 @@ export async function GET() {
       try {
         const lbRaw = await getLeaderboard(tournament.slashTournId, 2026);
         const lbRoot = lbRaw as Record<string, unknown>;
-        // Top-level roundId tells us which round the tournament is currently on
-        const currentTournamentRound = Number(lbRoot.roundId ?? 0) || null;
+        // Top-level roundId tells us which round the tournament is currently on.
+        // Slash Golf may wrap numbers in MongoDB Extended JSON, so unwrap first.
+        const currentTournamentRound =
+          Number(unwrapBson(lbRoot.roundId) ?? 0) || null;
         const rows: unknown[] = Array.isArray(lbRoot.leaderboardRows)
           ? (lbRoot.leaderboardRows as unknown[])
           : [];
-
-        const parseScoreStr = (v: unknown): number | null => {
-          if (v === "E" || v === "even" || v === 0 || v === "0") return 0;
-          if (v == null || v === "" || v === "-") return null;
-          const n = Number(v);
-          return isNaN(n) ? null : n;
-        };
 
         for (const row of rows) {
           const obj = row as Record<string, unknown>;
@@ -393,7 +390,9 @@ export async function GET() {
           const currentRound = currentTournamentRound;
 
           // Parse total score to par (string field, e.g. "E", "-3", "+2")
-          const totalScoreToPar = parseScoreStr(obj.total);
+          const totalScoreToPar = parseScoreStr(
+            obj.total ?? obj.totalToPar ?? obj.scoreToPar
+          );
 
           // For the in-progress round, use currentRoundScore (string).
           // For completed rounds, we look them up in the rounds array below.
@@ -402,28 +401,39 @@ export async function GET() {
           const roundComplete = obj.roundComplete === true;
 
           if (currentRound && currentRound >= 1 && currentRound <= 4) {
-            // Try the rounds array first (for completed rounds this holds the score)
+            // Try the rounds array first (for completed rounds this holds the score).
+            // Defensive: if roundId missing, fall back to array index.
             const roundsArr = obj.rounds;
             let roundScoreFromArray: number | null = null;
             if (Array.isArray(roundsArr)) {
-              for (const rd of roundsArr) {
+              roundsArr.forEach((rd, i) => {
                 const rdObj = rd as Record<string, unknown>;
-                const rNum = Number(rdObj.roundId ?? 0);
+                let rNum = Number(
+                  unwrapBson(
+                    rdObj.roundId ?? rdObj.roundNumber ?? rdObj.round
+                  ) ?? 0
+                );
+                if (rNum < 1 || rNum > 4) rNum = i + 1;
                 if (rNum === currentRound) {
-                  roundScoreFromArray = parseScoreStr(rdObj.scoreToPar);
-                  break;
+                  roundScoreFromArray = parseScoreStr(
+                    rdObj.scoreToPar ?? rdObj.score ?? rdObj.toPar
+                  );
                 }
-              }
+              });
             }
             // If the round is in progress, currentRoundScore is authoritative
-            const liveRoundScore = parseScoreStr(obj.currentRoundScore);
+            const liveRoundScore = parseScoreStr(
+              obj.currentRoundScore ??
+                obj.currentRoundScoreToPar ??
+                obj.todayScore
+            );
             currentRoundScoreToPar =
               liveRoundScore !== null ? liveRoundScore : roundScoreFromArray;
           }
 
           // Calculate thru from currentHole / startingHole
-          const currentHole = Number(obj.currentHole ?? 0);
-          const startingHole = Number(obj.startingHole ?? 0);
+          const currentHole = Number(unwrapBson(obj.currentHole) ?? 0);
+          const startingHole = Number(unwrapBson(obj.startingHole) ?? 0);
           let thru: string | null = null;
           if (status === "cut") thru = "CUT";
           else if (status === "wd") thru = "WD";

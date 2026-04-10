@@ -9,7 +9,12 @@ import {
   roundPredictions,
 } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
-import { getLeaderboard, normalizeGolferName } from "@/lib/slashgolf";
+import {
+  getLeaderboard,
+  normalizeGolferName,
+  parseScoreStr,
+  unwrapBson,
+} from "@/lib/slashgolf";
 
 export const dynamic = "force-dynamic";
 
@@ -68,17 +73,11 @@ export async function GET(request: NextRequest) {
       try {
         const lbRaw = await getLeaderboard(tournament.slashTournId, 2026);
         const lbRoot = lbRaw as Record<string, unknown>;
-        currentTournamentRound = Number(lbRoot.roundId ?? 0) || null;
+        currentTournamentRound =
+          Number(unwrapBson(lbRoot.roundId) ?? 0) || null;
         const rows: unknown[] = Array.isArray(lbRoot.leaderboardRows)
           ? (lbRoot.leaderboardRows as unknown[])
           : [];
-
-        const parseScoreStr = (v: unknown): number | null => {
-          if (v === "E" || v === "even" || v === 0 || v === "0") return 0;
-          if (v == null || v === "" || v === "-") return null;
-          const n = Number(v);
-          return isNaN(n) ? null : n;
-        };
 
         // Which golfers are "our picks" for this tournament?
         const tournamentPicks = await db
@@ -105,8 +104,8 @@ export async function GET(request: NextRequest) {
             (g) => g === norm || g.includes(norm) || norm.includes(g)
           );
 
-          const currentHole = Number(obj.currentHole ?? 0);
-          const startingHole = Number(obj.startingHole ?? 0);
+          const currentHole = Number(unwrapBson(obj.currentHole) ?? 0);
+          const startingHole = Number(unwrapBson(obj.startingHole) ?? 0);
           const rComplete = obj.roundComplete === true;
           const status = String(obj.status ?? "").toLowerCase();
 
