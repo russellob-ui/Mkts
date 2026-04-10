@@ -23,6 +23,7 @@ export default function AdminPage() {
   const [playerList, setPlayerList] = useState<Array<{ id: number; name: string; hasPasscode: boolean; passcodePreview: string }>>([]);
   const [passcodeEdits, setPasscodeEdits] = useState<Record<number, string>>({});
   const [passcodeResult, setPasscodeResult] = useState("");
+  const [bulkPasscode, setBulkPasscode] = useState("");
 
   function login() {
     setAuthed(true);
@@ -272,8 +273,54 @@ export default function AdminPage() {
       <div className="bg-dark-card border border-dark-border rounded-xl p-4">
         <h2 className="font-bold mb-1">Player Passcodes</h2>
         <p className="text-xs text-cream/40 mb-3">
-          Set 4-digit passcodes for each player. They use these for chat, predictions, and hot takes.
+          Set 4-digit passcodes for each player. Duplicates are allowed — chat verifies player+passcode together.
         </p>
+
+        {/* Bulk set — one passcode for everyone */}
+        <div className="bg-dark/50 border border-dark-border rounded-lg p-3 mb-3">
+          <div className="text-xs text-cream/50 mb-2">Set same passcode for ALL players:</div>
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              inputMode="numeric"
+              maxLength={4}
+              placeholder="1234"
+              value={bulkPasscode}
+              onChange={(e) => setBulkPasscode(e.target.value.replace(/\D/g, "").slice(0, 4))}
+              className="bg-dark border border-dark-border rounded px-2 py-1 text-cream text-sm w-20 text-center font-mono"
+            />
+            <button
+              onClick={async () => {
+                if (bulkPasscode.length !== 4) {
+                  setPasscodeResult("Must be 4 digits");
+                  return;
+                }
+                let count = 0;
+                for (const p of playerList) {
+                  const res = await fetch("/api/admin/set-passcode", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json", "x-admin-passcode": passcode },
+                    body: JSON.stringify({ playerId: p.id, newPasscode: bulkPasscode }),
+                  });
+                  if (res.ok) count++;
+                }
+                setPasscodeResult(`Set ${count}/${playerList.length} players to ${bulkPasscode}`);
+                setBulkPasscode("");
+                // Refresh list
+                const res2 = await fetch("/api/admin/set-passcode", {
+                  headers: { "x-admin-passcode": passcode },
+                });
+                const json2 = await res2.json();
+                setPlayerList(json2.players ?? []);
+              }}
+              disabled={bulkPasscode.length !== 4}
+              className="bg-gold/80 hover:bg-gold disabled:opacity-30 text-dark px-4 py-1 rounded text-xs font-bold transition-colors"
+            >
+              Set All
+            </button>
+          </div>
+        </div>
+
         <div className="space-y-2">
           {playerList.map((p) => (
             <div key={p.id} className="flex items-center gap-2">

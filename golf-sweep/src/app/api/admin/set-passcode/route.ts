@@ -20,19 +20,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Passcode must be 4 digits" }, { status: 400 });
     }
 
-    // Check for duplicate passcode on a DIFFERENT player
-    const allPlayers = await db.select().from(players);
-    const duplicate = allPlayers.find(
-      (p) => p.passcode === newPasscode && p.id !== playerId
-    );
-    if (duplicate) {
-      return NextResponse.json(
-        {
-          error: `That passcode is already used by ${duplicate.name}. Please pick a different one.`,
-        },
-        { status: 400 }
-      );
-    }
+    // Duplicate passcodes are allowed — the chat/send endpoint validates
+    // playerId + passcode together, so sharing a passcode is safe.
 
     await db
       .update(players)

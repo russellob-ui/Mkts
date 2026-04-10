@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef, useCallback } from "react";
+import LeaderboardStrip from "@/components/LeaderboardStrip";
 
 interface Player {
   id: number;
@@ -305,11 +306,16 @@ export default function ChatPage() {
 
   return (
     <div className="flex flex-col h-[calc(100dvh-8rem)] max-w-2xl mx-auto">
+      {/* Leaderboard strip at top — stays fixed, doesn't scroll */}
+      <div className="px-4 pt-3 pb-2 shrink-0">
+        <LeaderboardStrip />
+      </div>
+
       {/* Header */}
-      <div className="px-4 py-3 border-b border-dark-border flex items-center justify-between">
+      <div className="px-4 py-2 border-b border-dark-border flex items-center justify-between shrink-0">
         <div>
-          <h1 className="font-serif text-lg font-bold">Group Chat</h1>
-          <span className="text-xs text-cream/40">
+          <h1 className="font-serif text-base font-bold">Group Chat</h1>
+          <span className="text-[10px] text-cream/40">
             Logged in as {authedPlayerName}
           </span>
         </div>
