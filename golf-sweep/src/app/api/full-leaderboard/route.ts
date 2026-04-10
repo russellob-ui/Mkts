@@ -44,15 +44,16 @@ export async function GET() {
       });
     }
 
-    // Serve from cache if fresh (< 60s old)
+    // Serve from cache if fresh (< 60s old) — bypass cache when debug requested
     const now = Date.now();
-    if (now - cachedAt < 60_000 && cachedPlayers.length > 0) {
-      return NextResponse.json({
-        players: cachedPlayers,
-        tournament: cachedTournamentName,
-        cachedAgo: Math.round((now - cachedAt) / 1000),
-      });
-    }
+    // Temporarily disabled cache for debug
+    // if (now - cachedAt < 60_000 && cachedPlayers.length > 0) {
+    //   return NextResponse.json({
+    //     players: cachedPlayers,
+    //     tournament: cachedTournamentName,
+    //     cachedAgo: Math.round((now - cachedAt) / 1000),
+    //   });
+    // }
 
     // Fetch fresh from Slash Golf
     if (!process.env.RAPIDAPI_KEY) {
@@ -156,10 +157,23 @@ export async function GET() {
     cachedAt = now;
     cachedTournamentName = tournament.name;
 
+    // Debug: include the raw rounds array structure of the first player
+    // so we can see what field names the API is actually using
+    const debugFirstPlayer = rows[0] as Record<string, unknown> | undefined;
+    const debugRoundsStructure = debugFirstPlayer?.rounds;
+
     return NextResponse.json({
       players: mapped,
       tournament: tournament.name,
       cachedAgo: 0,
+      _debug: {
+        firstPlayerKeys: debugFirstPlayer ? Object.keys(debugFirstPlayer) : [],
+        firstPlayerName: debugFirstPlayer?.name ?? debugFirstPlayer?.lastName,
+        roundsArray: debugRoundsStructure,
+        roundsFirstItemKeys: Array.isArray(debugRoundsStructure) && debugRoundsStructure[0]
+          ? Object.keys(debugRoundsStructure[0] as object)
+          : null,
+      },
     });
   } catch (error) {
     console.error("[Full Leaderboard] Error:", error);
