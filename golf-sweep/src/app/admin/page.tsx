@@ -19,6 +19,11 @@ export default function AdminPage() {
   const [overrideRoundScore, setOverrideRoundScore] = useState("");
   const [golfers, setGolfers] = useState<Array<{ id: number; name: string }>>([]);
 
+  // Passcode manager
+  const [playerList, setPlayerList] = useState<Array<{ id: number; name: string; hasPasscode: boolean; passcodePreview: string }>>([]);
+  const [passcodeEdits, setPasscodeEdits] = useState<Record<number, string>>({});
+  const [passcodeResult, setPasscodeResult] = useState("");
+
   function login() {
     setAuthed(true);
   }
@@ -36,8 +41,49 @@ export default function AdminPage() {
             setLastPollTime(d.tournament.lastPolledAt);
           }
         });
+
+      // Load players for passcode manager
+      fetch("/api/admin/set-passcode", {
+        headers: { "x-admin-passcode": passcode },
+      })
+        .then((r) => r.json())
+        .then((d) => setPlayerList(d.players ?? []))
+        .catch(() => {});
     }
-  }, [authed]);
+  }, [authed, passcode]);
+
+  async function setPlayerPasscode(playerId: number) {
+    const newPasscode = passcodeEdits[playerId];
+    if (!newPasscode || !/^\d{4}$/.test(newPasscode)) {
+      setPasscodeResult("Passcode must be exactly 4 digits");
+      return;
+    }
+    try {
+      const res = await fetch("/api/admin/set-passcode", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-admin-passcode": passcode,
+        },
+        body: JSON.stringify({ playerId, newPasscode }),
+      });
+      const json = await res.json();
+      if (json.error) {
+        setPasscodeResult(`Error: ${json.error}`);
+      } else {
+        setPasscodeResult(`Updated ${playerList.find((p) => p.id === playerId)?.name}'s passcode`);
+        // Clear the input + reload list
+        setPasscodeEdits((prev) => ({ ...prev, [playerId]: "" }));
+        const res2 = await fetch("/api/admin/set-passcode", {
+          headers: { "x-admin-passcode": passcode },
+        });
+        const json2 = await res2.json();
+        setPlayerList(json2.players ?? []);
+      }
+    } catch (err) {
+      setPasscodeResult(`Error: ${err}`);
+    }
+  }
 
   async function pollNow() {
     setPollLoading(true);
@@ -220,6 +266,48 @@ export default function AdminPage() {
         >
           {pollLoading ? "Polling..." : "Poll Odds Now"}
         </button>
+      </div>
+
+      {/* Passcode Manager */}
+      <div className="bg-dark-card border border-dark-border rounded-xl p-4">
+        <h2 className="font-bold mb-1">Player Passcodes</h2>
+        <p className="text-xs text-cream/40 mb-3">
+          Set 4-digit passcodes for each player. They use these for chat, predictions, and hot takes.
+        </p>
+        <div className="space-y-2">
+          {playerList.map((p) => (
+            <div key={p.id} className="flex items-center gap-2">
+              <span className="text-sm font-bold flex-1">{p.name}</span>
+              <span className="text-xs text-cream/40 w-12">
+                {p.hasPasscode ? p.passcodePreview : "—"}
+              </span>
+              <input
+                type="text"
+                inputMode="numeric"
+                maxLength={4}
+                placeholder="1234"
+                value={passcodeEdits[p.id] ?? ""}
+                onChange={(e) =>
+                  setPasscodeEdits((prev) => ({
+                    ...prev,
+                    [p.id]: e.target.value.replace(/\D/g, "").slice(0, 4),
+                  }))
+                }
+                className="bg-dark border border-dark-border rounded px-2 py-1 text-cream text-sm w-16 text-center font-mono"
+              />
+              <button
+                onClick={() => setPlayerPasscode(p.id)}
+                disabled={!passcodeEdits[p.id] || passcodeEdits[p.id].length !== 4}
+                className="bg-augusta hover:bg-augusta-light disabled:opacity-30 text-cream px-3 py-1 rounded text-xs font-bold transition-colors"
+              >
+                Set
+              </button>
+            </div>
+          ))}
+        </div>
+        {passcodeResult && (
+          <div className="mt-3 text-xs text-cream/60">{passcodeResult}</div>
+        )}
       </div>
 
       {/* Round controls */}
