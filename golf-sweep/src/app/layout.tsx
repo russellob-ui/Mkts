@@ -2,10 +2,29 @@ import type { Metadata } from "next";
 import Nav from "@/components/Nav";
 import "./globals.css";
 
+const SITE_URL = "https://mkts-production-8e53.up.railway.app";
+
 export const metadata: Metadata = {
+  metadataBase: new URL(SITE_URL),
   title: "London Banter & Woody — Major Sweep 2026",
   description:
     "8 friends, 4 majors, 1 champion. Masters, PGA, US Open, The Open.",
+  openGraph: {
+    type: "website",
+    url: SITE_URL,
+    siteName: "London Banter & Woody",
+    title: "London Banter & Woody — Major Sweep 2026",
+    description:
+      "8 friends, 4 majors, 1 champion. Masters, PGA, US Open, The Open.",
+    // Image is picked up automatically from src/app/opengraph-image.jpg
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "London Banter & Woody — Major Sweep 2026",
+    description:
+      "8 friends, 4 majors, 1 champion. Masters, PGA, US Open, The Open.",
+    // Image is picked up automatically from src/app/twitter-image.jpg
+  },
 };
 
 export default function RootLayout({
