@@ -427,6 +427,42 @@ export async function GET() {
         .orderBy(desc(scoreSnapshots.capturedAt))
         .limit(1);
 
+      // Compute today's round score: find the latest snapshot from a PREVIOUS
+      // round and subtract. This gives us "how many shots they've gained/lost
+      // today" regardless of whether the parser extracted per-round data.
+      let todayScore: number | null = null;
+      if (latestSnapshot && latestSnapshot.roundNumber && latestSnapshot.totalScoreToPar != null) {
+        if (latestSnapshot.roundNumber === 1) {
+          // Round 1 — today = total (no prior round to subtract)
+          todayScore = latestSnapshot.totalScoreToPar;
+        } else {
+          // Find the last snapshot from a previous round
+          const priorSnapshots = await db
+            .select()
+            .from(scoreSnapshots)
+            .where(
+              and(
+                eq(scoreSnapshots.golferId, golfer.id),
+                eq(scoreSnapshots.tournamentId, tournament.id)
+              )
+            )
+            .orderBy(desc(scoreSnapshots.capturedAt))
+            .limit(200);
+
+          // Find the most recent snapshot from a round BEFORE the current round
+          const priorRoundSnapshot = priorSnapshots.find(
+            (s) => s.roundNumber !== null && s.roundNumber < latestSnapshot.roundNumber!
+          );
+
+          if (priorRoundSnapshot && priorRoundSnapshot.totalScoreToPar != null) {
+            todayScore = latestSnapshot.totalScoreToPar - priorRoundSnapshot.totalScoreToPar;
+          } else {
+            // No prior round snapshot — use stored roundScoreToPar as fallback
+            todayScore = latestSnapshot.roundScoreToPar;
+          }
+        }
+      }
+
       entries.push({
         player: {
           id: player.id,
@@ -444,7 +480,7 @@ export async function GET() {
         },
         position: latestSnapshot?.position ?? result?.finalPosition ?? null,
         scoreToPar: latestSnapshot?.totalScoreToPar ?? result?.finalScoreToPar ?? null,
-        todayScore: latestSnapshot?.roundScoreToPar ?? null,
+        todayScore,
         currentRound: latestSnapshot?.roundNumber ?? null,
         madeCut: result?.madeCut,
         thru:
