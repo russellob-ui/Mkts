@@ -85,13 +85,63 @@ export default function TrajectoryPage() {
         ))}
       </div>
 
-      {!hasSnapshots && tab === "evolution" && (
+      {!hasSnapshots && tab === "evolution" && heatmapData.length === 0 && (
         <div className="bg-dark-card border border-dark-border rounded-xl p-8 text-center text-cream/40">
           Trajectory will appear once the tournament is underway and scores are being polled.
         </div>
       )}
 
-      {/* Evolution */}
+      {/* Evolution — use snapshots if we have them, otherwise fall back to heatmap */}
+      {tab === "evolution" && !hasSnapshots && heatmapData.length > 0 && (
+        <div className="bg-dark-card border border-dark-border rounded-xl p-4">
+          <ResponsiveContainer width="100%" height={350}>
+            <LineChart>
+              <CartesianGrid strokeDasharray="3 3" stroke="#2a2a2a" />
+              <XAxis dataKey="round" type="category" allowDuplicatedCategory={false} tick={{ fontSize: 11, fill: "#9ca3af" }} />
+              <YAxis reversed tick={{ fontSize: 10, fill: "#9ca3af" }} tickFormatter={(v) => (v === 0 ? "E" : v > 0 ? `+${v}` : String(v))} />
+              <Tooltip contentStyle={{ background: "#1a1a1a", border: "1px solid #2a2a2a", borderRadius: 8, fontSize: 12 }} />
+              <ReferenceLine y={0} stroke="#9ca3af" strokeDasharray="3 3" label={{ value: "E", fill: "#9ca3af", fontSize: 10 }} />
+              {heatmapData.map((entry) => {
+                // Build cumulative points per round
+                const cumulativePoints: Array<{ round: string; [key: string]: unknown }> = [];
+                let cumulative = 0;
+                let hasData = false;
+                for (let r = 1; r <= 4; r++) {
+                  const roundScore = entry.rounds[r];
+                  if (roundScore != null) {
+                    cumulative += roundScore;
+                    cumulativePoints.push({ round: `R${r}`, [entry.player.name]: cumulative });
+                    hasData = true;
+                  }
+                }
+                if (!hasData) return null;
+                return (
+                  <Line
+                    key={entry.player.name}
+                    data={cumulativePoints}
+                    dataKey={entry.player.name}
+                    name={entry.player.name}
+                    stroke={entry.player.color ?? "#006747"}
+                    strokeWidth={2}
+                    dot={{ r: 4, fill: entry.player.color ?? "#006747" }}
+                    connectNulls
+                  />
+                );
+              })}
+            </LineChart>
+          </ResponsiveContainer>
+          <div className="flex flex-wrap gap-3 mt-3 justify-center">
+            {heatmapData.map((e) => (
+              <span key={e.player.name} className="flex items-center gap-1 text-xs">
+                <span className="w-3 h-3 rounded-full inline-block" style={{ backgroundColor: e.player.color ?? "#006747" }} />
+                {e.player.name}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Evolution — real snapshots version */}
       {tab === "evolution" && hasSnapshots && (
         <div className="bg-dark-card border border-dark-border rounded-xl p-4">
           <ResponsiveContainer width="100%" height={350}>
@@ -192,7 +242,38 @@ export default function TrajectoryPage() {
         </div>
       )}
 
-      {/* Position Race */}
+      {/* Position Race — heatmap fallback when no snapshots */}
+      {tab === "position" && !hasSnapshots && heatmapData.length > 0 && (
+        <div className="bg-dark-card border border-dark-border rounded-xl p-4">
+          <div className="text-xs text-cream/40 mb-3 text-center">
+            Current positions (real-time snapshots will populate as Round 2 begins)
+          </div>
+          <div className="space-y-2">
+            {heatmapData.map((entry, i) => (
+              <div
+                key={entry.player.name}
+                className="flex items-center gap-3 p-2 rounded-lg"
+                style={{ borderLeft: `4px solid ${entry.player.color ?? "#006747"}` }}
+              >
+                <span className="text-lg font-mono font-bold text-cream/60 w-10 text-center">
+                  {entry.position ?? "-"}
+                </span>
+                <div className="flex-1">
+                  <div className="font-bold text-sm">{entry.player.name}</div>
+                  <div className="text-xs text-cream/50">
+                    {entry.golfer.flagEmoji} {entry.golfer.name}
+                  </div>
+                </div>
+                <span className={`font-mono font-bold ${entry.totalToPar != null && entry.totalToPar < 0 ? "text-red-400" : entry.totalToPar === 0 ? "text-gray-400" : "text-white"}`}>
+                  {entry.totalToPar == null ? "-" : entry.totalToPar === 0 ? "E" : entry.totalToPar > 0 ? `+${entry.totalToPar}` : entry.totalToPar}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Position Race — real snapshots version */}
       {tab === "position" && hasSnapshots && (
         <div className="bg-dark-card border border-dark-border rounded-xl p-4">
           <ResponsiveContainer width="100%" height={350}>
