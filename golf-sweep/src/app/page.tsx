@@ -4,6 +4,16 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { timeAgo, getBanterLine } from "@/lib/banter";
 import ChatPanel from "@/components/ChatPanel";
+import TournamentLogo from "@/components/TournamentLogo";
+
+type PlayerStatus =
+  | "not_started"
+  | "playing"
+  | "finished"
+  | "cut"
+  | "wd"
+  | "dq"
+  | "unknown";
 
 interface LeaderboardEntry {
   player: { name: string; slug: string; color: string | null; rowColor: string | null; avatarEmoji: string | null };
@@ -13,6 +23,8 @@ interface LeaderboardEntry {
   todayScore: number | null;
   currentRound: number | null;
   thru: string | null;
+  teeTime: string | null;
+  status: PlayerStatus;
   openingOdds: string | null;
   openingOddsDecimal: number | null;
   currentOdds: string | null;
@@ -126,7 +138,7 @@ export default function HomePage() {
             {isLive && (
               <span className="live-dot inline-block w-2.5 h-2.5 rounded-full bg-augusta-light" />
             )}
-            <h2 className="font-serif text-lg font-bold">{tournament.name}</h2>
+            <TournamentLogo tournamentName={tournament.name} size="md" />
             {isLive && (
               <span className="text-[10px] bg-augusta/20 text-augusta-light px-2 py-0.5 rounded-full uppercase tracking-wider">
                 Live
@@ -151,7 +163,7 @@ export default function HomePage() {
           <span className="flex-1">Player / Golfer</span>
           <span className="w-10 text-right">Tot</span>
           <span className="w-10 text-right">Rd</span>
-          <span className="w-8 text-right">Thru</span>
+          <span className="w-16 text-right">Thru</span>
           <span className="w-12 text-right">Odds</span>
           <span className="w-7 text-right">Pts</span>
         </div>
@@ -184,15 +196,39 @@ export default function HomePage() {
               {formatScore(entry.scoreToPar)}
             </span>
 
-            {/* Today (current round score to par) */}
-            <span className={`w-10 text-right font-mono text-xs ${scoreColorClass(entry.todayScore)}`}>
-              {entry.todayScore != null ? formatScore(entry.todayScore) : "-"}
-            </span>
-
-            {/* Thru */}
-            <span className="w-8 text-right text-[10px] text-cream/60">
-              {entry.thru ?? "-"}
-            </span>
+            {/* Rd / Thru — state-driven display:
+                - not_started: dash in Rd, bold tee time in Thru
+                - playing:     round score in Rd, hole count in Thru
+                - finished:    round score in Rd, "F" in Thru
+                - cut/wd/dq:   dash in Rd, status label in Thru (dimmed) */}
+            {entry.status === "not_started" ? (
+              <>
+                <span className="w-10 text-right font-mono text-xs text-cream/30">
+                  —
+                </span>
+                <span className="w-16 text-right text-[10px] font-semibold text-augusta-light tabular-nums">
+                  {entry.teeTime ?? "—"}
+                </span>
+              </>
+            ) : entry.status === "cut" || entry.status === "wd" || entry.status === "dq" ? (
+              <>
+                <span className="w-10 text-right font-mono text-xs text-cream/30">
+                  —
+                </span>
+                <span className="w-16 text-right text-[10px] font-bold text-red-400/80 uppercase tracking-wider">
+                  {entry.status}
+                </span>
+              </>
+            ) : (
+              <>
+                <span className={`w-10 text-right font-mono text-xs ${scoreColorClass(entry.todayScore)}`}>
+                  {entry.todayScore != null ? formatScore(entry.todayScore) : "-"}
+                </span>
+                <span className="w-16 text-right text-[10px] text-cream/60">
+                  {entry.thru ?? "-"}
+                </span>
+              </>
+            )}
 
             {/* Odds */}
             <span className="w-12 text-right text-[10px]">

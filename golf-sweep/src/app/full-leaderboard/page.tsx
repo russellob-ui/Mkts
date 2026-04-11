@@ -1,5 +1,15 @@
 "use client";
 import { useEffect, useState } from "react";
+import TournamentLogo from "@/components/TournamentLogo";
+
+type PlayerStatus =
+  | "not_started"
+  | "playing"
+  | "finished"
+  | "cut"
+  | "wd"
+  | "dq"
+  | "unknown";
 
 interface FullLeaderboardEntry {
   playerId: string;
@@ -7,6 +17,8 @@ interface FullLeaderboardEntry {
   position: string | null;
   scoreToPar: number;
   thru: string | null;
+  teeTime: string | null;
+  status: PlayerStatus;
   currentRoundNumber: number | null;
   roundScores: Record<number, number | null>;
   isOurPick: boolean;
@@ -60,8 +72,13 @@ export default function FullLeaderboardPage() {
       <div className="flex items-center justify-between mb-3">
         <div>
           <h1 className="font-serif text-2xl font-bold">Full Leaderboard</h1>
-          <div className="text-xs text-cream/40">
-            {tournamentName} {cachedAgo > 0 && `· ${cachedAgo}s ago`}
+          <div className="flex items-center gap-2 mt-0.5">
+            <TournamentLogo tournamentName={tournamentName} size="sm" />
+            {cachedAgo > 0 && (
+              <span className="text-[10px] text-cream/40">
+                · {cachedAgo}s ago
+              </span>
+            )}
           </div>
         </div>
         <div className="flex items-center gap-2 text-xs">
@@ -100,7 +117,7 @@ export default function FullLeaderboardPage() {
             <span className="w-7 text-right">R2</span>
             <span className="w-7 text-right">R3</span>
             <span className="w-7 text-right">R4</span>
-            <span className="w-7 text-right">Thru</span>
+            <span className="w-14 text-right">Thru</span>
           </div>
 
           {/* Rows */}
@@ -145,9 +162,20 @@ export default function FullLeaderboardPage() {
               <span className={`w-7 text-right font-mono text-[10px] ${scoreColor(entry.roundScores?.[4] ?? null)}`}>
                 {entry.roundScores?.[4] != null ? formatScore(entry.roundScores[4]) : "-"}
               </span>
-              <span className="w-7 text-right text-[10px] text-cream/50">
-                {entry.thru ?? "-"}
-              </span>
+              {/* Thru column: tee time if not started, hole count / F / CUT otherwise */}
+              {entry.status === "not_started" ? (
+                <span className="w-14 text-right text-[10px] font-semibold text-augusta-light tabular-nums">
+                  {entry.teeTime ?? "—"}
+                </span>
+              ) : entry.status === "cut" || entry.status === "wd" || entry.status === "dq" ? (
+                <span className="w-14 text-right text-[10px] font-bold text-red-400/70 uppercase">
+                  {entry.status}
+                </span>
+              ) : (
+                <span className="w-14 text-right text-[10px] text-cream/60">
+                  {entry.thru ?? "-"}
+                </span>
+              )}
             </div>
           ))}
         </div>

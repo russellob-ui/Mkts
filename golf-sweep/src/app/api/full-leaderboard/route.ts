@@ -108,19 +108,46 @@ export async function GET() {
       const status = String(obj.status ?? "").toLowerCase();
       const roundComplete = obj.roundComplete === true;
 
-      // Calculate thru from currentHole / startingHole
+      // Calculate thru + teeTime + status separately.
+      // thru is hole count / F / CUT / WD / DQ / null only — never a tee time.
       const currentHole = Number(unwrapBson(obj.currentHole) ?? 0);
       const startingHole = Number(unwrapBson(obj.startingHole) ?? 0);
+      const teeTime = obj.teeTime ? String(obj.teeTime) : null;
+
       let thru: string | null = null;
-      if (status === "cut") thru = "CUT";
-      else if (status === "wd") thru = "WD";
-      else if (status === "dq") thru = "DQ";
-      else if (roundComplete || status === "complete") thru = "F";
-      else if (currentHole > 0 && startingHole > 0) {
-        const holesPlayed = ((currentHole - startingHole + 18) % 18);
-        thru = holesPlayed === 0 ? "—" : String(holesPlayed);
-      } else if (obj.teeTime) {
-        thru = String(obj.teeTime);
+      let playerStatus:
+        | "not_started"
+        | "playing"
+        | "finished"
+        | "cut"
+        | "wd"
+        | "dq"
+        | "unknown" = "unknown";
+
+      if (status === "cut") {
+        thru = "CUT";
+        playerStatus = "cut";
+      } else if (status === "wd") {
+        thru = "WD";
+        playerStatus = "wd";
+      } else if (status === "dq") {
+        thru = "DQ";
+        playerStatus = "dq";
+      } else if (roundComplete || status === "complete") {
+        thru = "F";
+        playerStatus = "finished";
+      } else if (currentHole > 0 && startingHole > 0) {
+        const holesPlayed = (currentHole - startingHole + 18) % 18;
+        if (holesPlayed === 0) {
+          thru = null;
+          playerStatus = "not_started";
+        } else {
+          thru = String(holesPlayed);
+          playerStatus = "playing";
+        }
+      } else if (teeTime) {
+        thru = null;
+        playerStatus = "not_started";
       }
 
       // Parse per-round scores from the rounds array (completed rounds only).
@@ -171,6 +198,8 @@ export async function GET() {
         position,
         scoreToPar: total ?? 0,
         thru,
+        teeTime,
+        status: playerStatus,
         currentRoundNumber: currentTournamentRound,
         roundScores,
         country: matched?.country ?? null,

@@ -373,6 +373,8 @@ export async function GET() {
       currentRoundNumber: number | null;
       currentRoundScoreToPar: number | null;
       thru: string | null;
+      teeTime: string | null;
+      status: "not_started" | "playing" | "finished" | "cut" | "wd" | "dq" | "unknown";
       position: string | null;
       totalScoreToPar: number | null;
     }>();
@@ -439,20 +441,53 @@ export async function GET() {
               liveRoundScore !== null ? liveRoundScore : roundScoreFromArray;
           }
 
-          // Calculate thru from currentHole / startingHole
+          // Calculate thru + status + teeTime.
+          //
+          // thru:     ONLY hole count | "F" | "CUT" | "WD" | "DQ" | null
+          //           (never a tee time — tee time goes in its own field)
+          // teeTime:  the Slash Golf `teeTime` string, e.g. "1:44pm"
+          // status:   derived state machine the UI can switch on
           const currentHole = Number(unwrapBson(obj.currentHole) ?? 0);
           const startingHole = Number(unwrapBson(obj.startingHole) ?? 0);
+          const teeTime = obj.teeTime ? String(obj.teeTime) : null;
+
           let thru: string | null = null;
-          if (status === "cut") thru = "CUT";
-          else if (status === "wd") thru = "WD";
-          else if (status === "dq") thru = "DQ";
-          else if (roundComplete || status === "complete") thru = "F";
-          else if (currentHole > 0 && startingHole > 0) {
-            // Number of holes completed = wrap-around difference
-            const holesPlayed = ((currentHole - startingHole + 18) % 18);
-            thru = holesPlayed === 0 ? "—" : String(holesPlayed);
-          } else if (obj.teeTime) {
-            thru = String(obj.teeTime);
+          let playerStatus:
+            | "not_started"
+            | "playing"
+            | "finished"
+            | "cut"
+            | "wd"
+            | "dq"
+            | "unknown" = "unknown";
+
+          if (status === "cut") {
+            thru = "CUT";
+            playerStatus = "cut";
+          } else if (status === "wd") {
+            thru = "WD";
+            playerStatus = "wd";
+          } else if (status === "dq") {
+            thru = "DQ";
+            playerStatus = "dq";
+          } else if (roundComplete || status === "complete") {
+            thru = "F";
+            playerStatus = "finished";
+          } else if (currentHole > 0 && startingHole > 0) {
+            const holesPlayed = (currentHole - startingHole + 18) % 18;
+            if (holesPlayed === 0) {
+              // currentHole === startingHole: either teeing off right now
+              // (still "not started" for scoring purposes) or wrapped round
+              thru = null;
+              playerStatus = "not_started";
+            } else {
+              thru = String(holesPlayed);
+              playerStatus = "playing";
+            }
+          } else if (teeTime) {
+            // Haven't teed off yet — have a scheduled time
+            thru = null;
+            playerStatus = "not_started";
           }
 
           const playerId = String(obj.playerId ?? "");
@@ -461,6 +496,8 @@ export async function GET() {
             currentRoundNumber: currentRound,
             currentRoundScoreToPar,
             thru,
+            teeTime,
+            status: playerStatus,
             position: String(obj.position ?? ""),
             totalScoreToPar,
           };
@@ -565,6 +602,8 @@ export async function GET() {
       const liveTotal = liveData?.totalScoreToPar ?? null;
       const livePosition = liveData?.position ?? null;
       const liveThru = liveData?.thru ?? null;
+      const liveTeeTime = liveData?.teeTime ?? null;
+      const liveStatus = liveData?.status ?? "unknown";
       const liveCurrentRound = liveData?.currentRoundNumber ?? null;
 
       entries.push({
@@ -587,12 +626,16 @@ export async function GET() {
         todayScore,
         currentRound: liveCurrentRound ?? latestSnapshot?.roundNumber ?? null,
         madeCut: result?.madeCut,
+        // thru is now ONLY hole count / F / CUT / WD / DQ / null
+        // (tee time has moved to its own field below)
         thru:
           liveThru && liveThru !== ""
             ? liveThru
             : latestSnapshot?.thru && latestSnapshot.thru !== ""
               ? latestSnapshot.thru
               : scores[Math.max(...Object.keys(scores).map(Number), 0)]?.thru ?? null,
+        teeTime: liveTeeTime,
+        status: liveStatus,
         openingOdds: pick.openingOdds,
         openingOddsDecimal: pick.openingOddsDecimal,
         currentOdds: currentOdds?.fractional ?? null,
