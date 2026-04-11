@@ -14,10 +14,11 @@
 //   5. Done. iOS will refresh it a few times an hour.
 //
 // Widget size guide:
-//   small  → shows top 3 picks only
-//   medium → shows top 4 picks + tournament name
-//   large  → shows all 8 picks
+//   small  → top 3 picks only (no room for 8 legibly)
+//   medium → ALL 8 picks, no thru column
+//   large  → ALL 8 picks + thru column + comfortable type
 //
+// In-app preview defaults to Large so you can see all 8 when testing.
 // Tap the widget to jump straight to the live leaderboard in Safari.
 
 const API_URL = "https://mkts-production-8e53.up.railway.app/api/widget";
@@ -114,9 +115,24 @@ function buildWidget(data) {
   widget.addSpacer(8);
 
   // --- Rows ----------------------------------------------------------
-  const family = config.widgetFamily || "medium";
-  const rowLimit = family === "small" ? 3 : family === "medium" ? 4 : 8;
-  const showThru = family !== "small";
+  //
+  // Layout policy:
+  //   small  → top 3 (no way to fit 8 legibly in ~150x150 px)
+  //   medium → ALL 8 (tight, no thru column, size-down type)
+  //   large  → ALL 8 (comfortable, thru column visible)
+  const family = config.widgetFamily || "large";
+  const isSmall = family === "small";
+  const isMedium = family === "medium";
+
+  const rowLimit = isSmall ? 3 : 8;
+  const showThru = family === "large";
+
+  // Type size + row spacing — tightened for medium so 8 rows fit
+  const nameSize = isSmall ? 11 : isMedium ? 10 : 12;
+  const posSize  = isSmall ? 10 : isMedium ? 9  : 11;
+  const totSize  = isSmall ? 12 : isMedium ? 11 : 13;
+  const rowGap   = isSmall ? 3  : isMedium ? 2  : 4;
+  const stripH   = isSmall ? 16 : isMedium ? 14 : 18;
 
   const rows = (data.entries || []).slice(0, rowLimit);
 
@@ -124,37 +140,37 @@ function buildWidget(data) {
     const row = widget.addStack();
     row.layoutHorizontally();
     row.centerAlignContent();
-    row.spacing = 6;
+    row.spacing = isMedium ? 5 : 6;
 
-    // Coloured player strip (2px wide)
+    // Coloured player strip
     if (e.color) {
       const strip = row.addStack();
       strip.backgroundColor = new Color(e.color);
-      strip.size = new Size(3, 16);
+      strip.size = new Size(3, stripH);
       strip.cornerRadius = 1;
     }
 
-    // Position (width aligned)
+    // Position (monospaced, width aligned to T## / ##)
     const pos = row.addText((e.pos || "-").padEnd(3, " "));
-    pos.font = Font.semiboldMonospacedSystemFont(10);
+    pos.font = Font.semiboldMonospacedSystemFont(posSize);
     pos.textColor = MUTED;
 
     // Player name
     const nameText = `${e.avatar ? e.avatar + " " : ""}${e.player}`;
     const name = row.addText(nameText);
-    name.font = Font.mediumSystemFont(11);
+    name.font = Font.mediumSystemFont(nameSize);
     name.textColor = CREAM;
     name.lineLimit = 1;
-    name.minimumScaleFactor = 0.8;
+    name.minimumScaleFactor = 0.75;
 
     row.addSpacer();
 
     // Total score
     const tot = row.addText(fmtScore(e.tot));
-    tot.font = Font.boldMonospacedSystemFont(12);
+    tot.font = Font.boldMonospacedSystemFont(totSize);
     tot.textColor = scoreColor(e.tot);
 
-    // Thru (medium/large only)
+    // Thru (large only — medium saves space by dropping it)
     if (showThru) {
       const thru = row.addText(` ${fmtThru(e.thru)}`);
       thru.font = Font.regularMonospacedSystemFont(9);
@@ -162,7 +178,7 @@ function buildWidget(data) {
       thru.lineLimit = 1;
     }
 
-    widget.addSpacer(family === "large" ? 4 : 3);
+    widget.addSpacer(rowGap);
   }
 
   widget.addSpacer();
@@ -191,11 +207,13 @@ const widget = buildWidget(data);
 if (config.runsInWidget) {
   Script.setWidget(widget);
 } else {
-  // Running inside Scriptable app — preview at the current family
-  const fam = config.widgetFamily || "medium";
+  // Running inside Scriptable app (preview mode).
+  // Default to Large so you see all 8 picks when testing — override
+  // by setting config.widgetFamily before running.
+  const fam = config.widgetFamily || "large";
   if (fam === "small") widget.presentSmall();
-  else if (fam === "large") widget.presentLarge();
-  else widget.presentMedium();
+  else if (fam === "medium") widget.presentMedium();
+  else widget.presentLarge();
 }
 
 Script.complete();
