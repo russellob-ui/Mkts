@@ -114,6 +114,10 @@ export default function HomePage() {
   }, []);
 
   const isLive = tournament?.status === "live";
+  const isFinished = tournament?.status === "finished";
+  const winner = entries.find(
+    (e) => (e.position ?? "").toUpperCase().replace(/^T/, "") === "1"
+  );
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-3">
@@ -144,12 +148,49 @@ export default function HomePage() {
                 Live
               </span>
             )}
+            {isFinished && (
+              <span className="text-[10px] bg-gold/20 text-gold px-2 py-0.5 rounded-full uppercase tracking-wider font-bold">
+                Final
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Winner banner — only shown when tournament is finished */}
+      {isFinished && winner && (
+        <div
+          className="relative rounded-xl px-4 py-3 mb-3 overflow-hidden"
+          style={{
+            background: `linear-gradient(135deg, ${winner.player.color ?? "#d4af37"}22 0%, #d4af3722 100%)`,
+            border: `1px solid ${winner.player.color ?? "#d4af37"}55`,
+          }}
+        >
+          <div className="flex items-center gap-3">
+            <div className="text-2xl">🏆</div>
+            <div className="flex-1 min-w-0">
+              <div className="text-[10px] uppercase tracking-widest text-gold/80 font-bold">
+                Champion
+              </div>
+              <div className="font-serif text-base md:text-lg font-bold leading-tight">
+                {winner.player.name}
+                <span className="text-cream/40 font-normal text-xs">
+                  {" · "}
+                </span>
+                <span className="text-cream/90">
+                  {winner.golfer.flagEmoji} {winner.golfer.name}
+                </span>
+              </div>
+              <div className="text-[11px] text-cream/60 font-mono mt-0.5">
+                {formatScore(winner.scoreToPar)} · {tournament?.name}
+              </div>
+            </div>
           </div>
         </div>
       )}
 
       {/* Banter strip */}
-      {banter && (
+      {banter && !isFinished && (
         <div className="bg-augusta/10 border border-augusta/20 rounded-lg px-3 py-1.5 mb-3 text-center text-xs italic text-cream/80">
           {banter}
         </div>
@@ -168,22 +209,33 @@ export default function HomePage() {
           <span className="w-7 text-right">Pts</span>
         </div>
 
-        {entries.map((entry) => (
+        {entries.map((entry) => {
+          const isWinner =
+            isFinished &&
+            (entry.position ?? "").toUpperCase().replace(/^T/, "") === "1";
+          return (
           <Link
             key={entry.player.slug}
             href={`/player/${entry.player.slug}`}
             className="flex items-center gap-1 px-3 py-2 border-b border-dark-border/40 last:border-0 hover:bg-dark-border/20 transition-colors"
-            style={{
-              borderLeft: `4px solid ${entry.player.color ?? "#006747"}`,
-              backgroundColor: `${entry.player.color ?? "#006747"}08`,
-            }}
+            style={
+              isWinner
+                ? {
+                    borderLeft: `4px solid #d4af37`,
+                    background: `linear-gradient(90deg, rgba(212,175,55,0.18) 0%, ${entry.player.color ?? "#006747"}12 100%)`,
+                  }
+                : {
+                    borderLeft: `4px solid ${entry.player.color ?? "#006747"}`,
+                    backgroundColor: `${entry.player.color ?? "#006747"}08`,
+                  }
+            }
           >
-            <span className="text-xs font-mono font-bold text-cream/80 w-8">
-              {entry.position ?? "-"}
+            <span className={`text-xs font-mono font-bold w-8 ${isWinner ? "text-gold" : "text-cream/80"}`}>
+              {isWinner ? "🏆" : entry.position ?? "-"}
             </span>
 
             <div className="flex-1 min-w-0">
-              <div className="font-bold text-xs truncate">
+              <div className={`font-bold text-xs truncate ${isWinner ? "text-gold" : ""}`}>
                 {entry.player.name}
               </div>
               <div className="text-[10px] text-cream/50 truncate">
@@ -243,11 +295,12 @@ export default function HomePage() {
             </span>
 
             {/* Points */}
-            <span className="w-7 text-right font-bold text-gold text-[10px]">
+            <span className={`w-7 text-right font-bold text-[10px] ${isWinner ? "text-gold text-xs" : "text-gold"}`}>
               {entry.points > 0 ? entry.points : "-"}
             </span>
           </Link>
-        ))}
+          );
+        })}
 
         {entries.length === 0 && !seeding && (
           <div className="px-4 py-8 text-center text-cream/40">

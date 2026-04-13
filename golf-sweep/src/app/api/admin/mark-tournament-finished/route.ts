@@ -1,13 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import {
-  tournaments,
-  picks,
-  tournamentResults,
-  pointsLog,
-} from "@/db/schema";
-import { eq, and } from "drizzle-orm";
-import { getFinishPoints } from "@/lib/points";
+import { tournaments } from "@/db/schema";
+import { eq } from "drizzle-orm";
+import { finishTournament } from "@/lib/finish-tournament";
 
 export async function POST(request: NextRequest) {
   const passcode = request.headers.get("x-admin-passcode");
@@ -16,64 +11,41 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const liveTournaments = await db
+    // Find the live (or recently-live) tournament to finish. If none is
+    // "live", fall back to the most recent one that isn't already finished.
+    const live = await db
       .select()
       .from(tournaments)
       .where(eq(tournaments.status, "live"));
-    const tournament = liveTournaments[0];
+    let tournament = live[0];
+
     if (!tournament) {
-      return NextResponse.json({ error: "No live tournament" }, { status: 400 });
-    }
-
-    // Mark tournament as finished
-    await db
-      .update(tournaments)
-      .set({ status: "finished" })
-      .where(eq(tournaments.id, tournament.id));
-
-    // Get picks
-    const tournamentPicks = await db
-      .select()
-      .from(picks)
-      .where(eq(picks.tournamentId, tournament.id));
-
-    const finishResults: Array<Record<string, unknown>> = [];
-
-    for (const pick of tournamentPicks) {
-      const [result] = await db
-        .select()
-        .from(tournamentResults)
-        .where(
-          and(
-            eq(tournamentResults.golferId, pick.golferId),
-            eq(tournamentResults.tournamentId, tournament.id)
-          )
-        );
-
-      const points = getFinishPoints(result?.finalPosition);
-      if (points > 0) {
-        await db.insert(pointsLog).values({
-          playerId: pick.playerId,
-          tournamentId: tournament.id,
-          source: "finish",
-          points,
-          note: `Finished ${result?.finalPosition}`,
-        });
+      const body = await request.json().catch(() => ({}));
+      if (body?.tournamentId) {
+        const [match] = await db
+          .select()
+          .from(tournaments)
+          .where(eq(tournaments.id, Number(body.tournamentId)));
+        tournament = match;
       }
-
-      finishResults.push({
-        playerId: pick.playerId,
-        golferId: pick.golferId,
-        position: result?.finalPosition,
-        points,
-      });
     }
 
+    if (!tournament) {
+      return NextResponse.json(
+        { error: "No live tournament — pass tournamentId in body to finish a specific one" },
+        { status: 400 }
+      );
+    }
+
+    const summary = await finishTournament(tournament.id);
     return NextResponse.json({
-      message: "Tournament marked as finished",
-      results: finishResults,
+      message: summary.alreadyFinished
+        ? "Tournament was already finished — points ensured idempotently"
+        : "Tournament marked as finished",
+      ...summary,
     });
   } catch (error) {
+    console.error("[MarkFinished] Error:", error);
     return NextResponse.json({ error: String(error) }, { status: 500 });
   }
 }

@@ -23,6 +23,7 @@ import {
 } from "@/lib/slashgolf";
 import { getOutrightOdds, normalizeOddsName } from "@/lib/oddsapi";
 import { writeScoreSnapshots, generateBanterFromSnapshot } from "@/lib/banter-engine";
+import { finishTournament, isTournamentOfficiallyOver } from "@/lib/finish-tournament";
 
 export const dynamic = "force-dynamic";
 
@@ -54,6 +55,29 @@ async function maybePollScores(
   try {
     const lbRaw = await getLeaderboard(tournament.slashTournId, 2026);
     const lbPlayers = parseLeaderboardPlayers(lbRaw);
+
+    // Auto-detect tournament end: Slash Golf says roundId=4 + roundStatus="Official".
+    // Fire-and-forget — finishTournament is idempotent and non-fatal on error.
+    const lbRoot = lbRaw as Record<string, unknown>;
+    const topRoundId = Number(lbRoot.roundId) || null;
+    const topRoundStatus =
+      typeof lbRoot.roundStatus === "string" ? lbRoot.roundStatus : null;
+    if (isTournamentOfficiallyOver(topRoundId, topRoundStatus)) {
+      try {
+        const summary = await finishTournament(tournament.id);
+        if (!summary.alreadyFinished) {
+          console.log(
+            `[Leaderboard] Tournament ${tournament.id} auto-finished. ` +
+              `Winner: ${summary.winner?.playerName ?? "?"} / ` +
+              `${summary.winner?.golferName ?? "?"}. ` +
+              `Points awarded to ${summary.awarded.filter((a) => a.points > 0).length} players.`
+          );
+        }
+      } catch (err) {
+        console.error("[Leaderboard] Auto-finish error (non-fatal):", err);
+      }
+    }
+
     if (lbPlayers.length === 0) {
       console.warn("[Leaderboard] API returned 0 players");
       // Still mark as polled to avoid hammering the API
