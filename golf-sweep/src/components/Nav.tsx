@@ -18,6 +18,7 @@ const NAV_GROUPS = [
       { href: "/predictions", label: "Predictions" },
       { href: "/hot-takes", label: "Hot Takes" },
       { href: "/records", label: "Records" },
+      { href: "/scoring", label: "Scoring Rules" },
     ],
   },
   {

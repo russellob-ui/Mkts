@@ -24,6 +24,7 @@ import {
 import { getOutrightOdds, normalizeOddsName } from "@/lib/oddsapi";
 import { writeScoreSnapshots, generateBanterFromSnapshot } from "@/lib/banter-engine";
 import { finishTournament, isTournamentOfficiallyOver } from "@/lib/finish-tournament";
+import { completeRound, roundsThatShouldBeComplete } from "@/lib/complete-round";
 
 export const dynamic = "force-dynamic";
 
@@ -66,8 +67,27 @@ async function maybePollScores(
     const topRoundStatus =
       typeof lbRoot.roundStatus === "string" ? lbRoot.roundStatus : null;
     console.log(
-      `[Leaderboard] Auto-finish check: roundId=${topRoundId} roundStatus=${JSON.stringify(topRoundStatus)}`
+      `[Leaderboard] Auto-settle check: roundId=${topRoundId} roundStatus=${JSON.stringify(topRoundStatus)}`
     );
+
+    // Auto-complete any finished round — fires ROTD (+5) and BOR (+2) bonuses.
+    // Runs BEFORE finishTournament so round-4 bonuses land before the final
+    // finish points. completeRound is idempotent.
+    const roundsToComplete = roundsThatShouldBeComplete(topRoundId, topRoundStatus);
+    for (const r of roundsToComplete) {
+      try {
+        const s = await completeRound(tournament.id, r);
+        if (!s.alreadyComplete && (s.rotd.length > 0 || s.bor.length > 0)) {
+          console.log(
+            `[Leaderboard] Auto-completed round ${r}. ` +
+              `ROTD awards: ${s.rotd.length}, BOR awards: ${s.bor.length}.`
+          );
+        }
+      } catch (err) {
+        console.error(`[Leaderboard] Auto-complete round ${r} error (non-fatal):`, err);
+      }
+    }
+
     if (isTournamentOfficiallyOver(topRoundId, topRoundStatus)) {
       try {
         const summary = await finishTournament(tournament.id);
