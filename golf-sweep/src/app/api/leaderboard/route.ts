@@ -58,10 +58,16 @@ async function maybePollScores(
 
     // Auto-detect tournament end: Slash Golf says roundId=4 + roundStatus="Official".
     // Fire-and-forget — finishTournament is idempotent and non-fatal on error.
+    //
+    // IMPORTANT: roundId comes through as MongoDB Extended JSON, so we must
+    // unwrap before Number() — `Number({"$numberInt": "4"})` is NaN.
     const lbRoot = lbRaw as Record<string, unknown>;
-    const topRoundId = Number(lbRoot.roundId) || null;
+    const topRoundId = Number(unwrapBson(lbRoot.roundId)) || null;
     const topRoundStatus =
       typeof lbRoot.roundStatus === "string" ? lbRoot.roundStatus : null;
+    console.log(
+      `[Leaderboard] Auto-finish check: roundId=${topRoundId} roundStatus=${JSON.stringify(topRoundStatus)}`
+    );
     if (isTournamentOfficiallyOver(topRoundId, topRoundStatus)) {
       try {
         const summary = await finishTournament(tournament.id);

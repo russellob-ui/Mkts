@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { tournaments } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, desc } from "drizzle-orm";
 import { finishTournament } from "@/lib/finish-tournament";
 
 export async function POST(request: NextRequest) {
@@ -11,37 +11,58 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    // Find the live (or recently-live) tournament to finish. If none is
-    // "live", fall back to the most recent one that isn't already finished.
-    const live = await db
-      .select()
-      .from(tournaments)
-      .where(eq(tournaments.status, "live"));
-    let tournament = live[0];
+    // Resolve which tournament to finish, in priority order:
+    //   1. tournamentId in request body (explicit wins)
+    //   2. any tournament with status = "live"
+    //   3. the most recent tournament that isn't "upcoming"
+    //      — lets this button re-run on an already-finished tournament
+    //      (to re-award points after a bug fix) without specifying an ID.
+    const body = await request.json().catch(() => ({}));
+    let tournament;
 
-    if (!tournament) {
-      const body = await request.json().catch(() => ({}));
-      if (body?.tournamentId) {
-        const [match] = await db
+    if (body?.tournamentId) {
+      const [t] = await db
+        .select()
+        .from(tournaments)
+        .where(eq(tournaments.id, Number(body.tournamentId)));
+      tournament = t;
+    } else {
+      const live = await db
+        .select()
+        .from(tournaments)
+        .where(eq(tournaments.status, "live"));
+      tournament = live[0];
+
+      if (!tournament) {
+        // Fall back to most recently-finished tournament
+        const [recentFinished] = await db
           .select()
           .from(tournaments)
-          .where(eq(tournaments.id, Number(body.tournamentId)));
-        tournament = match;
+          .where(eq(tournaments.status, "finished"))
+          .orderBy(desc(tournaments.id))
+          .limit(1);
+        tournament = recentFinished;
       }
     }
 
     if (!tournament) {
       return NextResponse.json(
-        { error: "No live tournament — pass tournamentId in body to finish a specific one" },
+        { error: "No tournament to finish — no live or finished tournament found" },
         { status: 400 }
       );
     }
 
+    const statusBefore = tournament.status;
     const summary = await finishTournament(tournament.id);
     return NextResponse.json({
       message: summary.alreadyFinished
-        ? "Tournament was already finished — points ensured idempotently"
+        ? "Tournament was already finished — points re-checked idempotently"
         : "Tournament marked as finished",
+      resolvedTournament: {
+        id: tournament.id,
+        name: tournament.name,
+        statusBefore,
+      },
       ...summary,
     });
   } catch (error) {
