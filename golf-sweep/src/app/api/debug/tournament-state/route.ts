@@ -92,6 +92,24 @@ export async function GET() {
           eq(pointsLog.source, "finish")
         )
       );
+    const existingRotdLogs = await db
+      .select()
+      .from(pointsLog)
+      .where(
+        and(
+          eq(pointsLog.tournamentId, tournament.id),
+          eq(pointsLog.source, "rotd")
+        )
+      );
+    const existingBorLogs = await db
+      .select()
+      .from(pointsLog)
+      .where(
+        and(
+          eq(pointsLog.tournamentId, tournament.id),
+          eq(pointsLog.source, "bor")
+        )
+      );
 
     const pickStates = [];
     for (const pick of tournamentPicks) {
@@ -163,7 +181,21 @@ export async function GET() {
         status: tournament.status,
         slashTournId: tournament.slashTournId,
         lastPolledAt: tournament.lastPolledAt,
-        totalFinishLogsWritten: existingFinishLogs.length,
+        pointsLogCounts: {
+          finish: existingFinishLogs.length,
+          rotd: existingRotdLogs.length,
+          bor: existingBorLogs.length,
+        },
+        rotdAwards: existingRotdLogs.map((l) => ({
+          playerId: l.playerId,
+          points: l.points,
+          note: l.note,
+        })),
+        borAwards: existingBorLogs.map((l) => ({
+          playerId: l.playerId,
+          points: l.points,
+          note: l.note,
+        })),
       },
       slashGolfApi: apiDebug,
       picks: pickStates,

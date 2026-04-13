@@ -153,24 +153,46 @@ export async function completeRound(
   }
 
   // --- Best of Round (+2, on lowest cumulative to par among our picks)
+  //
+  // IMPORTANT: cumulative-at-this-round-end must be computed by SUMMING
+  // per-round scores from round_scores, NOT read from
+  // tournamentResults.finalScoreToPar — that field is always the latest
+  // cumulative (end of R4 after a poll), so using it would backfill R1
+  // BOR using R4 totals and pick the wrong leader.
   const borResults: RoundCompleteSummary["bor"] = [];
   if (!hasBorForThisRound) {
+    const allRoundRows = await db
+      .select()
+      .from(rounds)
+      .where(eq(rounds.tournamentId, tournamentId));
+
     const cumScores: Array<{ golferId: number; totalToPar: number | null }> = [];
     for (const pick of tournamentPicks) {
-      const [result] = await db
-        .select()
-        .from(tournamentResults)
-        .where(
-          and(
-            eq(tournamentResults.golferId, pick.golferId),
-            eq(tournamentResults.tournamentId, tournamentId)
-          )
-        );
+      let cumulative = 0;
+      let hasAny = false;
+      for (let r = 1; r <= roundNumber; r++) {
+        const rr = allRoundRows.find((x) => x.roundNumber === r);
+        if (!rr) continue;
+        const [score] = await db
+          .select()
+          .from(roundScores)
+          .where(
+            and(
+              eq(roundScores.golferId, pick.golferId),
+              eq(roundScores.roundId, rr.id)
+            )
+          );
+        if (score?.scoreToPar != null) {
+          cumulative += score.scoreToPar;
+          hasAny = true;
+        }
+      }
       cumScores.push({
         golferId: pick.golferId,
-        totalToPar: result?.finalScoreToPar ?? null,
+        totalToPar: hasAny ? cumulative : null,
       });
     }
+
     const borMap = calcBestOfRound(cumScores);
     for (const [golferId, bonus] of borMap) {
       const pick = tournamentPicks.find((p) => p.golferId === golferId);

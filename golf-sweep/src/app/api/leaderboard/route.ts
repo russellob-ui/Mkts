@@ -396,9 +396,43 @@ export async function GET() {
       return NextResponse.json({ entries: [], tournament: null, lastPolled: null });
     }
 
-    // Auto-poll scores (every 60s) and odds (every 15 min) if stale
+    // Auto-poll scores (every 60s) and odds (every 15 min) if stale.
+    // Both bail out cheaply if the tournament isn't live.
     await maybePollScores(tournament);
     await maybePollOdds(tournament);
+
+    // Self-heal settlement: runs regardless of tournament status.
+    //
+    // maybePollScores() bails for finished tournaments, which means the
+    // per-round ROTD/BOR auto-detection inside it never fires for
+    // already-finished majors. This block catches that: for each of the
+    // four rounds, if we have scores, try to settle it. completeRound is
+    // idempotent, so this is a no-op on subsequent GETs once bonuses land.
+    for (let r = 1; r <= 4; r++) {
+      try {
+        await completeRound(tournament.id, r);
+      } catch (err) {
+        // Per-round failures are non-fatal (e.g. round doesn't exist yet)
+        if (!String(err).includes("not found")) {
+          console.error(
+            `[Leaderboard] self-heal completeRound(${r}) failed:`,
+            err
+          );
+        }
+      }
+    }
+    // And for tournaments that are already finished in the DB, ensure
+    // finish points are in. finishTournament() is also idempotent.
+    if (tournament.status === "finished") {
+      try {
+        await finishTournament(tournament.id);
+      } catch (err) {
+        console.error(
+          "[Leaderboard] self-heal finishTournament failed:",
+          err
+        );
+      }
+    }
 
     // Re-read tournament for updated timestamps
     const [freshTournament] = await db
