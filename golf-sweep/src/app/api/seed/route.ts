@@ -29,6 +29,31 @@ export async function POST() {
     // Check if already seeded
     const existingPlayers = await db.select().from(players);
     if (existingPlayers.length > 0) {
+      // Players exist, but ensure all 4 tournaments are present
+      const existingTournaments = await db.select().from(tournaments);
+      const existingSlugs = new Set(existingTournaments.map((t) => t.slug));
+      const missing = TOURNAMENTS.filter((t) => !existingSlugs.has(t.slug));
+      if (missing.length > 0) {
+        const inserted = await db
+          .insert(tournaments)
+          .values(
+            missing.map((t) => ({
+              name: t.name,
+              slug: t.slug,
+              startDate: t.startDate,
+              endDate: t.endDate,
+              status: t.status,
+              oddsApiSportKey: t.oddsApiSportKey,
+            }))
+          )
+          .returning();
+        console.log(`[Seed] Inserted ${inserted.length} missing tournaments: ${missing.map((t) => t.name).join(", ")}`);
+        return NextResponse.json({
+          message: `Added ${inserted.length} missing tournaments`,
+          seeded: false,
+          addedTournaments: inserted.map((t) => t.name),
+        });
+      }
       return NextResponse.json({ message: "Already seeded", seeded: false });
     }
 

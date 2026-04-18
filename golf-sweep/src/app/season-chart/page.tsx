@@ -50,7 +50,7 @@ export default function SeasonChartPage() {
 
       {!hasData ? (
         <div className="bg-dark-card border border-dark-border rounded-xl p-8 text-center text-cream/40">
-          The season starts here. Season trajectory will appear after the Masters concludes.
+          Season trajectory will appear once the first tournament is finished and points are settled.
         </div>
       ) : (
         <div className="bg-dark-card border border-dark-border rounded-xl p-4 mb-6">
