@@ -1,177 +1,246 @@
 /**
- * API-Football v3 wrapper (via RapidAPI).
+ * Sofascore API wrapper (via RapidAPI).
  *
- * Uses the same RAPIDAPI_KEY as the golf data. The user needs to subscribe
- * to "API-Football" on RapidAPI (free tier = 100 req/day, enough for one
- * match with 30-second caching).
+ * Uses the same RAPIDAPI_KEY as the golf data. Subscribe to "Sofascore"
+ * by Api Dojo on RapidAPI (it's right in the search results).
  *
- * Docs: https://www.api-football.com/documentation-v3
- * RapidAPI: https://rapidapi.com/api-sports/api/api-football
+ * RapidAPI host: sofascore.p.rapidapi.com
+ * Base path:     /api/v1/...
  */
 
-const BASE_URL = "https://v3.football.api-sports.io";
-const PREMIER_LEAGUE_ID = 39;
+const BASE_URL = "https://sofascore.p.rapidapi.com";
 
 function getHeaders(): Record<string, string> {
   const apiKey = process.env.RAPIDAPI_KEY;
   if (!apiKey) throw new Error("RAPIDAPI_KEY env var is required");
   return {
-    "x-rapidapi-host": "v3.football.api-sports.io",
+    "x-rapidapi-host": "sofascore.p.rapidapi.com",
     "x-rapidapi-key": apiKey,
   };
 }
 
-async function apiFetch(endpoint: string, params: Record<string, string>): Promise<unknown> {
-  const qs = new URLSearchParams(params).toString();
-  const url = `${BASE_URL}${endpoint}?${qs}`;
-  console.log(`[FootballAPI] Fetching: ${url}`);
+async function apiFetch(path: string): Promise<unknown> {
+  const url = `${BASE_URL}${path}`;
+  console.log(`[Sofascore] Fetching: ${url}`);
   const res = await fetch(url, { headers: getHeaders(), cache: "no-store" });
   if (!res.ok) {
-    throw new Error(`API-Football error: ${res.status} ${res.statusText}`);
+    const body = await res.text().catch(() => "");
+    throw new Error(`Sofascore API error: ${res.status} ${res.statusText} — ${body.slice(0, 200)}`);
   }
-  const data = await res.json();
-  if (data.errors && Object.keys(data.errors).length > 0) {
-    console.error("[FootballAPI] API errors:", data.errors);
-  }
-  return data;
+  return res.json();
 }
 
 // --- Types ------------------------------------------------------------------
 
-export interface Fixture {
-  fixture: {
-    id: number;
-    date: string;
-    timestamp: number;
-    venue: { name: string; city: string } | null;
-    status: {
-      long: string; // "Not Started", "First Half", "Halftime", "Second Half", "Match Finished", etc.
-      short: string; // "NS", "1H", "HT", "2H", "FT", "ET", "P", "PEN", "BT", "SUSP", "INT"
-      elapsed: number | null;
-    };
-  };
-  league: { id: number; name: string; season: number; round: string };
-  teams: {
-    home: { id: number; name: string; logo: string };
-    away: { id: number; name: string; logo: string };
-  };
-  goals: { home: number | null; away: number | null };
-  score: {
-    halftime: { home: number | null; away: number | null };
-    fulltime: { home: number | null; away: number | null };
-  };
-}
-
-export interface MatchEvent {
-  time: { elapsed: number; extra: number | null };
-  team: { id: number; name: string };
-  player: { id: number; name: string };
-  assist: { id: number | null; name: string | null };
-  type: string; // "Goal", "Card", "subst", "Var"
-  detail: string; // "Normal Goal", "Penalty", "Own Goal", "Yellow Card", "Red Card", "Substitution 1", etc.
-  comments: string | null;
-}
-
-export interface LineupPlayer {
+export interface SofaEvent {
   id: number;
+  tournament: {
+    uniqueTournament?: { id: number; name: string };
+    name: string;
+  };
+  season?: { id: number; name: string; year: string };
+  homeTeam: { id: number; name: string; nameCode?: string };
+  awayTeam: { id: number; name: string; nameCode?: string };
+  homeScore: { current?: number; period1?: number; period2?: number; normaltime?: number };
+  awayScore: { current?: number; period1?: number; period2?: number; normaltime?: number };
+  status: {
+    code: number;
+    description: string;
+    type: string; // "notstarted", "inprogress", "finished"
+  };
+  startTimestamp: number;
+  venue?: { stadium?: { name: string }; city?: { name: string } };
+  time?: { currentPeriodStartTimestamp?: number };
+}
+
+export interface SofaIncident {
+  incidentType: string; // "goal", "card", "substitution", "period", "varDecision", "injuryTime"
+  time: number;
+  addedTime?: number;
+  player?: { id: number; name: string; shortName: string };
+  playerIn?: { id: number; name: string; shortName: string };
+  playerOut?: { id: number; name: string; shortName: string };
+  assist1?: { id: number; name: string; shortName: string };
+  incidentClass?: string; // "regular", "ownGoal", "penalty", "yellow", "yellowRed", "red"
+  isHome?: boolean;
+  homeScore?: number;
+  awayScore?: number;
+  rescinded?: boolean;
+  description?: string;
+  text?: string;
+}
+
+export interface SofaLineupPlayer {
+  player: {
+    id: number;
+    name: string;
+    shortName: string;
+    position: string; // "G", "D", "M", "F"
+    jerseyNumber?: string;
+    shirtNumber?: number;
+  };
+  shirtNumber: number;
+  position: string;
+  substitute: boolean;
+}
+
+export interface SofaLineup {
+  players: SofaLineupPlayer[];
+  formation: string;
+  playerColor?: { primary: string };
+  goalkeeperColor?: { primary: string };
+}
+
+export interface SofaStatItem {
   name: string;
-  number: number;
-  pos: string; // "G", "D", "M", "F"
-}
-
-export interface TeamLineup {
-  team: { id: number; name: string; logo: string };
-  formation: string | null;
-  startXI: Array<{ player: LineupPlayer }>;
-  substitutes: Array<{ player: LineupPlayer }>;
-  coach: { id: number; name: string } | null;
-}
-
-export interface TeamStats {
-  team: { id: number; name: string };
-  statistics: Array<{ type: string; value: number | string | null }>;
+  home: string;
+  away: string;
+  compareCode?: number;
+  statisticsType?: string;
+  valueType?: string;
+  homeValue?: number;
+  awayValue?: number;
+  homeTotal?: number;
+  awayTotal?: number;
 }
 
 // --- Fetchers ---------------------------------------------------------------
 
 /**
- * Find fixtures for a given date + league.
- * Default: Premier League (39), current season.
+ * Get all football events for a given date.
+ * Date format: YYYY-MM-DD
  */
-export async function getFixturesByDate(
-  date: string,
-  season: number = 2024,
-  league: number = PREMIER_LEAGUE_ID
-): Promise<Fixture[]> {
-  const data = (await apiFetch("/fixtures", {
-    date,
-    league: String(league),
-    season: String(season),
-  })) as { response: Fixture[] };
-  return data.response ?? [];
+export async function getScheduledEvents(
+  date: string
+): Promise<SofaEvent[]> {
+  const data = (await apiFetch(
+    `/api/v1/sport/football/scheduled-events/${date}`
+  )) as { events?: SofaEvent[] };
+  return data.events ?? [];
 }
 
 /**
- * Get a single fixture by ID (includes score, status).
+ * Get Premier League events for a date.
+ * PL uniqueTournament.id = 17 in Sofascore.
  */
-export async function getFixtureById(fixtureId: number): Promise<Fixture | null> {
-  const data = (await apiFetch("/fixtures", {
-    id: String(fixtureId),
-  })) as { response: Fixture[] };
-  return data.response?.[0] ?? null;
+export async function getPremierLeagueEvents(
+  date: string
+): Promise<SofaEvent[]> {
+  const all = await getScheduledEvents(date);
+  return all.filter(
+    (e) =>
+      e.tournament?.uniqueTournament?.id === 17 ||
+      e.tournament?.name?.toLowerCase().includes("premier league")
+  );
 }
 
 /**
- * Get match events (goals, cards, subs, VAR).
+ * Get single event details by ID.
  */
-export async function getFixtureEvents(fixtureId: number): Promise<MatchEvent[]> {
-  const data = (await apiFetch("/fixtures/events", {
-    fixture: String(fixtureId),
-  })) as { response: MatchEvent[] };
-  return data.response ?? [];
+export async function getEventDetails(
+  eventId: number
+): Promise<SofaEvent | null> {
+  const data = (await apiFetch(`/api/v1/event/${eventId}`)) as {
+    event?: SofaEvent;
+  };
+  return data.event ?? null;
 }
 
 /**
- * Get team lineups (starting XI + subs).
+ * Get match incidents (goals, cards, subs, VAR).
  */
-export async function getFixtureLineups(fixtureId: number): Promise<TeamLineup[]> {
-  const data = (await apiFetch("/fixtures/lineups", {
-    fixture: String(fixtureId),
-  })) as { response: TeamLineup[] };
-  return data.response ?? [];
+export async function getEventIncidents(
+  eventId: number
+): Promise<SofaIncident[]> {
+  const data = (await apiFetch(
+    `/api/v1/event/${eventId}/incidents`
+  )) as { incidents?: SofaIncident[] };
+  return data.incidents ?? [];
 }
 
 /**
- * Get match statistics (corners, shots, fouls, possession, etc.).
+ * Get team lineups for a match.
+ * Returns { home, away } each with formation + players.
  */
-export async function getFixtureStats(fixtureId: number): Promise<TeamStats[]> {
-  const data = (await apiFetch("/fixtures/statistics", {
-    fixture: String(fixtureId),
-  })) as { response: TeamStats[] };
-  return data.response ?? [];
+export async function getEventLineups(
+  eventId: number
+): Promise<{ home: SofaLineup | null; away: SofaLineup | null }> {
+  try {
+    const data = (await apiFetch(
+      `/api/v1/event/${eventId}/lineups`
+    )) as { home?: SofaLineup; away?: SofaLineup; confirmed?: boolean };
+    return { home: data.home ?? null, away: data.away ?? null };
+  } catch {
+    return { home: null, away: null };
+  }
+}
+
+/**
+ * Get match statistics (corners, shots, possession, etc.).
+ */
+export async function getEventStatistics(
+  eventId: number
+): Promise<SofaStatItem[]> {
+  try {
+    const data = (await apiFetch(
+      `/api/v1/event/${eventId}/statistics`
+    )) as {
+      statistics?: Array<{
+        period: string;
+        groups: Array<{
+          groupName: string;
+          statisticsItems: SofaStatItem[];
+        }>;
+      }>;
+    };
+    // Flatten ALL period stats into a single list (prefer "ALL" period)
+    const allPeriod = data.statistics?.find((s) => s.period === "ALL");
+    const period = allPeriod ?? data.statistics?.[0];
+    if (!period) return [];
+    return period.groups.flatMap((g) => g.statisticsItems);
+  } catch {
+    return [];
+  }
 }
 
 // --- Helpers ----------------------------------------------------------------
 
-export function fixtureStatus(
-  short: string
+export function sofaEventStatus(
+  event: SofaEvent
 ): "upcoming" | "live" | "finished" | "other" {
-  if (short === "NS" || short === "TBD" || short === "PST") return "upcoming";
-  if (["1H", "2H", "ET", "BT", "P", "LIVE", "HT"].includes(short))
-    return "live";
-  if (["FT", "AET", "PEN", "AWD", "WO"].includes(short)) return "finished";
-  return "other"; // SUSP, INT, CANC, ABD
+  const type = event.status?.type?.toLowerCase();
+  if (type === "notstarted") return "upcoming";
+  if (type === "inprogress") return "live";
+  if (type === "finished") return "finished";
+  return "other";
 }
 
-export function getStatValue(
-  stats: TeamStats[],
-  teamId: number,
-  statType: string
-): number | null {
-  const teamStats = stats.find((s) => s.team.id === teamId);
-  if (!teamStats) return null;
-  const stat = teamStats.statistics.find((s) => s.type === statType);
-  if (!stat || stat.value == null) return null;
-  const v = typeof stat.value === "string" ? parseInt(stat.value) : stat.value;
-  return isNaN(v) ? null : v;
+export function computeElapsedMinute(event: SofaEvent): number | null {
+  if (event.status?.type === "notstarted") return null;
+  if (event.status?.type === "finished") return 90;
+  if (!event.time?.currentPeriodStartTimestamp) return null;
+  const now = Math.floor(Date.now() / 1000);
+  const periodStart = event.time.currentPeriodStartTimestamp;
+  const elapsed = Math.floor((now - periodStart) / 60);
+  // Second half starts at 45'
+  const desc = event.status?.description?.toLowerCase() ?? "";
+  if (desc.includes("2nd half") || desc.includes("second half")) {
+    return 45 + elapsed;
+  }
+  if (desc.includes("halftime")) return 45;
+  return elapsed;
+}
+
+export function getStatByName(
+  stats: SofaStatItem[],
+  name: string
+): { home: number; away: number } {
+  const item = stats.find(
+    (s) => s.name.toLowerCase() === name.toLowerCase()
+  );
+  if (!item) return { home: 0, away: 0 };
+  return {
+    home: parseInt(String(item.home ?? item.homeValue ?? 0)) || 0,
+    away: parseInt(String(item.away ?? item.awayValue ?? 0)) || 0,
+  };
 }

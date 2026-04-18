@@ -1,24 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getFixturesByDate } from "@/lib/football-api";
+import { getPremierLeagueEvents } from "@/lib/football-api";
 
 export const dynamic = "force-dynamic";
 
 /**
- * GET /api/matchday/fixtures?date=2026-04-19&season=2025&league=39
+ * GET /api/matchday/fixtures?date=2026-04-19
  *
- * Searches API-Football for fixtures on a given date.
- * Default: Premier League (39), season 2024 (API uses start year of season).
+ * Searches Sofascore for Premier League fixtures on a given date.
  */
 export async function GET(request: NextRequest) {
   try {
     const date = request.nextUrl.searchParams.get("date");
-    const season = Number(
-      request.nextUrl.searchParams.get("season") ?? "2025"
-    );
-    const league = Number(
-      request.nextUrl.searchParams.get("league") ?? "39"
-    );
-
     if (!date) {
       return NextResponse.json(
         { error: "date query param required (YYYY-MM-DD)" },
@@ -26,26 +18,21 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const fixtures = await getFixturesByDate(date, season, league);
+    const events = await getPremierLeagueEvents(date);
 
     return NextResponse.json({
       date,
-      season,
-      league,
-      count: fixtures.length,
-      fixtures: fixtures.map((f) => ({
-        fixtureId: f.fixture.id,
-        date: f.fixture.date,
-        venue: f.fixture.venue?.name ?? null,
-        city: f.fixture.venue?.city ?? null,
-        status: f.fixture.status.long,
-        homeTeam: f.teams.home.name,
-        homeLogo: f.teams.home.logo,
-        awayTeam: f.teams.away.name,
-        awayLogo: f.teams.away.logo,
-        homeScore: f.goals.home,
-        awayScore: f.goals.away,
-        round: f.league.round,
+      count: events.length,
+      fixtures: events.map((e) => ({
+        fixtureId: e.id,
+        date: new Date(e.startTimestamp * 1000).toISOString(),
+        venue: e.venue?.stadium?.name ?? null,
+        city: e.venue?.city?.name ?? null,
+        status: e.status.description,
+        homeTeam: e.homeTeam.name,
+        awayTeam: e.awayTeam.name,
+        homeScore: e.homeScore?.current ?? null,
+        awayScore: e.awayScore?.current ?? null,
       })),
     });
   } catch (error) {
