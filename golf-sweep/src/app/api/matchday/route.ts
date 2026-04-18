@@ -69,29 +69,48 @@ export async function GET() {
     const matchId = Number(match.id);
     let apiEventId = match.api_fixture_id ? Number(match.api_fixture_id) : null;
 
+    // One-shot fix: if the linked fixture doesn't match our teams, clear it.
+    // This handles the case where auto-link picked Chelsea vs Brentford instead
+    // of Brentford vs Fulham.
+    if (apiEventId && cache?.event) {
+      const linkedHome = cache.event.homeTeam.name.toLowerCase();
+      const linkedAway = cache.event.awayTeam.name.toLowerCase();
+      const wantHome = String(match.home_team ?? "").toLowerCase();
+      const wantAway = String(match.away_team ?? "").toLowerCase();
+      const homeOk = linkedHome.includes(wantHome) || wantHome.includes(linkedHome);
+      const awayOk = linkedAway.includes(wantAway) || wantAway.includes(linkedAway);
+      if (!homeOk || !awayOk) {
+        console.log(`[Matchday] Wrong fixture linked (${cache.event.homeTeam.name} vs ${cache.event.awayTeam.name}), clearing`);
+        apiEventId = null;
+        cache = null;
+        cachedAt = 0;
+        await db.execute(sql`UPDATE football_matches SET api_fixture_id = NULL WHERE id = ${matchId}`);
+      }
+    }
+
     // Auto-link: if no API fixture ID, try to find the match via Sofascore
     if (!apiEventId && process.env.RAPIDAPI_KEY) {
       try {
         const { getTeamNextMatches, getTeamLastMatches } = await import("@/lib/football-api");
         const homeTeam = String(match.home_team ?? "").toLowerCase();
-        // Try next matches first, then last matches
+        const awayTeam = String(match.away_team ?? "").toLowerCase();
+        // Search upcoming matches for the home team
         const nextMatches = await getTeamNextMatches(38, 0); // Brentford = 38
-        const lastMatches = await getTeamLastMatches(38, 0);
-        const allMatches = [...nextMatches, ...lastMatches];
+        const allMatches = [...nextMatches];
+        // Match BOTH home AND away team names to avoid picking wrong fixture
         const found = allMatches.find((e) => {
           const h = e.homeTeam.name.toLowerCase();
           const a = e.awayTeam.name.toLowerCase();
-          return (
-            h.includes(homeTeam) || homeTeam.includes(h) ||
-            a.includes(homeTeam) || homeTeam.includes(a)
-          );
+          const homeMatch = h.includes(homeTeam) || homeTeam.includes(h);
+          const awayMatch = a.includes(awayTeam) || awayTeam.includes(a);
+          return homeMatch && awayMatch;
         });
         if (found) {
           apiEventId = found.id;
           await db.execute(
             sql`UPDATE football_matches SET api_fixture_id = ${found.id} WHERE id = ${matchId}`
           );
-          console.log(`[Matchday] Auto-linked match ${matchId} to Sofascore event ${found.id}`);
+          console.log(`[Matchday] Auto-linked match ${matchId} to Sofascore event ${found.id} (${found.homeTeam.name} vs ${found.awayTeam.name})`);
         }
       } catch (err) {
         console.error("[Matchday] Auto-link failed:", err);
