@@ -67,7 +67,36 @@ export async function GET() {
     if (!match) return NextResponse.json({ match: null });
 
     const matchId = Number(match.id);
-    const apiEventId = match.api_fixture_id ? Number(match.api_fixture_id) : null;
+    let apiEventId = match.api_fixture_id ? Number(match.api_fixture_id) : null;
+
+    // Auto-link: if no API fixture ID, try to find the match via Sofascore
+    if (!apiEventId && process.env.RAPIDAPI_KEY) {
+      try {
+        const { getTeamNextMatches, getTeamLastMatches } = await import("@/lib/football-api");
+        const homeTeam = String(match.home_team ?? "").toLowerCase();
+        // Try next matches first, then last matches
+        const nextMatches = await getTeamNextMatches(38, 0); // Brentford = 38
+        const lastMatches = await getTeamLastMatches(38, 0);
+        const allMatches = [...nextMatches, ...lastMatches];
+        const found = allMatches.find((e) => {
+          const h = e.homeTeam.name.toLowerCase();
+          const a = e.awayTeam.name.toLowerCase();
+          return (
+            h.includes(homeTeam) || homeTeam.includes(h) ||
+            a.includes(homeTeam) || homeTeam.includes(a)
+          );
+        });
+        if (found) {
+          apiEventId = found.id;
+          await db.execute(
+            sql`UPDATE football_matches SET api_fixture_id = ${found.id} WHERE id = ${matchId}`
+          );
+          console.log(`[Matchday] Auto-linked match ${matchId} to Sofascore event ${found.id}`);
+        }
+      } catch (err) {
+        console.error("[Matchday] Auto-link failed:", err);
+      }
+    }
 
     const players = rows(await db.execute(sql`SELECT * FROM football_players WHERE match_id = ${matchId} ORDER BY id`));
     const predictions = rows(await db.execute(sql`SELECT * FROM football_predictions WHERE match_id = ${matchId}`));
