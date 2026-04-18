@@ -341,5 +341,84 @@ export async function ensureTables() {
     )
   `);
 
-  console.log("[DB] All tables ensured (v1+v2+v3+v3.5)");
+  // ═══ Matchday Madness (football) ═══
+
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS football_matches (
+      id SERIAL PRIMARY KEY,
+      home_team TEXT NOT NULL,
+      away_team TEXT NOT NULL,
+      match_date TIMESTAMP NOT NULL,
+      venue TEXT,
+      status TEXT NOT NULL DEFAULT 'upcoming',
+      final_home_score INTEGER,
+      final_away_score INTEGER,
+      first_scorer TEXT,
+      first_goal_minute INTEGER,
+      total_corners INTEGER,
+      total_cards INTEGER,
+      current_minute INTEGER DEFAULT 0
+    )
+  `);
+
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS football_players (
+      id SERIAL PRIMARY KEY,
+      match_id INTEGER NOT NULL REFERENCES football_matches(id),
+      name TEXT NOT NULL,
+      emoji TEXT,
+      color TEXT
+    )
+  `);
+
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS football_predictions (
+      id SERIAL PRIMARY KEY,
+      match_id INTEGER NOT NULL REFERENCES football_matches(id),
+      player_id INTEGER NOT NULL REFERENCES football_players(id),
+      predicted_home_score INTEGER,
+      predicted_away_score INTEGER,
+      first_scorer TEXT,
+      first_goal_minute INTEGER,
+      total_corners INTEGER,
+      total_cards INTEGER,
+      submitted_at TIMESTAMP DEFAULT NOW()
+    )
+  `);
+  await db.execute(sql`CREATE UNIQUE INDEX IF NOT EXISTS fp_match_player_idx ON football_predictions(match_id, player_id)`);
+
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS football_bingo_cards (
+      id SERIAL PRIMARY KEY,
+      match_id INTEGER NOT NULL REFERENCES football_matches(id),
+      player_id INTEGER NOT NULL REFERENCES football_players(id),
+      squares JSONB NOT NULL DEFAULT '[]'
+    )
+  `);
+  await db.execute(sql`CREATE UNIQUE INDEX IF NOT EXISTS fb_match_player_idx ON football_bingo_cards(match_id, player_id)`);
+
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS football_blocks (
+      id SERIAL PRIMARY KEY,
+      match_id INTEGER NOT NULL REFERENCES football_matches(id),
+      player_id INTEGER NOT NULL REFERENCES football_players(id),
+      block_label TEXT NOT NULL,
+      block_start INTEGER NOT NULL,
+      block_end INTEGER NOT NULL
+    )
+  `);
+
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS football_events (
+      id SERIAL PRIMARY KEY,
+      match_id INTEGER NOT NULL REFERENCES football_matches(id),
+      event_type TEXT NOT NULL,
+      minute INTEGER,
+      detail TEXT,
+      team TEXT,
+      created_at TIMESTAMP DEFAULT NOW()
+    )
+  `);
+
+  console.log("[DB] All tables ensured (v1+v2+v3+v3.5+matchday)");
 }

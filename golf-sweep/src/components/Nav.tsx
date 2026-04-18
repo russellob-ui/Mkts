@@ -13,6 +13,12 @@ const NAV_GROUPS = [
     ],
   },
   {
+    label: "MATCHDAY",
+    links: [
+      { href: "/matchday", label: "Matchday Madness" },
+    ],
+  },
+  {
     label: "THE GAME",
     links: [
       { href: "/predictions", label: "Predictions" },
@@ -42,6 +48,7 @@ const NAV_GROUPS = [
     links: [
       { href: "/admin", label: "Admin" },
       { href: "/commissioner", label: "Commissioner" },
+      { href: "/matchday/admin", label: "Matchday Admin" },
     ],
   },
 ];
