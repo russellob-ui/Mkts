@@ -3,7 +3,7 @@ import { db } from "@/db";
 import { ensureTables } from "@/db/ensure-tables";
 import { tournaments } from "@/db/schema";
 import { eq } from "drizzle-orm";
-import { getLeaderboard } from "@/lib/slashgolf";
+import { getLeaderboard, getGolfSeasonYear } from "@/lib/slashgolf";
 
 export const dynamic = "force-dynamic";
 
@@ -31,7 +31,7 @@ export async function GET() {
       return NextResponse.json({ error: "No API key" });
     }
 
-    const lbRaw = await getLeaderboard(tournament.slashTournId, 2026);
+    const lbRaw = await getLeaderboard(tournament.slashTournId, getGolfSeasonYear());
     const lbRoot = lbRaw as Record<string, unknown>;
 
     // Top-level info

@@ -1,6 +1,55 @@
 "use client";
 
+import { useState, useEffect } from "react";
+
+interface TournamentInfo {
+  id: number;
+  name: string;
+  status: string;
+  startDate?: string;
+}
+
+function formatTournamentDate(dateStr?: string): string {
+  if (!dateStr) return "TBD";
+  try {
+    const d = new Date(dateStr + "T00:00:00");
+    return d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+  } catch {
+    return dateStr;
+  }
+}
+
+function getDraftDate(startDate?: string): string {
+  if (!startDate) return "TBD";
+  try {
+    const d = new Date(startDate + "T00:00:00");
+    d.setDate(d.getDate() - 1);
+    return d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+  } catch {
+    return "TBD";
+  }
+}
+
 export default function DraftPage() {
+  const [upcomingTournaments, setUpcomingTournaments] = useState<TournamentInfo[]>([]);
+  const [nextTournament, setNextTournament] = useState<TournamentInfo | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch("/api/season")
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.tournaments) {
+          const upcoming = data.tournaments
+            .filter((t: TournamentInfo) => t.status === "upcoming" || t.status === "live");
+          setUpcomingTournaments(upcoming);
+          setNextTournament(upcoming[0] ?? null);
+        }
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
   return (
     <div className="max-w-5xl mx-auto px-4 py-8">
       <h1 className="font-serif text-2xl md:text-3xl font-bold mb-6">
@@ -12,32 +61,44 @@ export default function DraftPage() {
         <h2 className="font-serif text-xl font-bold mb-2">
           Draft Not Active
         </h2>
-        <p className="text-cream/60 mb-4">
-          The snake draft will open <strong>24 hours before the PGA Championship</strong> on{" "}
-          <span className="text-augusta-light font-bold">13 May 2026</span>.
-        </p>
-        <p className="text-cream/40 text-sm mb-6">
-          Draft order = reverse of current season standings. Whoever is last picks first.
-          Each player picks one golfer — no duplicates allowed.
-        </p>
+        {loading ? (
+          <p className="text-cream/40">Loading tournament data...</p>
+        ) : (
+          <>
+            <p className="text-cream/60 mb-4">
+              {nextTournament ? (
+                <>
+                  The snake draft will open <strong>24 hours before the {nextTournament.name}</strong> on{" "}
+                  <span className="text-augusta-light font-bold">
+                    {getDraftDate(nextTournament.startDate)}
+                  </span>.
+                </>
+              ) : (
+                <>No upcoming tournaments scheduled.</>
+              )}
+            </p>
+            <p className="text-cream/40 text-sm mb-6">
+              Draft order = reverse of current season standings. Whoever is last picks first.
+              Each player picks one golfer — no duplicates allowed.
+            </p>
 
-        <div className="bg-dark rounded-lg p-4 text-left max-w-md mx-auto">
-          <h3 className="font-bold text-sm text-cream/60 mb-3">Upcoming Drafts</h3>
-          <div className="space-y-2 text-sm">
-            <div className="flex justify-between">
-              <span>PGA Championship</span>
-              <span className="text-cream/40">13 May 2026</span>
-            </div>
-            <div className="flex justify-between">
-              <span>U.S. Open</span>
-              <span className="text-cream/40">17 Jun 2026</span>
-            </div>
-            <div className="flex justify-between">
-              <span>The Open Championship</span>
-              <span className="text-cream/40">15 Jul 2026</span>
-            </div>
-          </div>
-        </div>
+            {upcomingTournaments.length > 0 && (
+              <div className="bg-dark rounded-lg p-4 text-left max-w-md mx-auto">
+                <h3 className="font-bold text-sm text-cream/60 mb-3">Upcoming Drafts</h3>
+                <div className="space-y-2 text-sm">
+                  {upcomingTournaments.map((t) => (
+                    <div key={t.id} className="flex justify-between">
+                      <span>{t.name}</span>
+                      <span className="text-cream/40">
+                        {getDraftDate(t.startDate)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </>
+        )}
       </div>
 
       <div className="mt-6 bg-dark-card border border-dark-border rounded-xl p-4">

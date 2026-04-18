@@ -9,7 +9,7 @@ import {
   tournamentResults,
 } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
-import { getLeaderboard, parseLeaderboardPlayers, normalizeGolferName } from "@/lib/slashgolf";
+import { getLeaderboard, parseLeaderboardPlayers, normalizeGolferName, getGolfSeasonYear, getSchedule, findTournamentByName } from "@/lib/slashgolf";
 
 export async function GET(request: NextRequest) {
   // Auth check — accept either CRON_SECRET or ADMIN_PASSCODE
@@ -44,11 +44,11 @@ export async function GET(request: NextRequest) {
       // If no tournId, try to find it from the schedule
       if (!tournId) {
         try {
-          const { getSchedule, findMastersTournament } = await import("@/lib/slashgolf");
-          const schedule = await getSchedule(2026);
-          const masters = findMastersTournament(schedule);
-          if (masters) {
-            tournId = masters.tournId;
+          const year = getGolfSeasonYear();
+          const schedule = await getSchedule(year);
+          const found = findTournamentByName(schedule, tournament.name);
+          if (found) {
+            tournId = found.tournId;
             await db
               .update(tournaments)
               .set({ slashTournId: tournId })
@@ -69,7 +69,7 @@ export async function GET(request: NextRequest) {
       }
 
       // Fetch leaderboard
-      const lbRaw = await getLeaderboard(tournId, 2026);
+      const lbRaw = await getLeaderboard(tournId, getGolfSeasonYear());
       const lbPlayers = parseLeaderboardPlayers(lbRaw);
 
       // Get our 8 picked golfers for this tournament

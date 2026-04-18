@@ -20,6 +20,7 @@ import {
   normalizeGolferName,
   parseScoreStr,
   unwrapBson,
+  getGolfSeasonYear,
 } from "@/lib/slashgolf";
 import { getOutrightOdds, normalizeOddsName } from "@/lib/oddsapi";
 import { writeScoreSnapshots, generateBanterFromSnapshot } from "@/lib/banter-engine";
@@ -54,7 +55,7 @@ async function maybePollScores(
 
   let pollSucceeded = false;
   try {
-    const lbRaw = await getLeaderboard(tournament.slashTournId, 2026);
+    const lbRaw = await getLeaderboard(tournament.slashTournId, getGolfSeasonYear());
     const lbPlayers = parseLeaderboardPlayers(lbRaw);
 
     // Auto-detect tournament end: Slash Golf says roundId=4 + roundStatus="Official".
@@ -389,7 +390,13 @@ export async function GET() {
       .where(eq(tournaments.status, "live"));
 
     const tournament = liveTournaments[0] ?? (
-      await db.select().from(tournaments).limit(1)
+      await db.select().from(tournaments)
+        .where(eq(tournaments.status, "upcoming"))
+        .limit(1)
+    )[0] ?? (
+      await db.select().from(tournaments)
+        .orderBy(desc(tournaments.id))
+        .limit(1)
     )[0];
 
     if (!tournament) {
@@ -464,7 +471,7 @@ export async function GET() {
     }>();
     if (tournament.slashTournId && process.env.RAPIDAPI_KEY) {
       try {
-        const lbRaw = await getLeaderboard(tournament.slashTournId, 2026);
+        const lbRaw = await getLeaderboard(tournament.slashTournId, getGolfSeasonYear());
         const lbRoot = lbRaw as Record<string, unknown>;
         // Top-level roundId tells us which round the tournament is currently on.
         // Slash Golf may wrap numbers in MongoDB Extended JSON, so unwrap first.

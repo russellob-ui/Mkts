@@ -18,6 +18,8 @@ export default function AdminPage() {
   const [overrideRound, setOverrideRound] = useState("");
   const [overrideRoundScore, setOverrideRoundScore] = useState("");
   const [golfers, setGolfers] = useState<Array<{ id: number; name: string }>>([]);
+  const [tournamentList, setTournamentList] = useState<Array<{ id: number; name: string; status: string }>>([]);
+  const [activateResult, setActivateResult] = useState("");
 
   // Passcode manager
   const [playerList, setPlayerList] = useState<Array<{ id: number; name: string; hasPasscode: boolean; passcodePreview: string }>>([]);
@@ -42,6 +44,16 @@ export default function AdminPage() {
             setLastPollTime(d.tournament.lastPolledAt);
           }
         });
+
+      // Load tournaments for activation
+      fetch("/api/season")
+        .then((r) => r.json())
+        .then((d) => {
+          if (d.tournaments) {
+            setTournamentList(d.tournaments);
+          }
+        })
+        .catch(() => {});
 
       // Load players for passcode manager
       fetch("/api/admin/set-passcode", {
@@ -267,6 +279,62 @@ export default function AdminPage() {
         >
           {pollLoading ? "Polling..." : "Poll Odds Now"}
         </button>
+      </div>
+
+      {/* Activate Tournament */}
+      <div className="bg-dark-card border border-dark-border rounded-xl p-4">
+        <h2 className="font-bold mb-2">Tournament Activation</h2>
+        <p className="text-xs text-cream/40 mb-3">
+          Flip an upcoming tournament to live, create rounds, and look up Slash Golf ID.
+        </p>
+        <div className="space-y-2">
+          {tournamentList.map((t) => (
+            <div key={t.id} className="flex items-center justify-between gap-2">
+              <span className="text-sm font-bold flex-1">{t.name}</span>
+              <span className={`text-xs px-2 py-0.5 rounded ${
+                t.status === "live" ? "bg-green-600/30 text-green-400" :
+                t.status === "finished" ? "bg-cream/10 text-cream/40" :
+                "bg-gold/20 text-gold"
+              }`}>
+                {t.status}
+              </span>
+              {t.status === "upcoming" && (
+                <button
+                  onClick={async () => {
+                    if (!confirm(`Activate "${t.name}"? This will set it to live.`)) return;
+                    setActivateResult("");
+                    try {
+                      const res = await fetch("/api/admin/activate-tournament", {
+                        method: "POST",
+                        headers: {
+                          "Content-Type": "application/json",
+                          "x-admin-passcode": passcode,
+                        },
+                        body: JSON.stringify({ tournamentId: t.id }),
+                      });
+                      const json = await res.json();
+                      setActivateResult(JSON.stringify(json, null, 2));
+                      // Refresh tournament list
+                      const res2 = await fetch("/api/season");
+                      const json2 = await res2.json();
+                      if (json2.tournaments) setTournamentList(json2.tournaments);
+                    } catch (err) {
+                      setActivateResult(`Error: ${err}`);
+                    }
+                  }}
+                  className="bg-augusta hover:bg-augusta-light text-cream px-3 py-1 rounded text-xs font-bold transition-colors"
+                >
+                  Activate
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+        {activateResult && (
+          <pre className="mt-3 text-xs text-cream/60 overflow-auto max-h-32 whitespace-pre-wrap">
+            {activateResult}
+          </pre>
+        )}
       </div>
 
       {/* Passcode Manager */}

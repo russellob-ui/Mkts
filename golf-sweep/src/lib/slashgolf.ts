@@ -108,13 +108,26 @@ export async function getLeaderboard(
 }
 
 /**
- * Find the Masters tournament from the schedule response.
+ * Return the current golf season year (calendar year).
+ * The golf season spans a single calendar year, so this is simply
+ * the current year.
+ */
+export function getGolfSeasonYear(): number {
+  return new Date().getFullYear();
+}
+
+/**
+ * Find a tournament by name from the schedule response.
+ * Searches case-insensitively for a partial match.
  * Parses defensively — inspects the actual response structure.
  */
-export function findMastersTournament(
-  schedule: ScheduleResponse
+export function findTournamentByName(
+  schedule: ScheduleResponse,
+  name: string
 ): { tournId: string; name: string; startDate?: string; endDate?: string } | null {
   try {
+    const searchName = name.toLowerCase();
+
     // Try common response shapes
     const scheduleData =
       (schedule as Record<string, unknown>).schedule ??
@@ -134,15 +147,15 @@ export function findMastersTournament(
 
     for (const item of items) {
       const obj = item as Record<string, unknown>;
-      const name = String(
+      const itemName = String(
         obj.name ?? obj.tournName ?? obj.tournament_name ?? obj.title ?? ""
       ).toLowerCase();
-      if (name.includes("masters") && !name.includes("par 3")) {
+      if (itemName.includes(searchName) && !itemName.includes("par 3")) {
         return {
           tournId: String(
             obj.tournId ?? obj.tourn_id ?? obj.id ?? obj.tournamentId ?? ""
           ),
-          name: String(obj.name ?? obj.tournName ?? obj.tournament_name ?? obj.title ?? "Masters Tournament"),
+          name: String(obj.name ?? obj.tournName ?? obj.tournament_name ?? obj.title ?? name),
           startDate: obj.startDate
             ? String(obj.startDate)
             : obj.start_date
@@ -157,12 +170,22 @@ export function findMastersTournament(
       }
     }
 
-    console.warn("[SlashGolf] Could not find Masters in schedule response");
+    console.warn(`[SlashGolf] Could not find "${name}" in schedule response`);
     return null;
   } catch (err) {
     console.error("[SlashGolf] Error parsing schedule:", err);
     return null;
   }
+}
+
+/**
+ * Find the Masters tournament from the schedule response.
+ * Kept for backwards compatibility — delegates to findTournamentByName.
+ */
+export function findMastersTournament(
+  schedule: ScheduleResponse
+): { tournId: string; name: string; startDate?: string; endDate?: string } | null {
+  return findTournamentByName(schedule, "masters");
 }
 
 /**

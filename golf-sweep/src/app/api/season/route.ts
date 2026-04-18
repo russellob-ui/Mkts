@@ -45,6 +45,8 @@ export async function GET() {
         id: t.id,
         name: t.name,
         status: t.status,
+        startDate: t.startDate,
+        endDate: t.endDate,
       })),
     });
   } catch (error) {

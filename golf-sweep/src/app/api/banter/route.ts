@@ -91,6 +91,10 @@ export async function GET(request: NextRequest) {
  */
 async function generateInitialBanter(tournamentId: number) {
   try {
+    const [tournament] = await db
+      .select()
+      .from(tournaments)
+      .where(eq(tournaments.id, tournamentId));
     const tournamentPicks = await db
       .select()
       .from(picks)
@@ -229,8 +233,8 @@ async function generateInitialBanter(tournamentId: number) {
       playerId: sorted[0].playerId,
       golferId: sorted[0].golferId,
       eventType: "round_start",
-      headline: `⛳ The Masters is underway at Augusta National`,
-      detail: `8 picks, 4 rounds, one green jacket`,
+      headline: `⛳ ${tournament?.name ?? "The tournament"} is underway`,
+      detail: `8 picks, 4 rounds, one trophy`,
       emoji: "⛳",
       importance: 6,
       source: "auto",

@@ -14,6 +14,7 @@ import {
   normalizeGolferName,
   parseScoreStr,
   unwrapBson,
+  getGolfSeasonYear,
 } from "@/lib/slashgolf";
 
 export const dynamic = "force-dynamic";
@@ -71,7 +72,7 @@ export async function GET(request: NextRequest) {
       process.env.RAPIDAPI_KEY
     ) {
       try {
-        const lbRaw = await getLeaderboard(tournament.slashTournId, 2026);
+        const lbRaw = await getLeaderboard(tournament.slashTournId, getGolfSeasonYear());
         const lbRoot = lbRaw as Record<string, unknown>;
         currentTournamentRound =
           Number(unwrapBson(lbRoot.roundId) ?? 0) || null;

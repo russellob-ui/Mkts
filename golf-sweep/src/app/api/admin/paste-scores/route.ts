@@ -3,24 +3,13 @@ import { db } from "@/db";
 import {
   tournaments,
   golfers,
+  picks,
   rounds,
   roundScores,
   tournamentResults,
 } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import { normalizeGolferName } from "@/lib/slashgolf";
-
-// Our 8 golfer surnames for matching
-const GOLFER_SURNAMES = [
-  "scheffler",
-  "rahm",
-  "mcilroy",
-  "aberg",
-  "fitzpatrick",
-  "macintyre",
-  "rose",
-  "lowry",
-];
 
 export async function POST(request: NextRequest) {
   const passcode = request.headers.get("x-admin-passcode");
@@ -49,6 +38,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "No live tournament" }, { status: 400 });
     }
 
+    // Build the surname list dynamically from golfers picked for this tournament
+    const tournamentPicks = await db
+      .select()
+      .from(picks)
+      .where(eq(picks.tournamentId, tournament.id));
+    const pickedGolferIds = new Set(tournamentPicks.map((p) => p.golferId));
+    const pickedGolfers = allGolfers.filter((g) => pickedGolferIds.has(g.id));
+    const golferSurnames = pickedGolfers.map((g) => {
+      const parts = normalizeGolferName(g.name).split(" ");
+      return parts[parts.length - 1];
+    });
+
     const tournamentRounds = await db
       .select()
       .from(rounds)
@@ -65,8 +66,8 @@ export async function POST(request: NextRequest) {
       const [, pos, surname, overall, thru, roundScore] = match;
       const normalizedSurname = normalizeGolferName(surname);
 
-      // Check if this is one of our 8
-      const isOurs = GOLFER_SURNAMES.some(
+      // Check if this is one of our picked golfers
+      const isOurs = golferSurnames.some(
         (gs) =>
           normalizedSurname.includes(gs) || gs.includes(normalizedSurname)
       );

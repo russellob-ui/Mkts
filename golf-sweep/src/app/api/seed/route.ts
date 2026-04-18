@@ -14,9 +14,10 @@ import { PLAYERS, GOLFERS, PICKS, TOURNAMENTS } from "@/lib/seed-data";
 import {
   getSchedule,
   getLeaderboard,
-  findMastersTournament,
+  findTournamentByName,
   parseLeaderboardPlayers,
   normalizeGolferName,
+  getGolfSeasonYear,
 } from "@/lib/slashgolf";
 import { eq } from "drizzle-orm";
 
@@ -79,22 +80,23 @@ export async function POST() {
     let tournamentRow = insertedTournaments.find((t) => t.status === "live") ?? insertedTournaments[0];
     let leaderboardData;
 
-    // 4. Try to get Masters tournId from Slash Golf
+    // 4. Try to get tournament ID from Slash Golf
+    const year = getGolfSeasonYear();
     try {
-      const schedule = await getSchedule(2026);
-      const masters = findMastersTournament(schedule);
+      const schedule = await getSchedule(year);
+      const found = findTournamentByName(schedule, tournamentRow.name);
 
-      if (masters) {
-        console.log(`[Seed] Found Masters: ${masters.name} (ID: ${masters.tournId})`);
+      if (found) {
+        console.log(`[Seed] Found ${tournamentRow.name}: ${found.name} (ID: ${found.tournId})`);
         await db
           .update(tournaments)
-          .set({ slashTournId: masters.tournId })
+          .set({ slashTournId: found.tournId })
           .where(eq(tournaments.id, tournamentRow.id));
-        tournamentRow = { ...tournamentRow, slashTournId: masters.tournId };
+        tournamentRow = { ...tournamentRow, slashTournId: found.tournId };
 
         // Get leaderboard and match golfers
         try {
-          const lb = await getLeaderboard(masters.tournId, 2026);
+          const lb = await getLeaderboard(found.tournId, year);
           leaderboardData = parseLeaderboardPlayers(lb);
           console.log(`[Seed] Leaderboard has ${leaderboardData.length} players`);
 
@@ -126,7 +128,7 @@ export async function POST() {
           console.warn("[Seed] Leaderboard fetch failed:", lbErr);
         }
       } else {
-        console.warn("[Seed] Masters not found in schedule, creating empty shell");
+        console.warn(`[Seed] ${tournamentRow.name} not found in schedule, creating empty shell`);
       }
     } catch (schedErr) {
       console.warn("[Seed] Slash Golf unreachable:", schedErr);

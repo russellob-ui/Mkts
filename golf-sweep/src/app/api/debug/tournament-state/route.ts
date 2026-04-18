@@ -10,7 +10,7 @@ import {
   pointsLog,
 } from "@/db/schema";
 import { eq, and, desc } from "drizzle-orm";
-import { getLeaderboard, unwrapBson } from "@/lib/slashgolf";
+import { getLeaderboard, unwrapBson, getGolfSeasonYear } from "@/lib/slashgolf";
 import { isTournamentOfficiallyOver } from "@/lib/finish-tournament";
 import { getFinishPoints } from "@/lib/points";
 
@@ -47,7 +47,7 @@ export async function GET() {
     let apiDebug: Record<string, unknown> = { attempted: false };
     if (tournament.slashTournId && process.env.RAPIDAPI_KEY) {
       try {
-        const lbRaw = await getLeaderboard(tournament.slashTournId, 2026);
+        const lbRaw = await getLeaderboard(tournament.slashTournId, getGolfSeasonYear());
         const lbRoot = lbRaw as Record<string, unknown>;
         const rawRoundId = lbRoot.roundId;
         const unwrappedRoundId = unwrapBson(rawRoundId);

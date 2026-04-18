@@ -8,6 +8,7 @@ import {
   normalizeGolferName,
   parseScoreStr,
   unwrapBson,
+  getGolfSeasonYear,
 } from "@/lib/slashgolf";
 
 export const dynamic = "force-dynamic";
@@ -64,7 +65,7 @@ export async function GET() {
       return NextResponse.json({ players: [], tournament: tournament.name, error: "No API key" });
     }
 
-    const lbRaw = await getLeaderboard(tournament.slashTournId, 2026);
+    const lbRaw = await getLeaderboard(tournament.slashTournId, getGolfSeasonYear());
 
     // Slash Golf API schema (from openapi.yaml):
     //   Leaderboard: { roundId (int), roundStatus, leaderboardRows[] }
