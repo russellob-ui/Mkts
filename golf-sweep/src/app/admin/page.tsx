@@ -45,8 +45,9 @@ export default function AdminPage() {
           }
         });
 
-      // Load tournaments for activation
-      fetch("/api/season")
+      // Ensure all 4 tournaments exist (self-heal if seed was partial)
+      fetch("/api/seed", { method: "POST" })
+        .then(() => fetch("/api/season"))
         .then((r) => r.json())
         .then((d) => {
           if (d.tournaments) {
