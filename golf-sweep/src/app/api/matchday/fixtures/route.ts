@@ -1,27 +1,25 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getPremierLeagueEvents } from "@/lib/football-api";
+import { getTeamNextMatches } from "@/lib/football-api";
 
 export const dynamic = "force-dynamic";
 
 /**
- * GET /api/matchday/fixtures?date=2026-04-19
+ * GET /api/matchday/fixtures?teamId=38
  *
- * Searches Sofascore for Premier League fixtures on a given date.
+ * Gets upcoming matches for a team from Sofascore.
+ * Default: Brentford (38). Fulham = 43.
+ * Returns the next few fixtures so the admin can pick one.
  */
 export async function GET(request: NextRequest) {
   try {
-    const date = request.nextUrl.searchParams.get("date");
-    if (!date) {
-      return NextResponse.json(
-        { error: "date query param required (YYYY-MM-DD)" },
-        { status: 400 }
-      );
-    }
+    const teamId = Number(
+      request.nextUrl.searchParams.get("teamId") ?? "38"
+    );
 
-    const events = await getPremierLeagueEvents(date);
+    const events = await getTeamNextMatches(teamId, 0);
 
     return NextResponse.json({
-      date,
+      teamId,
       count: events.length,
       fixtures: events.map((e) => ({
         fixtureId: e.id,
@@ -33,6 +31,8 @@ export async function GET(request: NextRequest) {
         awayTeam: e.awayTeam.name,
         homeScore: e.homeScore?.current ?? null,
         awayScore: e.awayScore?.current ?? null,
+        round: e.roundInfo?.round ?? null,
+        tournament: e.tournament?.name ?? null,
       })),
     });
   } catch (error) {

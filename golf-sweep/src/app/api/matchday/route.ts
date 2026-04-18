@@ -3,13 +3,13 @@ import { db } from "@/db";
 import { ensureTables } from "@/db/ensure-tables";
 import { sql } from "drizzle-orm";
 import {
-  getEventDetails,
-  getEventIncidents,
-  getEventLineups,
-  getEventStatistics,
-  sofaEventStatus,
-  computeElapsedMinute,
-  getStatByName,
+  getMatchDetail,
+  getMatchIncidents,
+  getMatchLineups,
+  getMatchStatistics,
+  sofaStatus,
+  computeMinute,
+  getStatNum,
   type SofaEvent,
   type SofaIncident,
   type SofaLineup,
@@ -25,7 +25,8 @@ import {
 
 export const dynamic = "force-dynamic";
 
-// In-memory cache (30s TTL)
+// In-memory cache — 60s TTL to stay within Sofascore free tier rate limits.
+// Requests are made SEQUENTIALLY (not parallel) to avoid 429 bursts.
 let cachedAt = 0;
 let cache: {
   event: SofaEvent | null;
@@ -34,19 +35,18 @@ let cache: {
   stats: SofaStatItem[];
 } | null = null;
 let cachedEventId: number | null = null;
-const CACHE_TTL = 30_000;
+const CACHE_TTL = 60_000;
 
 async function fetchLiveData(eventId: number) {
   const now = Date.now();
   if (cachedEventId === eventId && cache && now - cachedAt < CACHE_TTL) {
     return cache;
   }
-  const [event, incidents, lineups, stats] = await Promise.all([
-    getEventDetails(eventId),
-    getEventIncidents(eventId),
-    getEventLineups(eventId),
-    getEventStatistics(eventId),
-  ]);
+  // Sequential, not parallel — avoids rate limit bursts
+  const event = await getMatchDetail(eventId);
+  const incidents = await getMatchIncidents(eventId);
+  const lineups = await getMatchLineups(eventId);
+  const stats = await getMatchStatistics(eventId);
   cache = { event, incidents, lineups, stats };
   cachedEventId = eventId;
   cachedAt = now;
@@ -99,12 +99,12 @@ export async function GET() {
         stats = live.stats;
 
         if (event) {
-          liveStatus = sofaEventStatus(event);
-          liveMinute = computeElapsedMinute(event);
+          liveStatus = sofaStatus(event);
+          liveMinute = computeMinute(event);
           homeScore = event.homeScore?.current ?? 0;
           awayScore = event.awayScore?.current ?? 0;
 
-          const corners = getStatByName(stats, "Corner kicks");
+          const corners = getStatNum(stats, "Corner kicks");
           totalCorners = corners.home + corners.away;
           totalCards = incidents.filter((i) => i.incidentType === "card").length;
 

@@ -1,31 +1,39 @@
 /**
- * Sofascore API wrapper (via RapidAPI).
+ * Sofascore API wrapper (via RapidAPI, by Api Dojo).
  *
- * Uses the same RAPIDAPI_KEY as the golf data. Subscribe to "Sofascore"
- * by Api Dojo on RapidAPI (it's right in the search results).
+ * Endpoint naming convention discovered from the API docs:
+ *   teams/get-last-matches, teams/get-next-matches, teams/search
+ *   matches/detail, matches/get-lineups, matches/get-incidents,
+ *   matches/get-statistics
+ *   tournaments/get-scheduled-events, tournaments/get-featured-events
  *
- * RapidAPI host: sofascore.p.rapidapi.com
- * Base path:     /api/v1/...
+ * Host: sofascore.p.rapidapi.com
+ * Auth: x-rapidapi-key (same key as golf)
+ *
+ * RATE LIMIT: Free tier is strict. We cache for 60s and make requests
+ * sequentially (never parallel) to avoid 429s.
  */
 
-const BASE_URL = "https://sofascore.p.rapidapi.com";
+const HOST = "sofascore.p.rapidapi.com";
+const BASE = `https://${HOST}`;
 
 function getHeaders(): Record<string, string> {
-  const apiKey = process.env.RAPIDAPI_KEY;
-  if (!apiKey) throw new Error("RAPIDAPI_KEY env var is required");
+  const key = process.env.RAPIDAPI_KEY;
+  if (!key) throw new Error("RAPIDAPI_KEY env var is required");
   return {
-    "x-rapidapi-host": "sofascore.p.rapidapi.com",
-    "x-rapidapi-key": apiKey,
+    "x-rapidapi-host": HOST,
+    "x-rapidapi-key": key,
+    "Content-Type": "application/json",
   };
 }
 
 async function apiFetch(path: string): Promise<unknown> {
-  const url = `${BASE_URL}${path}`;
-  console.log(`[Sofascore] Fetching: ${url}`);
+  const url = `${BASE}/${path}`;
+  console.log(`[Sofascore] ${url}`);
   const res = await fetch(url, { headers: getHeaders(), cache: "no-store" });
   if (!res.ok) {
     const body = await res.text().catch(() => "");
-    throw new Error(`Sofascore API error: ${res.status} ${res.statusText} — ${body.slice(0, 200)}`);
+    throw new Error(`Sofascore ${res.status}: ${body.slice(0, 200)}`);
   }
   return res.json();
 }
@@ -34,34 +42,28 @@ async function apiFetch(path: string): Promise<unknown> {
 
 export interface SofaEvent {
   id: number;
-  tournament: {
-    uniqueTournament?: { id: number; name: string };
-    name: string;
-  };
-  season?: { id: number; name: string; year: string };
+  tournament?: { uniqueTournament?: { id: number; name: string }; name?: string };
+  season?: { id: number; name: string };
   homeTeam: { id: number; name: string; nameCode?: string };
   awayTeam: { id: number; name: string; nameCode?: string };
-  homeScore: { current?: number; period1?: number; period2?: number; normaltime?: number };
-  awayScore: { current?: number; period1?: number; period2?: number; normaltime?: number };
-  status: {
-    code: number;
-    description: string;
-    type: string; // "notstarted", "inprogress", "finished"
-  };
+  homeScore?: { current?: number; period1?: number; period2?: number };
+  awayScore?: { current?: number; period1?: number; period2?: number };
+  status: { code: number; description: string; type: string };
   startTimestamp: number;
   venue?: { stadium?: { name: string }; city?: { name: string } };
   time?: { currentPeriodStartTimestamp?: number };
+  roundInfo?: { round: number };
 }
 
 export interface SofaIncident {
-  incidentType: string; // "goal", "card", "substitution", "period", "varDecision", "injuryTime"
+  incidentType: string;
   time: number;
   addedTime?: number;
-  player?: { id: number; name: string; shortName: string };
-  playerIn?: { id: number; name: string; shortName: string };
-  playerOut?: { id: number; name: string; shortName: string };
-  assist1?: { id: number; name: string; shortName: string };
-  incidentClass?: string; // "regular", "ownGoal", "penalty", "yellow", "yellowRed", "red"
+  player?: { id: number; name: string; shortName?: string };
+  playerIn?: { name: string; shortName?: string };
+  playerOut?: { name: string; shortName?: string };
+  assist1?: { name: string; shortName?: string };
+  incidentClass?: string;
   isHome?: boolean;
   homeScore?: number;
   awayScore?: number;
@@ -71,103 +73,84 @@ export interface SofaIncident {
 }
 
 export interface SofaLineupPlayer {
-  player: {
-    id: number;
-    name: string;
-    shortName: string;
-    position: string; // "G", "D", "M", "F"
-    jerseyNumber?: string;
-    shirtNumber?: number;
-  };
+  player: { id: number; name: string; shortName?: string; position?: string; jerseyNumber?: string };
   shirtNumber: number;
-  position: string;
-  substitute: boolean;
+  position?: string;
+  substitute?: boolean;
 }
 
 export interface SofaLineup {
   players: SofaLineupPlayer[];
-  formation: string;
-  playerColor?: { primary: string };
-  goalkeeperColor?: { primary: string };
+  formation?: string;
 }
 
 export interface SofaStatItem {
   name: string;
   home: string;
   away: string;
-  compareCode?: number;
-  statisticsType?: string;
-  valueType?: string;
   homeValue?: number;
   awayValue?: number;
-  homeTotal?: number;
-  awayTotal?: number;
 }
 
 // --- Fetchers ---------------------------------------------------------------
 
-/**
- * Get all football events for a given date.
- * Date format: YYYY-MM-DD
- */
-export async function getScheduledEvents(
-  date: string
+/** Get a team's upcoming matches. Brentford = 38, Fulham = 43. */
+export async function getTeamNextMatches(
+  teamId: number,
+  page = 0
 ): Promise<SofaEvent[]> {
   const data = (await apiFetch(
-    `/api/v1/sport/football/scheduled-events/${date}`
+    `teams/get-next-matches?teamId=${teamId}&pageIndex=${page}`
   )) as { events?: SofaEvent[] };
   return data.events ?? [];
 }
 
-/**
- * Get Premier League events for a date.
- * PL uniqueTournament.id = 17 in Sofascore.
- */
-export async function getPremierLeagueEvents(
-  date: string
+/** Get a team's recent matches. */
+export async function getTeamLastMatches(
+  teamId: number,
+  page = 0
 ): Promise<SofaEvent[]> {
-  const all = await getScheduledEvents(date);
-  return all.filter(
-    (e) =>
-      e.tournament?.uniqueTournament?.id === 17 ||
-      e.tournament?.name?.toLowerCase().includes("premier league")
-  );
-}
-
-/**
- * Get single event details by ID.
- */
-export async function getEventDetails(
-  eventId: number
-): Promise<SofaEvent | null> {
-  const data = (await apiFetch(`/api/v1/event/${eventId}`)) as {
-    event?: SofaEvent;
-  };
-  return data.event ?? null;
-}
-
-/**
- * Get match incidents (goals, cards, subs, VAR).
- */
-export async function getEventIncidents(
-  eventId: number
-): Promise<SofaIncident[]> {
   const data = (await apiFetch(
-    `/api/v1/event/${eventId}/incidents`
-  )) as { incidents?: SofaIncident[] };
-  return data.incidents ?? [];
+    `teams/get-last-matches?teamId=${teamId}&pageIndex=${page}`
+  )) as { events?: SofaEvent[] };
+  return data.events ?? [];
 }
 
-/**
- * Get team lineups for a match.
- * Returns { home, away } each with formation + players.
- */
-export async function getEventLineups(
-  eventId: number
+/** Get match details (score, status, teams). */
+export async function getMatchDetail(
+  matchId: number
+): Promise<SofaEvent | null> {
+  try {
+    const data = (await apiFetch(
+      `matches/detail?matchId=${matchId}`
+    )) as { event?: SofaEvent };
+    return data.event ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/** Get match incidents (goals, cards, subs, VAR). */
+export async function getMatchIncidents(
+  matchId: number
+): Promise<SofaIncident[]> {
+  try {
+    const data = (await apiFetch(
+      `matches/get-incidents?matchId=${matchId}`
+    )) as { incidents?: SofaIncident[] };
+    return data.incidents ?? [];
+  } catch {
+    return [];
+  }
+}
+
+/** Get team lineups (starting XI + subs). */
+export async function getMatchLineups(
+  matchId: number
 ): Promise<{ home: SofaLineup | null; away: SofaLineup | null }> {
   try {
     const data = (await apiFetch(
-      `/api/v1/event/${eventId}/lineups`
+      `matches/get-lineups?matchId=${matchId}`
     )) as { home?: SofaLineup; away?: SofaLineup; confirmed?: boolean };
     return { home: data.home ?? null, away: data.away ?? null };
   } catch {
@@ -175,15 +158,13 @@ export async function getEventLineups(
   }
 }
 
-/**
- * Get match statistics (corners, shots, possession, etc.).
- */
-export async function getEventStatistics(
-  eventId: number
+/** Get match statistics (corners, shots, possession, etc.). */
+export async function getMatchStatistics(
+  matchId: number
 ): Promise<SofaStatItem[]> {
   try {
     const data = (await apiFetch(
-      `/api/v1/event/${eventId}/statistics`
+      `matches/get-statistics?matchId=${matchId}`
     )) as {
       statistics?: Array<{
         period: string;
@@ -193,7 +174,6 @@ export async function getEventStatistics(
         }>;
       }>;
     };
-    // Flatten ALL period stats into a single list (prefer "ALL" period)
     const allPeriod = data.statistics?.find((s) => s.period === "ALL");
     const period = allPeriod ?? data.statistics?.[0];
     if (!period) return [];
@@ -203,35 +183,46 @@ export async function getEventStatistics(
   }
 }
 
+/** Search for scheduled events in a tournament. PL uniqueTournament = 17. */
+export async function getTournamentScheduledEvents(
+  tournamentId: number,
+  seasonId?: number
+): Promise<SofaEvent[]> {
+  try {
+    let path = `tournaments/get-scheduled-events?tournamentId=${tournamentId}`;
+    if (seasonId) path += `&seasonId=${seasonId}`;
+    const data = (await apiFetch(path)) as { events?: SofaEvent[] };
+    return data.events ?? [];
+  } catch {
+    return [];
+  }
+}
+
 // --- Helpers ----------------------------------------------------------------
 
-export function sofaEventStatus(
+export function sofaStatus(
   event: SofaEvent
 ): "upcoming" | "live" | "finished" | "other" {
-  const type = event.status?.type?.toLowerCase();
-  if (type === "notstarted") return "upcoming";
-  if (type === "inprogress") return "live";
-  if (type === "finished") return "finished";
+  const t = event.status?.type?.toLowerCase();
+  if (t === "notstarted") return "upcoming";
+  if (t === "inprogress") return "live";
+  if (t === "finished") return "finished";
   return "other";
 }
 
-export function computeElapsedMinute(event: SofaEvent): number | null {
+export function computeMinute(event: SofaEvent): number | null {
   if (event.status?.type === "notstarted") return null;
   if (event.status?.type === "finished") return 90;
   if (!event.time?.currentPeriodStartTimestamp) return null;
   const now = Math.floor(Date.now() / 1000);
-  const periodStart = event.time.currentPeriodStartTimestamp;
-  const elapsed = Math.floor((now - periodStart) / 60);
-  // Second half starts at 45'
-  const desc = event.status?.description?.toLowerCase() ?? "";
-  if (desc.includes("2nd half") || desc.includes("second half")) {
-    return 45 + elapsed;
-  }
+  const elapsed = Math.floor((now - event.time.currentPeriodStartTimestamp) / 60);
+  const desc = (event.status?.description ?? "").toLowerCase();
+  if (desc.includes("2nd") || desc.includes("second")) return 45 + elapsed;
   if (desc.includes("halftime")) return 45;
   return elapsed;
 }
 
-export function getStatByName(
+export function getStatNum(
   stats: SofaStatItem[],
   name: string
 ): { home: number; away: number } {
