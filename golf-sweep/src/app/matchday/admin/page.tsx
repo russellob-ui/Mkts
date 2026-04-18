@@ -1,212 +1,229 @@
 "use client";
 import { useState, useEffect } from "react";
 
-interface MatchState {
-  match: { id: number; homeTeam: string; awayTeam: string; status: string; currentMinute: number | null } | null;
-  players: Array<{ id: number; name: string }>;
-  events: Array<{ id: number; type: string; minute: number; detail: string | null; team: string | null }>;
+interface FixtureResult {
+  fixtureId: number;
+  date: string;
+  venue: string | null;
+  homeTeam: string;
+  homeLogo: string;
+  awayTeam: string;
+  awayLogo: string;
+  status: string;
+  round: string;
 }
 
 export default function MatchdayAdminPage() {
-  const [data, setData] = useState<MatchState | null>(null);
+  const [date, setDate] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    return d.toISOString().split("T")[0];
+  });
+  const [season, setSeason] = useState("2024");
+  const [fixtures, setFixtures] = useState<FixtureResult[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [creating, setCreating] = useState(false);
   const [msg, setMsg] = useState("");
+  const [matchCreated, setMatchCreated] = useState(false);
 
-  // Setup form
-  const [homeTeam, setHomeTeam] = useState("Brentford");
-  const [awayTeam, setAwayTeam] = useState("Fulham");
-  const [venue, setVenue] = useState("Gtech Community Stadium");
-
-  // Event form
-  const [eventMinute, setEventMinute] = useState(1);
-  const [eventTeam, setEventTeam] = useState("home");
-  const [eventDetail, setEventDetail] = useState("");
-
-  async function fetchData() {
-    const res = await fetch("/api/matchday");
-    setData(await res.json());
-  }
-
+  // Check if a match already exists
   useEffect(() => {
-    fetchData();
-    const iv = setInterval(fetchData, 5000);
-    return () => clearInterval(iv);
+    fetch("/api/matchday")
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.match) setMatchCreated(true);
+      })
+      .catch(() => {});
   }, []);
 
-  async function createMatch() {
+  async function searchFixtures() {
+    setSearching(true);
     setMsg("");
-    const res = await fetch("/api/matchday", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        homeTeam,
-        awayTeam,
-        matchDate: new Date().toISOString(),
-        venue,
-        players: [
-          { name: "Russell", emoji: "\uD83D\uDC68\u200D\uD83D\uDCBB", color: "#10b981" },
-          { name: "Suzie", emoji: "\uD83D\uDC69\u200D\uD83E\uDDB0", color: "#f472b6" },
-          { name: "James", emoji: "\u26BD", color: "#3b82f6" },
-          { name: "William", emoji: "\uD83C\uDFC6", color: "#f59e0b" },
-        ],
-      }),
-    });
-    const json = await res.json();
-    setMsg(json.success ? `Match created! Blocks: ${JSON.stringify(json.blocksPerPlayer)}` : json.error);
-    fetchData();
+    try {
+      const res = await fetch(
+        `/api/matchday/fixtures?date=${date}&season=${season}`
+      );
+      const data = await res.json();
+      if (data.error) {
+        setMsg(data.error);
+      } else {
+        setFixtures(data.fixtures ?? []);
+        if (data.fixtures?.length === 0) setMsg("No fixtures found for that date");
+      }
+    } catch (err) {
+      setMsg(String(err));
+    } finally {
+      setSearching(false);
+    }
   }
 
-  async function matchControl(action: string) {
-    if (!data?.match) return;
-    await fetch("/api/matchday/control", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ matchId: data.match.id, action }),
-    });
-    fetchData();
-  }
-
-  async function addEvent(eventType: string) {
-    if (!data?.match) return;
-    await fetch("/api/matchday/event", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        matchId: data.match.id,
-        eventType,
-        minute: eventMinute,
-        team: eventTeam,
-        detail: eventDetail || null,
-      }),
-    });
-    setEventDetail("");
-    fetchData();
+  async function createMatch(f: FixtureResult) {
+    setCreating(true);
+    setMsg("");
+    try {
+      const res = await fetch("/api/matchday", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fixtureId: f.fixtureId,
+          homeTeam: f.homeTeam,
+          awayTeam: f.awayTeam,
+          venue: f.venue,
+          players: [
+            { name: "Russell", emoji: "\uD83D\uDC68\u200D\uD83D\uDCBB", color: "#10b981" },
+            { name: "Suzie", emoji: "\uD83D\uDC69\u200D\uD83E\uDDB0", color: "#f472b6" },
+            { name: "James", emoji: "\u26BD", color: "#3b82f6" },
+            { name: "William", emoji: "\uD83C\uDFC6", color: "#f59e0b" },
+          ],
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setMsg(
+          `Match created! Bingo cards generated + blocks drafted. Go to /matchday to play.`
+        );
+        setMatchCreated(true);
+      } else {
+        setMsg(data.error || "Failed to create match");
+      }
+    } catch (err) {
+      setMsg(String(err));
+    } finally {
+      setCreating(false);
+    }
   }
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-6">
-      <h1 className="font-serif text-2xl font-bold mb-4">Matchday Admin</h1>
+      <h1 className="font-serif text-2xl font-bold mb-2">Matchday Admin</h1>
+      <p className="text-cream/50 text-sm mb-6">
+        Search for a fixture, tap to create the game. Everything else is automatic — live
+        scores, events, lineups, bingo auto-checking, block scoring, and prediction
+        settlement all come from the API.
+      </p>
 
-      {/* Create match — only if no match exists */}
-      {!data?.match && (
-        <div className="bg-dark-card border border-dark-border rounded-xl p-4 mb-4">
-          <h2 className="font-bold mb-3">Create Match</h2>
-          <div className="space-y-2">
-            <input value={homeTeam} onChange={(e) => setHomeTeam(e.target.value)} placeholder="Home team" className="w-full bg-dark border border-dark-border rounded px-3 py-2 text-sm" />
-            <input value={awayTeam} onChange={(e) => setAwayTeam(e.target.value)} placeholder="Away team" className="w-full bg-dark border border-dark-border rounded px-3 py-2 text-sm" />
-            <input value={venue} onChange={(e) => setVenue(e.target.value)} placeholder="Venue" className="w-full bg-dark border border-dark-border rounded px-3 py-2 text-sm" />
-            <button onClick={createMatch} className="w-full bg-augusta hover:bg-augusta-light text-cream font-bold py-3 rounded-lg transition-colors">
-              Create Match + Generate Cards + Draft Blocks
-            </button>
-          </div>
-          {msg && <p className="text-xs mt-2 text-center text-cream/60">{msg}</p>}
+      {matchCreated && (
+        <div className="bg-augusta/10 border border-augusta/30 rounded-xl p-4 mb-4 text-center">
+          <p className="text-augusta-light font-bold">
+            Match is set up!
+          </p>
+          <a
+            href="/matchday"
+            className="text-sm text-augusta-light underline"
+          >
+            Go to Matchday Madness &rarr;
+          </a>
         </div>
       )}
 
-      {/* Match controls */}
-      {data?.match && (
-        <>
-          <div className="bg-dark-card border border-dark-border rounded-xl p-4 mb-4">
-            <div className="text-center mb-3">
-              <span className="font-serif font-bold text-lg">
-                {data.match.homeTeam} vs {data.match.awayTeam}
-              </span>
-              <span className={`ml-2 text-xs px-2 py-0.5 rounded-full ${
-                data.match.status === "live" ? "bg-red-500/20 text-red-400" :
-                data.match.status === "finished" ? "bg-gold/20 text-gold" :
-                "bg-cream/10 text-cream/50"
-              }`}>
-                {data.match.status}
-              </span>
-            </div>
-            <div className="flex gap-2 flex-wrap justify-center">
-              <button onClick={() => matchControl("kickoff")} className="bg-augusta text-cream px-4 py-2 rounded-lg text-sm font-bold">Kick Off</button>
-              <button onClick={() => matchControl("half_time")} className="bg-dark-border text-cream px-4 py-2 rounded-lg text-sm font-bold">Half Time</button>
-              <button onClick={() => matchControl("second_half")} className="bg-dark-border text-cream px-4 py-2 rounded-lg text-sm font-bold">2nd Half</button>
-              <button onClick={() => matchControl("full_time")} className="bg-gold/30 text-gold px-4 py-2 rounded-lg text-sm font-bold">Full Time</button>
-            </div>
+      {/* Fixture search */}
+      <div className="bg-dark-card border border-dark-border rounded-xl p-4 mb-4">
+        <h2 className="font-bold mb-3">Find a Fixture</h2>
+        <div className="flex gap-2 mb-3">
+          <div className="flex-1">
+            <label className="text-xs text-cream/50 block mb-1">Date</label>
+            <input
+              type="date"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+              className="w-full bg-dark border border-dark-border rounded px-3 py-2 text-sm"
+            />
           </div>
+          <div className="w-24">
+            <label className="text-xs text-cream/50 block mb-1">Season</label>
+            <select
+              value={season}
+              onChange={(e) => setSeason(e.target.value)}
+              className="w-full bg-dark border border-dark-border rounded px-3 py-2 text-sm"
+            >
+              <option value="2025">2025-26</option>
+              <option value="2024">2024-25</option>
+            </select>
+          </div>
+        </div>
+        <button
+          onClick={searchFixtures}
+          disabled={searching}
+          className="w-full bg-augusta hover:bg-augusta-light text-cream font-bold py-3 rounded-lg transition-colors disabled:opacity-40"
+        >
+          {searching ? "Searching..." : "Search Premier League Fixtures"}
+        </button>
+      </div>
 
-          {/* Live Event Entry */}
-          {data.match.status === "live" && (
-            <div className="bg-dark-card border border-dark-border rounded-xl p-4 mb-4">
-              <h2 className="font-bold mb-3">Add Event</h2>
-
-              <div className="flex gap-2 mb-3">
-                <div className="flex-1">
-                  <label className="text-xs text-cream/50 block mb-1">Minute</label>
-                  <input
-                    type="number"
-                    min={1}
-                    max={95}
-                    value={eventMinute}
-                    onChange={(e) => setEventMinute(Number(e.target.value))}
-                    className="w-full bg-dark border border-dark-border rounded px-3 py-2 text-center font-mono text-lg"
-                  />
+      {/* Results */}
+      {fixtures.length > 0 && (
+        <div className="space-y-2 mb-4">
+          {fixtures.map((f) => (
+            <div
+              key={f.fixtureId}
+              className="bg-dark-card border border-dark-border rounded-xl p-4"
+            >
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  {f.homeLogo && (
+                    <img
+                      src={f.homeLogo}
+                      alt={f.homeTeam}
+                      className="w-6 h-6"
+                    />
+                  )}
+                  <span className="font-bold text-sm">{f.homeTeam}</span>
+                  <span className="text-cream/40 text-xs">vs</span>
+                  <span className="font-bold text-sm">{f.awayTeam}</span>
+                  {f.awayLogo && (
+                    <img
+                      src={f.awayLogo}
+                      alt={f.awayTeam}
+                      className="w-6 h-6"
+                    />
+                  )}
                 </div>
-                <div className="flex-1">
-                  <label className="text-xs text-cream/50 block mb-1">Team</label>
-                  <div className="flex rounded-lg overflow-hidden border border-dark-border">
-                    <button
-                      onClick={() => setEventTeam("home")}
-                      className={`flex-1 py-2 text-xs font-bold ${eventTeam === "home" ? "bg-augusta text-cream" : "bg-dark text-cream/50"}`}
-                    >
-                      {data.match.homeTeam}
-                    </button>
-                    <button
-                      onClick={() => setEventTeam("away")}
-                      className={`flex-1 py-2 text-xs font-bold ${eventTeam === "away" ? "bg-augusta text-cream" : "bg-dark text-cream/50"}`}
-                    >
-                      {data.match.awayTeam}
-                    </button>
-                  </div>
-                </div>
               </div>
-
-              <div className="mb-3">
-                <label className="text-xs text-cream/50 block mb-1">Detail (scorer name, player booked, etc.)</label>
-                <input
-                  type="text"
-                  value={eventDetail}
-                  onChange={(e) => setEventDetail(e.target.value)}
-                  placeholder="e.g. Mbeumo"
-                  className="w-full bg-dark border border-dark-border rounded px-3 py-2 text-sm"
-                />
+              <div className="text-xs text-cream/50 mb-2">
+                {f.venue} &middot; {f.round} &middot;{" "}
+                {new Date(f.date).toLocaleString("en-GB", {
+                  weekday: "short",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}
               </div>
-
-              <div className="grid grid-cols-4 gap-2">
-                <button onClick={() => addEvent("goal")} className="bg-red-600 hover:bg-red-500 text-white py-3 rounded-lg font-bold text-sm">{"\u26BD"} Goal</button>
-                <button onClick={() => addEvent("corner")} className="bg-dark-border hover:bg-cream/20 text-cream py-3 rounded-lg font-bold text-sm">{"\uD83D\uDEA9"} Corner</button>
-                <button onClick={() => addEvent("yellow_card")} className="bg-yellow-600 hover:bg-yellow-500 text-black py-3 rounded-lg font-bold text-sm">{"\uD83D\uDFE8"} Yellow</button>
-                <button onClick={() => addEvent("red_card")} className="bg-red-800 hover:bg-red-700 text-white py-3 rounded-lg font-bold text-sm">{"\uD83D\uDFE5"} Red</button>
-              </div>
-
-              <div className="grid grid-cols-4 gap-2 mt-2">
-                <button onClick={() => addEvent("var")} className="bg-dark-border hover:bg-cream/20 text-cream py-3 rounded-lg text-sm">{"\uD83D\uDCFA"} VAR</button>
-                <button onClick={() => addEvent("penalty")} className="bg-dark-border hover:bg-cream/20 text-cream py-3 rounded-lg text-sm">{"\u26BD"} Penalty</button>
-                <button onClick={() => addEvent("sub")} className="bg-dark-border hover:bg-cream/20 text-cream py-3 rounded-lg text-sm">{"\uD83D\uDD04"} Sub</button>
-                <button onClick={() => addEvent("woodwork")} className="bg-dark-border hover:bg-cream/20 text-cream py-3 rounded-lg text-sm">{"\uD83E\uDE93"} Post</button>
-              </div>
+              <button
+                onClick={() => createMatch(f)}
+                disabled={creating || matchCreated}
+                className="w-full bg-gold/20 hover:bg-gold/30 text-gold font-bold py-2 rounded-lg text-sm transition-colors disabled:opacity-40"
+              >
+                {creating
+                  ? "Setting up..."
+                  : matchCreated
+                    ? "Match already created"
+                    : "Select This Match"}
+              </button>
             </div>
-          )}
-
-          {/* Event log */}
-          {data.events.length > 0 && (
-            <div className="bg-dark-card border border-dark-border rounded-xl overflow-hidden">
-              <div className="px-3 py-2 border-b border-dark-border text-xs text-cream/40 uppercase font-bold">
-                Events ({data.events.length})
-              </div>
-              {data.events.map((e) => (
-                <div key={e.id} className="px-3 py-1.5 text-xs border-b border-dark-border/20 last:border-0 flex gap-2">
-                  <span className="font-mono text-cream/40 w-8">{e.minute}'</span>
-                  <span className="text-cream/80 flex-1">
-                    {e.type} {e.team ? `(${e.team})` : ""} {e.detail ?? ""}
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
-        </>
+          ))}
+        </div>
       )}
+
+      {msg && (
+        <p className="text-center text-xs text-cream/60 mt-3">{msg}</p>
+      )}
+
+      <div className="mt-8 text-xs text-cream/30 space-y-1">
+        <p>
+          <strong className="text-cream/50">Data source:</strong> API-Football
+          via RapidAPI. Same key as golf. Requires a separate (free) subscription
+          to API-Football on RapidAPI.
+        </p>
+        <p>
+          <strong className="text-cream/50">What&apos;s automatic:</strong> live
+          score, match events (goals/cards/subs), lineups/team sheets (~1hr before
+          KO), corner + card counts, bingo auto-checking, block goal scoring,
+          prediction settlement at full time.
+        </p>
+        <p>
+          <strong className="text-cream/50">What you do:</strong> search for the
+          fixture here, tap to create. That&apos;s it. Go enjoy the game.
+        </p>
+      </div>
     </div>
   );
 }

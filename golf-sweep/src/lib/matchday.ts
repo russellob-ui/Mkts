@@ -193,3 +193,123 @@ export function scoreBingo(
   const total = markedCount + lines * 5 + (fullHouse ? 15 : 0);
   return { squares: markedCount, lines, fullHouse, total };
 }
+
+// --- Auto-check bingo squares from live API-Football data ---
+
+interface BingoContext {
+  events: Array<{ type: string; detail: string; time: { elapsed: number; extra: number | null }; team: { name: string } }>;
+  goalEvents: Array<{ type: string; detail: string; time: { elapsed: number; extra: number | null }; team: { name: string } }>;
+  cardEvents: Array<{ type: string; detail: string; time: { elapsed: number; extra: number | null } }>;
+  varEvents: Array<{ type: string }>;
+  subEvents: Array<{ type: string; time: { elapsed: number; extra: number | null } }>;
+  totalCorners: number;
+  totalCards: number;
+  homeScore: number;
+  awayScore: number;
+  liveMinute: number;
+  isFinished: boolean;
+}
+
+export function autoBingoCheck(
+  squares: Array<{ key: string; text: string; marked: boolean }>,
+  ctx: BingoContext
+): Array<{ key: string; text: string; marked: boolean }> {
+  const totalGoals = ctx.homeScore + ctx.awayScore;
+  const goalMinutes = ctx.goalEvents.map((g) => g.time.elapsed);
+  const yellowBeforeHT = ctx.cardEvents.some(
+    (c) => c.detail.includes("Yellow") && c.time.elapsed <= 45
+  );
+  const hasRedCard = ctx.cardEvents.some((c) => c.detail.includes("Red"));
+  const hasHeader = ctx.goalEvents.some((g) =>
+    (g.detail ?? "").toLowerCase().includes("header")
+  );
+  const hasPenalty = ctx.goalEvents.some((g) =>
+    (g.detail ?? "").toLowerCase().includes("penalty")
+  );
+  const hasSetPiece = ctx.goalEvents.some(
+    (g) =>
+      (g.detail ?? "").toLowerCase().includes("penalty") ||
+      (g.detail ?? "").toLowerCase().includes("free kick")
+  );
+  const hasOffsideGoal = ctx.events.some(
+    (e) => e.type === "Var" && (e.detail ?? "").toLowerCase().includes("offside")
+  );
+  const subBefore60 = ctx.subEvents.some((s) => s.time.elapsed < 60);
+  const goalLast10 = goalMinutes.some((m) => m >= 80);
+
+  return squares.map((sq) => {
+    let shouldMark = sq.marked;
+    switch (sq.key) {
+      case "goal_before_15":
+        shouldMark = goalMinutes.some((m) => m <= 15);
+        break;
+      case "goal_first_half":
+        shouldMark = goalMinutes.some((m) => m <= 45);
+        break;
+      case "goal_second_half":
+        shouldMark = goalMinutes.some((m) => m > 45);
+        break;
+      case "both_teams_score":
+        shouldMark = ctx.homeScore > 0 && ctx.awayScore > 0;
+        break;
+      case "3plus_goals":
+        shouldMark = totalGoals >= 3;
+        break;
+      case "header_goal":
+        shouldMark = hasHeader;
+        break;
+      case "set_piece_goal":
+        shouldMark = hasSetPiece;
+        break;
+      case "yellow_before_ht":
+        shouldMark = yellowBeforeHT;
+        break;
+      case "3plus_yellows":
+        shouldMark = ctx.cardEvents.filter((c) => c.detail.includes("Yellow")).length >= 3;
+        break;
+      case "red_card":
+        shouldMark = hasRedCard;
+        break;
+      case "corner_first_5":
+        shouldMark = ctx.totalCorners > 0 && ctx.liveMinute >= 5;
+        break;
+      case "5plus_corners_fh":
+        shouldMark = ctx.totalCorners >= 5 && ctx.liveMinute >= 45;
+        break;
+      case "10plus_corners":
+        shouldMark = ctx.totalCorners >= 10;
+        break;
+      case "var_review":
+        shouldMark = ctx.varEvents.length > 0;
+        break;
+      case "penalty":
+        shouldMark = hasPenalty;
+        break;
+      case "sub_before_60":
+        shouldMark = subBefore60;
+        break;
+      case "offside_goal":
+        shouldMark = hasOffsideGoal;
+        break;
+      case "4plus_added_time":
+        shouldMark = ctx.liveMinute > 49 || (ctx.isFinished && ctx.liveMinute > 93);
+        break;
+      case "home_win":
+        shouldMark = ctx.isFinished && ctx.homeScore > ctx.awayScore;
+        break;
+      case "away_win":
+        shouldMark = ctx.isFinished && ctx.awayScore > ctx.homeScore;
+        break;
+      case "draw":
+        shouldMark = ctx.isFinished && ctx.homeScore === ctx.awayScore;
+        break;
+      case "clean_sheet":
+        shouldMark = ctx.isFinished && (ctx.homeScore === 0 || ctx.awayScore === 0);
+        break;
+      case "goal_last_10":
+        shouldMark = goalLast10;
+        break;
+    }
+    return { ...sq, marked: shouldMark || sq.marked };
+  });
+}

@@ -351,6 +351,7 @@ export async function ensureTables() {
       match_date TIMESTAMP NOT NULL,
       venue TEXT,
       status TEXT NOT NULL DEFAULT 'upcoming',
+      api_fixture_id INTEGER,
       final_home_score INTEGER,
       final_away_score INTEGER,
       first_scorer TEXT,
