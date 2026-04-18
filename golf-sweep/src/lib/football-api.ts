@@ -116,46 +116,80 @@ export async function getTeamLastMatches(
   return data.events ?? [];
 }
 
-/** Get match details (score, status, teams). */
+/** Get match details (score, status, teams). Tries multiple paths. */
 export async function getMatchDetail(
   matchId: number
 ): Promise<SofaEvent | null> {
-  try {
-    const data = (await apiFetch(
-      `matches/detail?matchId=${matchId}`
-    )) as { event?: SofaEvent };
-    return data.event ?? null;
-  } catch {
-    return null;
+  const paths = [
+    `matches/detail?matchId=${matchId}`,
+    `matches/detail?eventId=${matchId}`,
+    `matches/detail?id=${matchId}`,
+    `events/detail?eventId=${matchId}`,
+  ];
+  for (const path of paths) {
+    try {
+      const data = (await apiFetch(path)) as { event?: SofaEvent };
+      if (data.event) {
+        console.log(`[Sofascore] Detail found via: ${path}`);
+        return data.event;
+      }
+    } catch (err) {
+      console.log(`[Sofascore] Detail ${path} failed: ${err}`);
+    }
   }
+  return null;
 }
 
-/** Get match incidents (goals, cards, subs, VAR). */
+/** Get match incidents (goals, cards, subs, VAR). Tries multiple paths. */
 export async function getMatchIncidents(
   matchId: number
 ): Promise<SofaIncident[]> {
-  try {
-    const data = (await apiFetch(
-      `matches/get-incidents?matchId=${matchId}`
-    )) as { incidents?: SofaIncident[] };
-    return data.incidents ?? [];
-  } catch {
-    return [];
+  const paths = [
+    `matches/get-incidents?matchId=${matchId}`,
+    `matches/get-incidents?eventId=${matchId}`,
+    `events/get-incidents?eventId=${matchId}`,
+  ];
+  for (const path of paths) {
+    try {
+      const data = (await apiFetch(path)) as { incidents?: SofaIncident[] };
+      if (data.incidents) {
+        console.log(`[Sofascore] Incidents found via: ${path}`);
+        return data.incidents;
+      }
+    } catch (err) {
+      console.log(`[Sofascore] Incidents ${path} failed: ${err}`);
+    }
   }
+  return [];
 }
 
-/** Get team lineups (starting XI + subs). */
+/** Get team lineups (starting XI + subs). Tries multiple param names. */
 export async function getMatchLineups(
   matchId: number
-): Promise<{ home: SofaLineup | null; away: SofaLineup | null }> {
-  try {
-    const data = (await apiFetch(
-      `matches/get-lineups?matchId=${matchId}`
-    )) as { home?: SofaLineup; away?: SofaLineup; confirmed?: boolean };
-    return { home: data.home ?? null, away: data.away ?? null };
-  } catch {
-    return { home: null, away: null };
+): Promise<{ home: SofaLineup | null; away: SofaLineup | null; error?: string }> {
+  // Try different parameter names — RapidAPI wrappers aren't consistent
+  const attempts = [
+    `matches/get-lineups?matchId=${matchId}`,
+    `matches/get-lineups?eventId=${matchId}`,
+    `matches/get-lineups?id=${matchId}`,
+    `events/get-lineups?eventId=${matchId}`,
+  ];
+  for (const path of attempts) {
+    try {
+      const data = (await apiFetch(path)) as {
+        home?: SofaLineup;
+        away?: SofaLineup;
+        confirmed?: boolean;
+      };
+      if (data.home || data.away) {
+        console.log(`[Sofascore] Lineups found via: ${path}`);
+        return { home: data.home ?? null, away: data.away ?? null };
+      }
+    } catch (err) {
+      console.log(`[Sofascore] Lineups ${path} failed: ${err}`);
+    }
   }
+  return { home: null, away: null, error: "All lineup endpoint attempts failed" };
 }
 
 /** Get match statistics (corners, shots, possession, etc.). */

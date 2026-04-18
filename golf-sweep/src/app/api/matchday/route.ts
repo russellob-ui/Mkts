@@ -265,6 +265,15 @@ export async function GET() {
       lineups: lineupsResponse,
       scores: playerScores,
       cachedAgo: Math.round((Date.now() - cachedAt) / 1000),
+      _debug: {
+        apiEventId,
+        hasEvent: !!event,
+        hasLineups: !!(homeLineup || awayLineup),
+        lineupsError: (await getMatchLineups(apiEventId ?? 0)).error ?? null,
+        incidentCount: incidents.length,
+        statCount: stats.length,
+        eventStatus: event?.status ?? null,
+      },
     });
   } catch (error) {
     console.error("[Matchday GET]", error);
