@@ -29,10 +29,22 @@ export async function POST() {
     // Check if already seeded
     const existingPlayers = await db.select().from(players);
     if (existingPlayers.length > 0) {
-      // Players exist, but ensure all 4 tournaments are present
+      // Players exist, but ensure all 4 tournaments are present.
+      // Match by slug OR by name substring to avoid duplicates
+      // (e.g. "Masters Tournament" vs "The Masters").
       const existingTournaments = await db.select().from(tournaments);
-      const existingSlugs = new Set(existingTournaments.map((t) => t.slug));
-      const missing = TOURNAMENTS.filter((t) => !existingSlugs.has(t.slug));
+      const missing = TOURNAMENTS.filter((t) => {
+        const slugMatch = existingTournaments.some((e) => e.slug === t.slug);
+        const nameMatch = existingTournaments.some((e) => {
+          const eName = (e.name ?? "").toLowerCase();
+          const tName = t.name.toLowerCase();
+          // "masters" in "masters tournament" OR "masters tournament" contains "masters"
+          return eName.includes(tName) || tName.includes(eName) ||
+            eName.includes(tName.replace("the ", "")) ||
+            tName.replace("the ", "").includes(eName.replace(" tournament", ""));
+        });
+        return !slugMatch && !nameMatch;
+      });
       if (missing.length > 0) {
         const inserted = await db
           .insert(tournaments)

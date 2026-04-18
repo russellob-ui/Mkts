@@ -421,5 +421,15 @@ export async function ensureTables() {
     )
   `);
 
+  // ═══ One-shot migration: clean up duplicate Masters tournament ═══
+  // The seed created "The Masters" (live) as a duplicate of "Masters Tournament" (finished).
+  // Delete the duplicate and ensure the original has the correct slug.
+  try {
+    await db.execute(sql`DELETE FROM tournaments WHERE name = 'The Masters' AND id != (SELECT MIN(id) FROM tournaments WHERE name LIKE '%asters%')`);
+    await db.execute(sql`UPDATE tournaments SET slug = 'masters' WHERE name LIKE '%asters%' AND slug IS NULL OR slug = ''`);
+  } catch {
+    // non-fatal — might fail if duplicate doesn't exist
+  }
+
   console.log("[DB] All tables ensured (v1+v2+v3+v3.5+matchday)");
 }
