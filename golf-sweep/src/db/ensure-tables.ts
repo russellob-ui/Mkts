@@ -431,5 +431,64 @@ export async function ensureTables() {
     // non-fatal — might fail if duplicate doesn't exist
   }
 
+  // ═══ One-shot migration: PGA Championship picks ═══
+  // Insert the 6 picks already received via WhatsApp, plus create golfer records.
+  try {
+    const pgaPicks = [
+      { player: "Stuart", golfer: "Rory McIlroy", country: "Northern Ireland", flag: "🇬🇧" },
+      { player: "Russell", golfer: "Robert MacIntyre", country: "Scotland", flag: "🏴󠁧󠁢󠁳󠁣󠁴󠁿" },
+      { player: "Ian", golfer: "Scottie Scheffler", country: "USA", flag: "🇺🇸" },
+      { player: "Woody", golfer: "Xander Schauffele", country: "USA", flag: "🇺🇸" },
+      { player: "Matt Haigh", golfer: "Ludvig Åberg", country: "Sweden", flag: "🇸🇪" },
+      { player: "Paul", golfer: "Tommy Fleetwood", country: "England", flag: "🏴󠁧󠁢󠁥󠁮󠁧󠁿" },
+    ];
+
+    // Find PGA Championship tournament
+    const pgaRows = await db.execute(sql`SELECT id FROM tournaments WHERE name LIKE '%PGA%' AND status = 'live' LIMIT 1`);
+    const pgaTournament = Array.from(pgaRows as Iterable<Record<string, unknown>>)[0];
+
+    if (pgaTournament) {
+      const pgaTournId = Number(pgaTournament.id);
+
+      for (const pick of pgaPicks) {
+        // Check if this player already has a pick for PGA
+        const existingPick = await db.execute(
+          sql`SELECT p.id FROM picks p JOIN players pl ON pl.id = p.player_id WHERE pl.name = ${pick.player} AND p.tournament_id = ${pgaTournId} LIMIT 1`
+        );
+        if (Array.from(existingPick as Iterable<Record<string, unknown>>).length > 0) continue;
+
+        // Find or create golfer
+        const existingGolfer = await db.execute(
+          sql`SELECT id FROM golfers WHERE LOWER(name) = LOWER(${pick.golfer}) LIMIT 1`
+        );
+        const golferRows = Array.from(existingGolfer as Iterable<Record<string, unknown>>);
+        let golferId: number;
+        if (golferRows.length > 0) {
+          golferId = Number(golferRows[0].id);
+        } else {
+          const newGolfer = await db.execute(
+            sql`INSERT INTO golfers (name, country, flag_emoji) VALUES (${pick.golfer}, ${pick.country}, ${pick.flag}) RETURNING id`
+          );
+          golferId = Number(Array.from(newGolfer as Iterable<Record<string, unknown>>)[0].id);
+        }
+
+        // Find player
+        const playerRows = await db.execute(
+          sql`SELECT id FROM players WHERE name = ${pick.player} LIMIT 1`
+        );
+        const playerRow = Array.from(playerRows as Iterable<Record<string, unknown>>)[0];
+        if (!playerRow) continue;
+
+        // Insert pick
+        await db.execute(
+          sql`INSERT INTO picks (player_id, golfer_id, tournament_id) VALUES (${Number(playerRow.id)}, ${golferId}, ${pgaTournId}) ON CONFLICT DO NOTHING`
+        );
+        console.log(`[Migration] PGA pick: ${pick.player} → ${pick.golfer}`);
+      }
+    }
+  } catch (err) {
+    console.error("[Migration] PGA picks error (non-fatal):", err);
+  }
+
   console.log("[DB] All tables ensured (v1+v2+v3+v3.5+matchday)");
 }
