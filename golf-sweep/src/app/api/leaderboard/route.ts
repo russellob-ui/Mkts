@@ -747,6 +747,7 @@ export async function GET() {
       tournament: {
         id: freshTournament.id,
         name: freshTournament.name,
+        slug: freshTournament.slug,
         status: freshTournament.status,
         lastPolledAt: freshTournament.lastPolledAt,
         lastOddsPolledAt: freshTournament.lastOddsPolledAt,

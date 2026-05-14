@@ -103,7 +103,8 @@ export default function HomePage() {
     if (json.entries?.length > 0) {
       const leader = json.entries[0];
       const worst = json.entries[json.entries.length - 1];
-      setBanter(getBanterLine(leader.golfer.name, worst.golfer.name));
+      const slug = json.tournament?.slug ?? json.tournament?.name ?? "";
+      setBanter(getBanterLine(leader.golfer.name, worst.golfer.name, slug));
     }
   }
 
