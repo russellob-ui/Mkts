@@ -441,6 +441,8 @@ export async function ensureTables() {
       { player: "Woody", golfer: "Xander Schauffele", country: "USA", flag: "🇺🇸" },
       { player: "Matt Haigh", golfer: "Ludvig Åberg", country: "Sweden", flag: "🇸🇪" },
       { player: "Paul", golfer: "Tommy Fleetwood", country: "England", flag: "🏴󠁧󠁢󠁥󠁮󠁧󠁿" },
+      { player: "James", golfer: "Aldrich Potgieter", country: "South Africa", flag: "🇿🇦" },
+      { player: "John", golfer: "Justin Thomas", country: "USA", flag: "🇺🇸" },
     ];
 
     // Find PGA Championship tournament
