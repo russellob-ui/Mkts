@@ -1,14 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { ensureTables } from "@/db/ensure-tables";
-import { scoreSnapshots, picks, players, golfers } from "@/db/schema";
+import { scoreSnapshots, picks, players, golfers, tournaments } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
   await ensureTables();
-  const tournamentId = Number(request.nextUrl.searchParams.get("tournamentId") ?? "1");
+  let tournamentId = Number(request.nextUrl.searchParams.get("tournamentId") || "0");
+  if (!tournamentId) {
+    const [live] = await db.select().from(tournaments).where(eq(tournaments.status, "live"));
+    tournamentId = live?.id ?? 1;
+  }
 
   const tournamentPicks = await db.select().from(picks).where(eq(picks.tournamentId, tournamentId));
   const allPlayers = await db.select().from(players);

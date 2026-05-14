@@ -19,13 +19,17 @@ interface BanterEvent {
 export default function BanterPage() {
   const [events, setEvents] = useState<BanterEvent[]>([]);
   const [filter, setFilter] = useState<"all" | "big">("all");
+  const [tournamentId, setTournamentId] = useState<number | null>(null);
 
   async function fetchData() {
     // Trigger leaderboard first to ensure tables + snapshots + banter generation
-    await fetch("/api/leaderboard");
+    const lbRes = await fetch("/api/leaderboard");
+    const lbJson = await lbRes.json();
+    const tid = lbJson.tournament?.id ?? tournamentId ?? 1;
+    setTournamentId(tid);
 
     const minImportance = filter === "big" ? 7 : 0;
-    const res = await fetch(`/api/banter?tournamentId=1&minImportance=${minImportance}`);
+    const res = await fetch(`/api/banter?tournamentId=${tid}&minImportance=${minImportance}`);
     const json = await res.json();
     setEvents(json.events ?? []);
   }

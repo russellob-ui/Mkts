@@ -35,9 +35,13 @@ export const dynamic = "force-dynamic";
 export async function GET(request: NextRequest) {
   try {
     await ensureTables();
-    const tournamentId = Number(
-      request.nextUrl.searchParams.get("tournamentId") ?? "1"
+    let tournamentId = Number(
+      request.nextUrl.searchParams.get("tournamentId") || "0"
     );
+    if (!tournamentId) {
+      const liveTourns = await db.select().from(tournaments).where(eq(tournaments.status, "live"));
+      tournamentId = liveTourns[0]?.id ?? 1;
+    }
     const roundNumber = Number(
       request.nextUrl.searchParams.get("round") ?? "1"
     );

@@ -34,7 +34,17 @@ export default function TrajectoryPage() {
     position: string | null;
   }>>([]);
   const [tab, setTab] = useState<Tab>("evolution");
-  const [tournamentId, setTournamentId] = useState(1);
+  const [tournamentId, setTournamentId] = useState<number>(0);
+
+  // Auto-detect live tournament on mount
+  useEffect(() => {
+    fetch("/api/leaderboard")
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.tournament?.id) setTournamentId(d.tournament.id);
+      })
+      .catch(() => setTournamentId(1));
+  }, []);
 
   useEffect(() => {
     async function load() {

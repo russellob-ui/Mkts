@@ -28,9 +28,13 @@ export const dynamic = "force-dynamic";
 export async function GET(request: NextRequest) {
   try {
     await ensureTables();
-    const tournamentId = Number(
-      request.nextUrl.searchParams.get("tournamentId") ?? "1"
+    let tournamentId = Number(
+      request.nextUrl.searchParams.get("tournamentId") || "0"
     );
+    if (!tournamentId) {
+      const [live] = await db.select().from(tournaments).where(eq(tournaments.status, "live"));
+      tournamentId = live?.id ?? 1;
+    }
 
     const [tournament] = await db
       .select()
