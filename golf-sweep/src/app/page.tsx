@@ -121,21 +121,13 @@ export default function HomePage() {
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-3">
-      {/* Compact hero */}
-      <div className="text-center py-3">
-        <h1 className="font-serif text-xl md:text-3xl font-bold text-cream leading-tight">
-          LONDON BANTER <span className="text-augusta-light">&amp; WOODY</span>
-        </h1>
-        <p className="text-xs text-gold font-serif italic">Major Sweep 2026</p>
-      </div>
-
       {seeding && (
         <div className="text-center py-4 text-cream/60 text-sm">
           Setting up the sweep...
         </div>
       )}
 
-      {/* Tournament header */}
+      {/* Tournament header — compact, logo-driven */}
       {tournament && (
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2">
@@ -154,6 +146,7 @@ export default function HomePage() {
               </span>
             )}
           </div>
+          <span className="text-[10px] text-cream/30 font-serif italic">LB&amp;W 2026</span>
         </div>
       )}
 
