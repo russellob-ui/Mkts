@@ -189,14 +189,26 @@ export default function DraftPage() {
           </div>
 
           {selectedPlayer && (
-            <div className="flex gap-2">
-              <input
-                type="password"
-                placeholder="Enter your passcode"
-                value={passcode}
-                onChange={(e) => setPasscode(e.target.value)}
-                className="flex-1 bg-dark border border-dark-border rounded-lg px-4 py-2 text-cream text-sm"
-              />
+            <div>
+              <div className="flex gap-2 mb-3">
+                <input
+                  type="password"
+                  placeholder="Enter your passcode"
+                  value={passcode}
+                  onChange={(e) => setPasscode(e.target.value)}
+                  className="flex-1 bg-dark border border-dark-border rounded-lg px-4 py-2 text-cream text-sm"
+                />
+              </div>
+              {passcode.length >= 4 && (
+                <div className="text-center text-augusta-light text-sm font-bold animate-pulse">
+                  ↓ Scroll down to pick your golfer from the field below ↓
+                </div>
+              )}
+              {passcode.length > 0 && passcode.length < 4 && (
+                <div className="text-center text-cream/30 text-xs">
+                  Enter your 4-digit passcode
+                </div>
+              )}
             </div>
           )}
 
@@ -257,7 +269,31 @@ export default function DraftPage() {
         ))}
       </div>
 
-      {/* Leaderboard / field — only show if player hasn't picked yet (or always for reference) */}
+      {/* Manual pick fallback — if field is empty (no Slash Golf data) */}
+      {filteredField.length === 0 && selectedPlayer && passcode.length >= 4 && !myPick && !pickResult?.success && (
+        <div className="bg-dark-card border border-dark-border rounded-xl p-4 mb-4">
+          <h3 className="font-serif text-lg font-bold mb-2">Type golfer name</h3>
+          <p className="text-xs text-cream/40 mb-3">Live field not available — type your golfer&apos;s name manually</p>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              placeholder="e.g. Rory McIlroy"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="flex-1 bg-dark border border-dark-border rounded-lg px-4 py-2 text-cream text-sm"
+            />
+            <button
+              onClick={() => search.trim() && handlePick(search.trim())}
+              disabled={!search.trim() || picking}
+              className="bg-augusta hover:bg-augusta-light text-cream px-6 py-2 rounded-lg font-bold text-sm transition-colors disabled:opacity-40"
+            >
+              {picking ? "..." : "Pick"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Leaderboard / field */}
       <div className="bg-dark-card border border-dark-border rounded-xl overflow-hidden">
         <div className="p-4 border-b border-dark-border flex items-center justify-between">
           <h3 className="font-serif text-lg font-bold">
