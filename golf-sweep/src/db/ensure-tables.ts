@@ -350,5 +350,11 @@ export async function ensureTables() {
     console.log("[Migration] Cleared incorrect PGA round bonuses");
   } catch { /* non-fatal */ }
 
+  // One-shot: force odds re-poll with new best-price logic
+  try {
+    await db.execute(sql`UPDATE tournaments SET last_odds_polled_at = NULL WHERE status = 'live'`);
+    await db.execute(sql`DELETE FROM live_odds WHERE tournament_id IN (SELECT id FROM tournaments WHERE status = 'live')`);
+  } catch { /* non-fatal */ }
+
   console.log("[DB] All tables ensured (v1+v2+v3+v3.5)");
 }
