@@ -48,8 +48,11 @@ export async function getOutrightOdds(
       return { golferOdds, raw: data };
     }
 
-    // Aggregate odds across bookmakers
-    const oddsAccum = new Map<string, { total: number; count: number }>();
+    // Use the LOWEST (best) decimal odds across bookmakers, not the average.
+    // During tournaments, some bookmakers update live while others show stale
+    // pre-tournament prices. Averaging produces garbage (e.g., 789/1 for a
+    // player who's T2). The lowest price is most likely the updated one.
+    const oddsBest = new Map<string, { decimal: number; bookmaker: string }>();
 
     for (const event of events) {
       const bookmakers = event.bookmakers ?? [];
@@ -61,21 +64,20 @@ export async function getOutrightOdds(
           for (const outcome of outcomes) {
             const name = outcome.name as string;
             const price = Number(outcome.price);
-            if (!name || isNaN(price)) continue;
-            const existing = oddsAccum.get(name) ?? { total: 0, count: 0 };
-            existing.total += price;
-            existing.count += 1;
-            oddsAccum.set(name, existing);
+            if (!name || isNaN(price) || price <= 1) continue;
+            const existing = oddsBest.get(name);
+            if (!existing || price < existing.decimal) {
+              oddsBest.set(name, { decimal: price, bookmaker: String(bm.key ?? bm.title ?? "unknown") });
+            }
           }
         }
       }
     }
 
-    // Calculate averages and convert to fractional
-    for (const [name, { total, count }] of oddsAccum) {
-      const avgDecimal = Math.round((total / count) * 10) / 10;
-      const fractional = decimalToFractional(avgDecimal);
-      golferOdds.set(name, { fractional, decimal: avgDecimal, bookmaker: "average" });
+    // Convert to fractional
+    for (const [name, { decimal, bookmaker }] of oddsBest) {
+      const fractional = decimalToFractional(decimal);
+      golferOdds.set(name, { fractional, decimal, bookmaker });
     }
 
     console.log(`[OddsAPI] Got odds for ${golferOdds.size} golfers`);
