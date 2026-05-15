@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { timeAgo, getBanterLine } from "@/lib/banter";
+import { timeAgo, getBanterLine, formatScore } from "@/lib/banter";
 import ChatPanel from "@/components/ChatPanel";
 import TournamentLogo from "@/components/TournamentLogo";
 
@@ -38,13 +38,6 @@ interface TournamentInfo {
   status: string;
   lastPolledAt: string | null;
   lastOddsPolledAt: string | null;
-}
-
-function formatScore(score: number | null): string {
-  if (score === null || score === undefined) return "-";
-  if (score === 0) return "E";
-  if (score > 0) return `+${score}`;
-  return String(score);
 }
 
 function scoreColorClass(score: number | null): string {
@@ -198,8 +191,8 @@ export default function HomePage() {
           <span className="flex-1">Player / Golfer</span>
           <span className="w-10 text-right">Tot</span>
           <span className="w-10 text-right">Rd</span>
-          <span className="w-16 text-right">Thru</span>
-          <span className="w-12 text-right">Odds</span>
+          <span className="w-12 text-right">Thru</span>
+          <span className="w-12 text-right hidden sm:inline">Odds</span>
           <span className="w-7 text-right">Pts</span>
         </div>
 
@@ -211,7 +204,7 @@ export default function HomePage() {
           <Link
             key={entry.player.slug}
             href={`/player/${entry.player.slug}`}
-            className="flex items-center gap-1 px-3 py-2 border-b border-dark-border/40 last:border-0 hover:bg-dark-border/20 transition-colors"
+            className="flex items-center gap-1 px-3 py-2.5 border-b border-dark-border/40 last:border-0 hover:bg-dark-border/20 transition-colors"
             style={
               isWinner
                 ? {
@@ -252,7 +245,7 @@ export default function HomePage() {
                 <span className="w-10 text-right font-mono text-xs text-cream/30">
                   —
                 </span>
-                <span className="w-16 text-right text-[10px] font-semibold text-augusta-light tabular-nums">
+                <span className="w-12 text-right text-[10px] font-semibold text-augusta-light tabular-nums">
                   {entry.teeTime ?? "—"}
                 </span>
               </>
@@ -261,7 +254,7 @@ export default function HomePage() {
                 <span className="w-10 text-right font-mono text-xs text-cream/30">
                   —
                 </span>
-                <span className="w-16 text-right text-[10px] font-bold text-red-400/80 uppercase tracking-wider">
+                <span className="w-12 text-right text-[10px] font-bold text-red-400/80 uppercase tracking-wider">
                   {entry.status}
                 </span>
               </>
@@ -270,14 +263,14 @@ export default function HomePage() {
                 <span className={`w-10 text-right font-mono text-xs ${scoreColorClass(entry.todayScore)}`}>
                   {entry.todayScore != null ? formatScore(entry.todayScore) : "-"}
                 </span>
-                <span className="w-16 text-right text-[10px] text-cream/60">
+                <span className="w-12 text-right text-[10px] text-cream/60">
                   {entry.thru ?? "-"}
                 </span>
               </>
             )}
 
             {/* Odds */}
-            <span className="w-12 text-right text-[10px]">
+            <span className="w-12 text-right text-[10px] hidden sm:inline">
               {entry.currentOdds ? (
                 <span className={oddsArrowColor(entry.openingOddsDecimal, entry.currentOddsDecimal)}>
                   {entry.currentOdds}
@@ -310,7 +303,7 @@ export default function HomePage() {
       </div>
 
       {/* Chat panel */}
-      <div className="mt-4 h-[50dvh]">
+      <div className="mt-4 min-h-[400px]">
         <ChatPanel />
       </div>
     </div>

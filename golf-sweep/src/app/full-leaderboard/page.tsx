@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { formatScore } from "@/lib/banter";
 import TournamentLogo from "@/components/TournamentLogo";
 
 type PlayerStatus =
@@ -26,12 +27,6 @@ interface FullLeaderboardEntry {
   ourPlayerColor?: string | null;
   country?: string | null;
   flagEmoji?: string | null;
-}
-
-function formatScore(s: number | null): string {
-  if (s === null) return "-";
-  if (s === 0) return "E";
-  return s > 0 ? `+${s}` : String(s);
 }
 
 function scoreColor(s: number | null): string {
@@ -113,10 +108,10 @@ export default function FullLeaderboardPage() {
             <span className="w-8">Pos</span>
             <span className="flex-1 min-w-0">Player</span>
             <span className="w-8 text-right">Tot</span>
-            <span className="w-7 text-right">R1</span>
-            <span className="w-7 text-right">R2</span>
-            <span className="w-7 text-right">R3</span>
-            <span className="w-7 text-right">R4</span>
+            <span className="w-7 text-right hidden sm:inline">R1</span>
+            <span className="w-7 text-right hidden sm:inline">R2</span>
+            <span className="w-7 text-right hidden sm:inline">R3</span>
+            <span className="w-7 text-right hidden sm:inline">R4</span>
             <span className="w-14 text-right">Thru</span>
           </div>
 
@@ -124,7 +119,7 @@ export default function FullLeaderboardPage() {
           {filtered.map((entry, i) => (
             <div
               key={`${entry.playerId}-${i}`}
-              className="flex items-center gap-1 px-2 py-2 text-xs border-b border-dark-border/30 last:border-0"
+              className="flex items-center gap-1 px-2 py-2.5 text-xs border-b border-dark-border/30 last:border-0"
               style={
                 entry.isOurPick
                   ? {
@@ -150,16 +145,16 @@ export default function FullLeaderboardPage() {
               <span className={`w-8 text-right font-mono font-bold text-xs ${scoreColor(entry.scoreToPar)}`}>
                 {formatScore(entry.scoreToPar)}
               </span>
-              <span className={`w-7 text-right font-mono text-[10px] ${scoreColor(entry.roundScores?.[1] ?? null)}`}>
+              <span className={`w-7 text-right font-mono text-[10px] hidden sm:inline ${scoreColor(entry.roundScores?.[1] ?? null)}`}>
                 {entry.roundScores?.[1] != null ? formatScore(entry.roundScores[1]) : "-"}
               </span>
-              <span className={`w-7 text-right font-mono text-[10px] ${scoreColor(entry.roundScores?.[2] ?? null)}`}>
+              <span className={`w-7 text-right font-mono text-[10px] hidden sm:inline ${scoreColor(entry.roundScores?.[2] ?? null)}`}>
                 {entry.roundScores?.[2] != null ? formatScore(entry.roundScores[2]) : "-"}
               </span>
-              <span className={`w-7 text-right font-mono text-[10px] ${scoreColor(entry.roundScores?.[3] ?? null)}`}>
+              <span className={`w-7 text-right font-mono text-[10px] hidden sm:inline ${scoreColor(entry.roundScores?.[3] ?? null)}`}>
                 {entry.roundScores?.[3] != null ? formatScore(entry.roundScores[3]) : "-"}
               </span>
-              <span className={`w-7 text-right font-mono text-[10px] ${scoreColor(entry.roundScores?.[4] ?? null)}`}>
+              <span className={`w-7 text-right font-mono text-[10px] hidden sm:inline ${scoreColor(entry.roundScores?.[4] ?? null)}`}>
                 {entry.roundScores?.[4] != null ? formatScore(entry.roundScores[4]) : "-"}
               </span>
               {/* Thru column: tee time if not started, hole count / F / CUT otherwise */}

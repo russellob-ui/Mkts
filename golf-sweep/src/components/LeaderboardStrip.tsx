@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { formatScore } from "@/lib/banter";
 
 interface LeaderboardEntry {
   player: { name: string; slug: string; color: string | null };
@@ -8,12 +9,6 @@ interface LeaderboardEntry {
   scoreToPar: number | null;
   thru: string | null;
   points: number;
-}
-
-function formatScore(s: number | null): string {
-  if (s === null) return "-";
-  if (s === 0) return "E";
-  return s > 0 ? `+${s}` : String(s);
 }
 
 function scoreColor(s: number | null): string {
