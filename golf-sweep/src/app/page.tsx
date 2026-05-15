@@ -192,7 +192,6 @@ export default function HomePage() {
           <span className="w-10 text-right">Tot</span>
           <span className="w-10 text-right">Rd</span>
           <span className="w-12 text-right">Thru</span>
-          <span className="w-10 text-right text-[9px]">Odds</span>
           <span className="w-7 text-right">Pts</span>
         </div>
 
@@ -268,19 +267,6 @@ export default function HomePage() {
                 </span>
               </>
             )}
-
-            {/* Odds — hide if > 200/1 (stale/garbage data from API) */}
-            <span className="w-10 text-right text-[9px]">
-              {entry.currentOdds && (entry.currentOddsDecimal ?? 0) < 200 ? (
-                <span className={oddsArrowColor(entry.openingOddsDecimal, entry.currentOddsDecimal)}>
-                  {entry.currentOdds}
-                </span>
-              ) : entry.openingOdds && (entry.openingOddsDecimal ?? 0) < 200 ? (
-                <span className="text-cream/40">{entry.openingOdds}</span>
-              ) : (
-                <span className="text-cream/20">-</span>
-              )}
-            </span>
 
             {/* Points */}
             <span className={`w-7 text-right font-bold text-[10px] ${isWinner ? "text-gold text-xs" : "text-gold"}`}>
