@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { timeAgo, getBanterLine, formatScore } from "@/lib/banter";
+import { getLiveEstimatedOdds } from "@/lib/live-odds";
 import ChatPanel from "@/components/ChatPanel";
 import TournamentLogo from "@/components/TournamentLogo";
 
@@ -192,6 +193,7 @@ export default function HomePage() {
           <span className="w-10 text-right">Tot</span>
           <span className="w-10 text-right">Rd</span>
           <span className="w-12 text-right">Thru</span>
+          <span className="w-10 text-right text-[9px]">Odds</span>
           <span className="w-7 text-right">Pts</span>
         </div>
 
@@ -267,6 +269,11 @@ export default function HomePage() {
                 </span>
               </>
             )}
+
+            {/* Live estimated odds (derived from position) */}
+            <span className="w-10 text-right text-[9px] text-cream/50">
+              {getLiveEstimatedOdds(entry.position, entry.currentRound) || "-"}
+            </span>
 
             {/* Points */}
             <span className={`w-7 text-right font-bold text-[10px] ${isWinner ? "text-gold text-xs" : "text-gold"}`}>
