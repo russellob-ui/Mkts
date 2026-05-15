@@ -112,22 +112,6 @@ export async function GET() {
       }
     }
 
-    // _debug: per-pick diagnostics
-    const pickDiagnostics = tournamentPicks.map((pick) => {
-      const golfer = allGolfers.find((g) => g.id === pick.golferId);
-      const golferName = golfer?.name ?? "(golfer not found)";
-      const normName = normalizeGolferName(golferName);
-      const idLookup = golferIdToPlayer.get(pick.golferId);
-      return {
-        pickPlayerId: pick.playerId,
-        pickGolferId: pick.golferId,
-        golferNameInDb: golferName,
-        normalised: normName,
-        idLookupResult: idLookup ? idLookup.name : null,
-        golferExistsInTable: !!golfer,
-      };
-    });
-
     const mapped = rows.map((row) => {
       const obj = row as Record<string, unknown>;
       const firstName = String(obj.firstName ?? "");
