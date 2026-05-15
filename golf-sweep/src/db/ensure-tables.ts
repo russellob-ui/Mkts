@@ -342,5 +342,13 @@ export async function ensureTables() {
     )
   `);
 
+  // One-shot: delete incorrect PGA Championship round bonuses.
+  // completeRound was awarding BOR for R2-R4 (not played yet) and ROTD
+  // wasn't split correctly among tied players.
+  try {
+    await db.execute(sql`DELETE FROM points_log WHERE tournament_id = (SELECT id FROM tournaments WHERE name LIKE '%PGA%' AND status = 'live' LIMIT 1) AND (source = 'rotd' OR source = 'bor')`);
+    console.log("[Migration] Cleared incorrect PGA round bonuses");
+  } catch { /* non-fatal */ }
+
   console.log("[DB] All tables ensured (v1+v2+v3+v3.5)");
 }

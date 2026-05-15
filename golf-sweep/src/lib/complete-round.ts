@@ -113,6 +113,32 @@ export async function completeRound(
     .from(picks)
     .where(eq(picks.tournamentId, tournamentId));
 
+  // --- Guard: don't award bonuses if no scores exist for this round.
+  // The self-heal calls completeRound for R1-R4 on every request, but
+  // R2-R4 won't have data until those rounds are actually played.
+  let totalScoresForRound = 0;
+  for (const pick of tournamentPicks) {
+    const [score] = await db
+      .select()
+      .from(roundScores)
+      .where(
+        and(
+          eq(roundScores.golferId, pick.golferId),
+          eq(roundScores.roundId, round.id)
+        )
+      );
+    if (score?.scoreToPar != null) totalScoresForRound++;
+  }
+  if (totalScoresForRound === 0) {
+    return {
+      tournamentId,
+      roundNumber,
+      alreadyComplete,
+      rotd: [],
+      bor: [],
+    };
+  }
+
   // --- Round of the Day (+5, on lowest round score among our picks)
   const rotdResults: RoundCompleteSummary["rotd"] = [];
   if (!hasRotdForThisRound) {
