@@ -98,6 +98,36 @@ export async function GET() {
       }
     }
 
+    // Build a name-based fallback map: normalised golfer name -> player info
+    // This handles the duplicate-ID / mismatched-ID case
+    const golferNameToPlayer = new Map<string, { name: string; color: string | null }>();
+    for (const pick of tournamentPicks) {
+      const golfer = allGolfers.find((g) => g.id === pick.golferId);
+      const player = allPlayers.find((p) => p.id === pick.playerId);
+      if (golfer && player) {
+        golferNameToPlayer.set(
+          normalizeGolferName(golfer.name),
+          { name: player.name, color: player.color }
+        );
+      }
+    }
+
+    // _debug: per-pick diagnostics
+    const pickDiagnostics = tournamentPicks.map((pick) => {
+      const golfer = allGolfers.find((g) => g.id === pick.golferId);
+      const golferName = golfer?.name ?? "(golfer not found)";
+      const normName = normalizeGolferName(golferName);
+      const idLookup = golferIdToPlayer.get(pick.golferId);
+      return {
+        pickPlayerId: pick.playerId,
+        pickGolferId: pick.golferId,
+        golferNameInDb: golferName,
+        normalised: normName,
+        idLookupResult: idLookup ? idLookup.name : null,
+        golferExistsInTable: !!golfer,
+      };
+    });
+
     const mapped = rows.map((row) => {
       const obj = row as Record<string, unknown>;
       const firstName = String(obj.firstName ?? "");
@@ -191,7 +221,28 @@ export async function GET() {
         const gNorm = normalizeGolferName(g.name);
         return gNorm === normalized || gNorm.includes(normalized) || normalized.includes(gNorm);
       });
-      const ourPlayer = matched ? golferIdToPlayer.get(matched.id) : null;
+
+      // Primary: ID-based lookup
+      let ourPlayer = matched ? golferIdToPlayer.get(matched.id) : null;
+
+      // FALLBACK: if ID lookup failed, try name-based lookup against picks
+      // This handles the duplicate-ID / stale-ID case
+      let usedFallback = false;
+      if (!ourPlayer) {
+        const nameFallback = golferNameToPlayer.get(normalized);
+        if (nameFallback) {
+          ourPlayer = nameFallback;
+          usedFallback = true;
+        } else if (matched) {
+          // Try matching the DB golfer's normalised name too
+          const dbNorm = normalizeGolferName(matched.name);
+          const dbFallback = golferNameToPlayer.get(dbNorm);
+          if (dbFallback) {
+            ourPlayer = dbFallback;
+            usedFallback = true;
+          }
+        }
+      }
 
       return {
         playerId: String(obj.playerId ?? ""),
@@ -208,6 +259,7 @@ export async function GET() {
         isOurPick: !!ourPlayer,
         ourPlayerName: ourPlayer?.name,
         ourPlayerColor: ourPlayer?.color,
+        ...(usedFallback ? { _fallbackUsed: true } : {}),
       };
     });
 
@@ -222,10 +274,62 @@ export async function GET() {
     cachedAt = now;
     cachedTournamentName = tournament.name;
 
+    // Build _debug diagnostic section
+    const pickedGolferIds = tournamentPicks.map((p) => p.golferId);
+    const matchedGolfersFromPicks = allGolfers
+      .filter((g) => pickedGolferIds.includes(g.id))
+      .map((g) => ({ id: g.id, name: g.name }));
+
+    const golferIdToPlayerEntries = Array.from(golferIdToPlayer.entries()).map(
+      ([gid, p]) => ({ golferId: gid, playerName: p.name })
+    );
+
+    const perPickLeaderboardMatch = tournamentPicks.map((pick) => {
+      const golfer = allGolfers.find((g) => g.id === pick.golferId);
+      const golferName = golfer?.name ?? "(not found)";
+      const normName = normalizeGolferName(golferName);
+
+      // Simulate the same allGolfers.find logic used in mapping
+      const matchedInLeaderboard = mapped.find((m) => {
+        const mNorm = normalizeGolferName(m.name);
+        return mNorm === normName || mNorm.includes(normName) || normName.includes(mNorm);
+      });
+
+      const idLookup = golferIdToPlayer.get(pick.golferId);
+      const nameLookup = golferNameToPlayer.get(normName);
+
+      return {
+        golferName,
+        normalised: normName,
+        golferIdInPicks: pick.golferId,
+        golferIdInGolfersTable: golfer?.id ?? null,
+        leaderboardMatch: matchedInLeaderboard
+          ? { name: matchedInLeaderboard.name, isOurPick: matchedInLeaderboard.isOurPick }
+          : null,
+        idLookupResult: idLookup ? idLookup.name : null,
+        nameFallbackResult: nameLookup ? nameLookup.name : null,
+      };
+    });
+
+    const _debug = {
+      tournament: { id: tournament.id, name: tournament.name },
+      tournamentPicksCount: tournamentPicks.length,
+      tournamentPicks: tournamentPicks.map((p) => ({
+        playerId: p.playerId,
+        golferId: p.golferId,
+      })),
+      matchedGolfersFromPicks,
+      golferIdToPlayerEntries,
+      perPickLeaderboardMatch,
+      highlightedCount: mapped.filter((m) => m.isOurPick).length,
+      fallbackUsedCount: mapped.filter((m) => (m as Record<string, unknown>)._fallbackUsed).length,
+    };
+
     return NextResponse.json({
       players: mapped,
       tournament: tournament.name,
       cachedAgo: 0,
+      _debug,
     });
   } catch (error) {
     console.error("[Full Leaderboard] Error:", error);
