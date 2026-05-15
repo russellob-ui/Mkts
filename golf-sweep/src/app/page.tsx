@@ -282,7 +282,7 @@ export default function HomePage() {
 
             {/* Points */}
             <span className={`w-7 text-right font-bold text-[10px] ${isWinner ? "text-gold text-xs" : "text-gold"}`}>
-              {entry.points > 0 ? entry.points : "-"}
+              {entry.points > 0 ? Math.round(entry.points) : "-"}
             </span>
           </Link>
           );

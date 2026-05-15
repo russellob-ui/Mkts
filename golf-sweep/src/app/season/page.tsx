@@ -116,7 +116,7 @@ export default function SeasonPage() {
                   );
                 })}
                 <td className="text-right px-4 py-3 font-mono font-bold text-gold">
-                  {s.total > 0 ? s.total : "-"}
+                  {s.total > 0 ? Math.round(s.total) : "-"}
                 </td>
               </tr>
             ))}
