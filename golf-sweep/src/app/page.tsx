@@ -269,14 +269,16 @@ export default function HomePage() {
               </>
             )}
 
-            {/* Odds */}
+            {/* Odds — hide if > 200/1 (stale/garbage data from API) */}
             <span className="w-10 text-right text-[9px]">
-              {entry.currentOdds ? (
+              {entry.currentOdds && (entry.currentOddsDecimal ?? 0) < 200 ? (
                 <span className={oddsArrowColor(entry.openingOddsDecimal, entry.currentOddsDecimal)}>
                   {entry.currentOdds}
                 </span>
+              ) : entry.openingOdds && (entry.openingOddsDecimal ?? 0) < 200 ? (
+                <span className="text-cream/40">{entry.openingOdds}</span>
               ) : (
-                <span className="text-cream/40">{entry.openingOdds ?? "-"}</span>
+                <span className="text-cream/20">-</span>
               )}
             </span>
 
