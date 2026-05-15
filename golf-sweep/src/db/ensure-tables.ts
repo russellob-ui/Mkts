@@ -356,5 +356,14 @@ export async function ensureTables() {
     await db.execute(sql`DELETE FROM live_odds WHERE tournament_id IN (SELECT id FROM tournaments WHERE status = 'live')`);
   } catch { /* non-fatal */ }
 
+  // One-shot: clear stale slashPlayerId values from golfers table.
+  // These IDs are tournament-specific but were cached globally, causing
+  // cross-tournament name mismatches (e.g., Fleetwood's Masters ID
+  // pointing to a different player in the PGA Championship).
+  try {
+    await db.execute(sql`UPDATE golfers SET slash_player_id = NULL`);
+    console.log("[Migration] Cleared stale slashPlayerId values");
+  } catch { /* non-fatal */ }
+
   console.log("[DB] All tables ensured (v1+v2+v3+v3.5)");
 }

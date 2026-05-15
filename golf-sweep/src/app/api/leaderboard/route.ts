@@ -129,32 +129,18 @@ async function maybePollScores(
       .where(eq(rounds.tournamentId, tournament.id));
 
     for (const golfer of ourGolfers) {
-      // Match by ID or name
-      let lbPlayer = golfer.slashPlayerId
-        ? lbPlayers.find((p) => p.playerId === golfer.slashPlayerId)
-        : null;
-
-      if (!lbPlayer) {
-        const normalized = normalizeGolferName(golfer.name);
-        lbPlayer = lbPlayers.find((p) => {
-          const pNorm = normalizeGolferName(p.name);
-          const pLastNorm = normalizeGolferName(p.lastName);
-          return (
-            pNorm === normalized ||
-            pNorm.includes(normalized) ||
-            normalized.includes(pNorm) ||
-            normalized.includes(pLastNorm) ||
-            (pLastNorm.length > 3 && pLastNorm.includes(normalized.split(" ").pop() ?? "____"))
-          );
-        }) ?? null;
-
-        if (lbPlayer) {
-          await db
-            .update(golfers)
-            .set({ slashPlayerId: lbPlayer.playerId })
-            .where(eq(golfers.id, golfer.id));
-        }
-      }
+      // Always match by name — slashPlayerId is tournament-specific and
+      // caching it globally causes cross-tournament mismatches.
+      const normalized = normalizeGolferName(golfer.name);
+      const lbPlayer = lbPlayers.find((p) => {
+        const pNorm = normalizeGolferName(p.name);
+        const pLastNorm = normalizeGolferName(p.lastName);
+        return (
+          pNorm === normalized ||
+          pNorm.includes(normalized) ||
+          normalized.includes(pNorm)
+        );
+      }) ?? null;
 
       if (!lbPlayer) continue;
 
@@ -232,17 +218,11 @@ async function maybePollScores(
     //   - roundNumber      = the tournament's current round (1-4), clamped.
     const snapshotData = ourGolfers
       .map((golfer) => {
-        let lbPlayer = golfer.slashPlayerId
-          ? lbPlayers.find((p) => p.playerId === golfer.slashPlayerId)
-          : null;
-        if (!lbPlayer) {
-          const normalized = normalizeGolferName(golfer.name);
-          lbPlayer = lbPlayers.find((p) => {
-            const pNorm = normalizeGolferName(p.name);
-            const pLastNorm = normalizeGolferName(p.lastName);
-            return pNorm === normalized || pNorm.includes(normalized) || normalized.includes(pNorm) || normalized.includes(pLastNorm);
-          }) ?? null;
-        }
+        const normalized = normalizeGolferName(golfer.name);
+        const lbPlayer = lbPlayers.find((p) => {
+          const pNorm = normalizeGolferName(p.name);
+          return pNorm === normalized || pNorm.includes(normalized) || normalized.includes(pNorm);
+        }) ?? null;
         if (!lbPlayer) return null;
         const currentRound =
           lbPlayer.currentRound && lbPlayer.currentRound >= 1 && lbPlayer.currentRound <= 4
@@ -694,9 +674,9 @@ export async function GET() {
         .orderBy(desc(scoreSnapshots.capturedAt))
         .limit(1);
 
-      // Look up this golfer's live data from the direct API fetch
+      // Look up this golfer's live data by name only (not slashPlayerId
+      // which is tournament-specific and causes cross-tournament mismatches)
       const liveData =
-        (golfer.slashPlayerId ? liveApiData.get(golfer.slashPlayerId) : null) ??
         liveApiData.get(`name:${normalizeGolferName(golfer.name)}`) ??
         null;
 

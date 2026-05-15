@@ -91,35 +91,17 @@ export async function GET(request: NextRequest) {
         .where(eq(rounds.tournamentId, tournament.id));
 
       for (const golfer of ourGolfers) {
-        // Match by slash_player_id first, then by name
-        let lbPlayer = golfer.slashPlayerId
-          ? lbPlayers.find((p) => p.playerId === golfer.slashPlayerId)
-          : null;
-
-        if (!lbPlayer) {
-          // Fuzzy match by name
-          const normalized = normalizeGolferName(golfer.name);
-          lbPlayer = lbPlayers.find((p) => {
-            const pNorm = normalizeGolferName(p.name);
-            const pLastNorm = normalizeGolferName(p.lastName);
-            return (
-              pNorm === normalized ||
-              pNorm.includes(normalized) ||
-              normalized.includes(pNorm) ||
-              normalized.includes(pLastNorm) ||
-              pLastNorm.includes(normalized.split(" ").pop() ?? "")
-            );
-          }) ?? null;
-
-          // Save the matched player ID for future polls
-          if (lbPlayer) {
-            await db
-              .update(golfers)
-              .set({ slashPlayerId: lbPlayer.playerId })
-              .where(eq(golfers.id, golfer.id));
-            console.log(`[Poll] Matched ${golfer.name} → ${lbPlayer.name} (${lbPlayer.playerId})`);
-          }
-        }
+        // Always match by name — slashPlayerId is tournament-specific
+        // and caching it globally causes cross-tournament mismatches
+        const normalized = normalizeGolferName(golfer.name);
+        const lbPlayer = lbPlayers.find((p) => {
+          const pNorm = normalizeGolferName(p.name);
+          return (
+            pNorm === normalized ||
+            pNorm.includes(normalized) ||
+            normalized.includes(pNorm)
+          );
+        }) ?? null;
 
         if (!lbPlayer) continue;
 
