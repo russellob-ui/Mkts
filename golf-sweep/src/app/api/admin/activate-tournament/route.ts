@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { tournaments, rounds } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, ne, and, sql } from "drizzle-orm";
 import {
   getSchedule,
   findTournamentByName,
@@ -43,7 +43,20 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Flip status to live
+    // Ensure only ONE tournament is live at a time.
+    // Set any other "live" tournaments to "finished" (they should already
+    // be finished but duplicates or stale data can leave them as "live").
+    await db
+      .update(tournaments)
+      .set({ status: "finished" })
+      .where(
+        and(
+          eq(tournaments.status, "live"),
+          ne(tournaments.id, tournament.id)
+        )
+      );
+
+    // Flip this tournament to live
     await db
       .update(tournaments)
       .set({ status: "live" })

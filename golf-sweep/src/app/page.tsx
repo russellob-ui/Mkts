@@ -192,7 +192,7 @@ export default function HomePage() {
           <span className="w-10 text-right">Tot</span>
           <span className="w-10 text-right">Rd</span>
           <span className="w-12 text-right">Thru</span>
-          <span className="w-12 text-right hidden sm:inline">Odds</span>
+          <span className="w-10 text-right text-[9px]">Odds</span>
           <span className="w-7 text-right">Pts</span>
         </div>
 
@@ -270,11 +270,10 @@ export default function HomePage() {
             )}
 
             {/* Odds */}
-            <span className="w-12 text-right text-[10px] hidden sm:inline">
+            <span className="w-10 text-right text-[9px]">
               {entry.currentOdds ? (
                 <span className={oddsArrowColor(entry.openingOddsDecimal, entry.currentOddsDecimal)}>
                   {entry.currentOdds}
-                  {oddsArrow(entry.openingOddsDecimal, entry.currentOddsDecimal)}
                 </span>
               ) : (
                 <span className="text-cream/40">{entry.openingOdds ?? "-"}</span>

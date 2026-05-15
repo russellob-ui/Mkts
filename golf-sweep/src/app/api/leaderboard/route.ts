@@ -389,7 +389,19 @@ export async function GET() {
       .from(tournaments)
       .where(eq(tournaments.status, "live"));
 
-    const tournament = liveTournaments[0] ?? (
+    // If multiple tournaments are "live" (stale duplicate), keep only the
+    // latest one and force-finish the others.
+    if (liveTournaments.length > 1) {
+      const keep = liveTournaments[liveTournaments.length - 1]; // highest ID = most recent
+      for (const t of liveTournaments) {
+        if (t.id !== keep.id) {
+          await db.update(tournaments).set({ status: "finished" }).where(eq(tournaments.id, t.id));
+          console.log(`[Leaderboard] Force-finished duplicate live tournament: ${t.name} (id=${t.id})`);
+        }
+      }
+    }
+
+    const tournament = liveTournaments[liveTournaments.length - 1] ?? (
       await db.select().from(tournaments)
         .where(eq(tournaments.status, "upcoming"))
         .limit(1)
