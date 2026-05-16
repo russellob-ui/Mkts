@@ -4,45 +4,51 @@ export const alt = "London Banter & Woody — Major Sweep 2026";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
-// Tournament colour schemes
 const THEMES: Record<
   string,
-  { bg: string; accent: string; text: string; label: string }
+  { bg: string; bg2: string; accent: string; text: string; label: string; emoji: string }
 > = {
   masters: {
     bg: "#0a3d1f",
+    bg2: "#062e15",
     accent: "#ffd700",
     text: "#f5f1e8",
-    label: "The Masters",
+    label: "Masters",
+    emoji: "⛳",
   },
   pga: {
-    bg: "#1a1a2e",
+    bg: "#0f172a",
+    bg2: "#1e293b",
     accent: "#ffd400",
     text: "#ffffff",
-    label: "PGA Championship",
+    label: "PGA",
+    emoji: "🏆",
   },
   "us-open": {
-    bg: "#002868",
+    bg: "#001d4a",
+    bg2: "#002868",
     accent: "#ffffff",
     text: "#ffffff",
-    label: "U.S. Open",
+    label: "US Open",
+    emoji: "🇺🇸",
   },
   open: {
     bg: "#1a1a1a",
+    bg2: "#2a2a2a",
     accent: "#c9a96e",
     text: "#f5f1e8",
     label: "The Open",
+    emoji: "🏴󠁧󠁢󠁳󠁣󠁴󠁿",
   },
 };
 
 function detectTheme(): (typeof THEMES)[string] {
-  // In a static/build context we can't query the DB, so use date heuristics
-  const month = new Date().getMonth() + 1; // 1-12
+  const month = new Date().getMonth() + 1;
   if (month <= 4) return THEMES.masters;
   if (month <= 5) return THEMES.pga;
   if (month <= 6) return THEMES["us-open"];
   if (month <= 7) return THEMES.open;
-  return THEMES.pga; // fallback
+  return THEMES.pga;
 }
 
 export default function OGImage() {
@@ -55,76 +61,124 @@ export default function OGImage() {
           width: "100%",
           height: "100%",
           display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "center",
+          flexDirection: "row",
           backgroundColor: theme.bg,
           fontFamily: "serif",
+          overflow: "hidden",
         }}
       >
-        {/* Golf ball accent */}
+        {/* Left: accent stripe */}
         <div
           style={{
-            width: 60,
-            height: 60,
-            borderRadius: 30,
-            backgroundColor: theme.accent,
-            marginBottom: 24,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontSize: 30,
-          }}
-        >
-          ⛳
-        </div>
-
-        {/* Tournament name */}
-        <div
-          style={{
-            fontSize: 64,
-            fontWeight: 900,
-            color: theme.accent,
-            letterSpacing: "-0.02em",
-            marginBottom: 8,
-          }}
-        >
-          {theme.label}
-        </div>
-
-        {/* Divider */}
-        <div
-          style={{
-            width: 120,
-            height: 3,
-            backgroundColor: theme.accent,
-            opacity: 0.4,
-            marginBottom: 20,
+            width: 8,
+            height: "100%",
+            background: `linear-gradient(180deg, ${theme.accent} 0%, transparent 100%)`,
             display: "flex",
           }}
         />
 
-        {/* LB&W branding */}
+        {/* Main content */}
         <div
           style={{
-            fontSize: 32,
-            fontWeight: 700,
-            color: theme.text,
-            opacity: 0.9,
-            marginBottom: 8,
+            flex: 1,
+            display: "flex",
+            flexDirection: "column",
+            justifyContent: "center",
+            padding: "60px 80px",
           }}
         >
-          London Banter &amp; Woody
+          {/* LB&W small logo */}
+          <div
+            style={{
+              fontSize: 18,
+              fontWeight: 700,
+              color: theme.accent,
+              letterSpacing: "0.2em",
+              textTransform: "uppercase" as const,
+              marginBottom: 16,
+              display: "flex",
+            }}
+          >
+            LB&W
+          </div>
+
+          {/* Tournament name — big and bold */}
+          <div
+            style={{
+              fontSize: 72,
+              fontWeight: 900,
+              color: theme.text,
+              letterSpacing: "-0.03em",
+              lineHeight: 1,
+              marginBottom: 12,
+              display: "flex",
+            }}
+          >
+            {theme.label}
+          </div>
+
+          {/* Subtitle */}
+          <div
+            style={{
+              fontSize: 24,
+              color: theme.text,
+              opacity: 0.5,
+              marginBottom: 40,
+              display: "flex",
+            }}
+          >
+            Major Sweep 2026
+          </div>
+
+          {/* Bottom bar */}
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 16,
+            }}
+          >
+            {/* Coloured dots representing 8 players */}
+            {["#dc2626", "#1e40af", "#16a34a", "#ca8a04", "#ea580c", "#9333ea", "#0891b2", "#be185d"].map(
+              (c, i) => (
+                <div
+                  key={i}
+                  style={{
+                    width: 12,
+                    height: 12,
+                    borderRadius: 6,
+                    backgroundColor: c,
+                    display: "flex",
+                  }}
+                />
+              )
+            )}
+            <div
+              style={{
+                fontSize: 14,
+                color: theme.text,
+                opacity: 0.3,
+                marginLeft: 8,
+                display: "flex",
+              }}
+            >
+              8 friends · 4 majors · 1 champion
+            </div>
+          </div>
         </div>
 
+        {/* Right: large faded emoji */}
         <div
           style={{
-            fontSize: 20,
-            color: theme.text,
-            opacity: 0.5,
+            position: "absolute",
+            right: -20,
+            bottom: -40,
+            fontSize: 280,
+            opacity: 0.08,
+            display: "flex",
           }}
         >
-          Major Sweep 2026 · 8 friends, 4 majors, 1 champion
+          {theme.emoji}
         </div>
       </div>
     ),
