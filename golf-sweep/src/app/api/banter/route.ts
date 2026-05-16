@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { formatScore } from "@/lib/banter";
 import { db } from "@/db";
 import { ensureTables } from "@/db/ensure-tables";
 import {
@@ -251,8 +252,4 @@ async function generateInitialBanter(tournamentId: number) {
   }
 }
 
-function formatScore(s: number | null): string {
-  if (s === null || s === undefined) return "E";
-  if (s === 0) return "E";
-  return s > 0 ? `+${s}` : String(s);
-}
+

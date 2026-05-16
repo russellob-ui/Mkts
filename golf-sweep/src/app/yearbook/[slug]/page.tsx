@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
+import { formatScore } from "@/lib/banter";
 
 interface PickSummary {
   tournament: string;
@@ -51,11 +52,7 @@ interface YearbookData {
   commissionerNote: string | null;
 }
 
-function formatScore(s: number | null): string {
-  if (s === null) return "-";
-  if (s === 0) return "E";
-  return s > 0 ? `+${s}` : String(s);
-}
+
 
 export default function YearbookPlayerPage() {
   const params = useParams();

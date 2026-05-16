@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { timeAgo, getBanterLine, formatScore } from "@/lib/banter";
+import { timeAgo, getBanterLine, formatScore, scoreColorClass } from "@/lib/banter";
 import { getLiveEstimatedOdds } from "@/lib/live-odds";
 import ChatPanel from "@/components/ChatPanel";
 import TournamentLogo from "@/components/TournamentLogo";
@@ -40,15 +40,6 @@ interface TournamentInfo {
   status: string;
   lastPolledAt: string | null;
   lastOddsPolledAt: string | null;
-}
-
-function scoreColorClass(score: number | null): string {
-  if (score === null || score === undefined) return "text-cream/40";
-  if (score <= -3) return "text-red-500";
-  if (score < 0) return "text-red-400";
-  if (score === 0) return "text-gray-400";
-  if (score <= 2) return "text-white";
-  return "text-gray-500";
 }
 
 export default function HomePage() {

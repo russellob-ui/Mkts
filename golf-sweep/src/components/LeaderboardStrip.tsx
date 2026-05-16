@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { formatScore } from "@/lib/banter";
+import { formatScore, scoreColor } from "@/lib/banter";
 
 interface LeaderboardEntry {
   player: { name: string; slug: string; color: string | null };
@@ -9,15 +9,6 @@ interface LeaderboardEntry {
   scoreToPar: number | null;
   thru: string | null;
   points: number;
-}
-
-function scoreColor(s: number | null): string {
-  if (s === null) return "text-cream/40";
-  if (s <= -3) return "text-red-500";
-  if (s < 0) return "text-red-400";
-  if (s === 0) return "text-gray-400";
-  if (s <= 2) return "text-white";
-  return "text-gray-500";
 }
 
 /**

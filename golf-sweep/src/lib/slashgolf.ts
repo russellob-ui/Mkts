@@ -179,16 +179,6 @@ export function findTournamentByName(
 }
 
 /**
- * Find the Masters tournament from the schedule response.
- * Kept for backwards compatibility — delegates to findTournamentByName.
- */
-export function findMastersTournament(
-  schedule: ScheduleResponse
-): { tournId: string; name: string; startDate?: string; endDate?: string } | null {
-  return findTournamentByName(schedule, "masters");
-}
-
-/**
  * Fetch hole-by-hole scorecard for a specific player in a tournament.
  *
  * Endpoint: /scorecard?orgId=1&tournId={id}&year={year}&playerId={playerId}

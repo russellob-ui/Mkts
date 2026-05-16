@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { formatScore } from "@/lib/banter";
 
 interface Player {
   id: number;
@@ -179,11 +180,6 @@ export default function PredictionsPage() {
     } finally {
       setSubmitting(false);
     }
-  }
-
-  function formatScore(s: number): string {
-    if (s === 0) return "E";
-    return s > 0 ? `+${s}` : String(s);
   }
 
   if (loading) {

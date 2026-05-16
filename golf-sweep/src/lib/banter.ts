@@ -103,6 +103,24 @@ export function formatScore(score: number | null): string {
   return String(score);
 }
 
+export function scoreColorClass(score: number | null): string {
+  if (score === null || score === undefined) return "text-cream/40";
+  if (score <= -3) return "text-red-500";
+  if (score < 0) return "text-red-400";
+  if (score === 0) return "text-gray-400";
+  if (score <= 2) return "text-white";
+  return "text-gray-500";
+}
+
+export function scoreColor(s: number | null): string {
+  if (s === null) return "text-cream/30";
+  if (s <= -3) return "text-red-500";
+  if (s < 0) return "text-red-400";
+  if (s === 0) return "text-gray-400";
+  if (s <= 2) return "text-white";
+  return "text-gray-500";
+}
+
 export function scoreClass(score: number | null): string {
   if (score === null || score === undefined) return "";
   if (score < 0) return "score-under";

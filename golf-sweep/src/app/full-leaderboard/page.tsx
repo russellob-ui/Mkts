@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { formatScore } from "@/lib/banter";
+import { formatScore, scoreColor } from "@/lib/banter";
 import TournamentLogo from "@/components/TournamentLogo";
 
 type PlayerStatus =
@@ -35,15 +35,6 @@ interface FullLeaderboardEntry {
   ourPlayerColor?: string | null;
   country?: string | null;
   flagEmoji?: string | null;
-}
-
-function scoreColor(s: number | null): string {
-  if (s === null) return "text-cream/30";
-  if (s <= -3) return "text-red-500";
-  if (s < 0) return "text-red-400";
-  if (s === 0) return "text-gray-400";
-  if (s <= 2) return "text-white";
-  return "text-gray-500";
 }
 
 /** Render small coloured dots for birdie/eagle/bogey counts — tablet+ only */
