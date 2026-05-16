@@ -161,8 +161,8 @@ export async function GET(request: NextRequest) {
 
     // Sort by position
     data.sort((a, b) => {
-      const posA = a.position ? parseInt(a.position.replace(/^T/, "")) : 999;
-      const posB = b.position ? parseInt(b.position.replace(/^T/, "")) : 999;
+      const posA = a.position ? parseInt(a.position.replace(/^T/, "")) || 999 : 999;
+      const posB = b.position ? parseInt(b.position.replace(/^T/, "")) || 999 : 999;
       return posA - posB;
     });
 

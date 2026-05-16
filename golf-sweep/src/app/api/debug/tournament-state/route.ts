@@ -141,8 +141,8 @@ export async function GET() {
     }
 
     pickStates.sort((a, b) => {
-      const pa = a.finalPosition ? parseInt(a.finalPosition.replace(/^T/, ""), 10) : 999;
-      const pb = b.finalPosition ? parseInt(b.finalPosition.replace(/^T/, ""), 10) : 999;
+      const pa = a.finalPosition ? parseInt(a.finalPosition.replace(/^T/, ""), 10) || 999 : 999;
+      const pb = b.finalPosition ? parseInt(b.finalPosition.replace(/^T/, ""), 10) || 999 : 999;
       return (isNaN(pa) ? 999 : pa) - (isNaN(pb) ? 999 : pb);
     });
 

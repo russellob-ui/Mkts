@@ -249,8 +249,8 @@ export async function GET() {
 
     // Sort by position (numeric, nulls last)
     mapped.sort((a, b) => {
-      const posA = a.position ? parseInt(a.position.replace(/^T/, "")) : 999;
-      const posB = b.position ? parseInt(b.position.replace(/^T/, "")) : 999;
+      const posA = a.position ? parseInt(a.position.replace(/^T/, "")) || 999 : 999;
+      const posB = b.position ? parseInt(b.position.replace(/^T/, "")) || 999 : 999;
       return posA - posB;
     });
 
