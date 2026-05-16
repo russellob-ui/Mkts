@@ -29,7 +29,7 @@ import { completeRound, roundsThatShouldBeComplete } from "@/lib/complete-round"
 
 export const dynamic = "force-dynamic";
 
-const POLL_INTERVAL_MS = 60_000; // Scores: don't hit API more than once per 60s
+const POLL_INTERVAL_MS = 30_000; // Scores: poll every 30s for fresher data
 const ODDS_POLL_INTERVAL_MS = 15 * 60_000; // Odds: every 15 minutes
 
 /**

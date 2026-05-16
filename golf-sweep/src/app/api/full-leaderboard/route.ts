@@ -71,7 +71,7 @@ export async function GET() {
 
     // Serve from cache if fresh (< 60s old)
     const now = Date.now();
-    if (now - cachedAt < 60_000 && cachedPlayers.length > 0) {
+    if (now - cachedAt < 30_000 && cachedPlayers.length > 0) {
       return NextResponse.json({
         players: cachedPlayers,
         tournament: cachedTournamentName,
