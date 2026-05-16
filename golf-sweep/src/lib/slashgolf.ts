@@ -189,6 +189,109 @@ export function findMastersTournament(
 }
 
 /**
+ * Fetch hole-by-hole scorecard for a specific player in a tournament.
+ *
+ * Endpoint: /scorecard?orgId=1&tournId={id}&year={year}&playerId={playerId}
+ * Returns per-hole: holeId, holeScore, par, plus round totals.
+ */
+export interface ScorecardHole {
+  holeId: number;
+  holeScore: number;
+  par: number;
+}
+
+export interface ScorecardRound {
+  roundId: number;
+  roundComplete: boolean;
+  totalShots: number;
+  currentHole: number;
+  startingHole: number;
+  holes: ScorecardHole[];
+}
+
+export async function getScorecard(
+  tournId: string,
+  year: number,
+  playerId: string,
+  roundId?: number
+): Promise<ScorecardRound[]> {
+  let url = `${BASE_URL}/scorecard?orgId=1&tournId=${tournId}&year=${year}&playerId=${playerId}`;
+  if (roundId) url += `&roundId=${roundId}`;
+  console.log(`[SlashGolf] Fetching scorecard: ${url}`);
+
+  const res = await fetch(url, { headers: getHeaders(), cache: "no-store" });
+  if (!res.ok) {
+    console.error(`[SlashGolf] Scorecard error: ${res.status}`);
+    return [];
+  }
+
+  const data = await res.json();
+  const root = data as Record<string, unknown>;
+
+  // Find the rounds array — try common keys
+  let rounds: unknown[] = [];
+  for (const key of ["scorecardRows", "scorecard", "rounds", "results"]) {
+    if (Array.isArray(root[key])) {
+      rounds = root[key] as unknown[];
+      break;
+    }
+  }
+  if (rounds.length === 0 && Array.isArray(data)) {
+    rounds = data;
+  }
+
+  return rounds.map((r) => {
+    const obj = r as Record<string, unknown>;
+    const holesRaw = obj.holes ?? obj.holeScores ?? obj.scorecardHoles;
+    const holes: ScorecardHole[] = Array.isArray(holesRaw)
+      ? (holesRaw as Array<Record<string, unknown>>).map((h) => ({
+          holeId: Number(unwrapBson(h.holeId ?? h.hole ?? h.holeNumber) ?? 0),
+          holeScore: Number(unwrapBson(h.holeScore ?? h.score ?? h.strokes) ?? 0),
+          par: Number(unwrapBson(h.par ?? h.holePar) ?? 0),
+        }))
+      : [];
+
+    return {
+      roundId: Number(unwrapBson(obj.roundId ?? obj.round) ?? 0),
+      roundComplete: obj.roundComplete === true,
+      totalShots: Number(unwrapBson(obj.totalShots ?? obj.total) ?? 0),
+      currentHole: Number(unwrapBson(obj.currentHole) ?? 0),
+      startingHole: Number(unwrapBson(obj.startingHole) ?? 0),
+      holes,
+    };
+  });
+}
+
+/**
+ * Analyze a scorecard round for notable holes.
+ */
+export function analyzeScorecardRound(round: ScorecardRound): {
+  eagles: ScorecardHole[];
+  birdies: ScorecardHole[];
+  bogeys: ScorecardHole[];
+  doubles: ScorecardHole[];
+  albatross: ScorecardHole[];
+} {
+  const eagles: ScorecardHole[] = [];
+  const birdies: ScorecardHole[] = [];
+  const bogeys: ScorecardHole[] = [];
+  const doubles: ScorecardHole[] = [];
+  const albatross: ScorecardHole[] = [];
+
+  for (const h of round.holes) {
+    if (h.holeScore === 0 || h.par === 0) continue;
+    const diff = h.holeScore - h.par;
+    if (diff <= -3) albatross.push(h);
+    else if (diff === -2) eagles.push(h);
+    else if (diff === -1) birdies.push(h);
+    else if (diff === 1) bogeys.push(h);
+    else if (diff >= 2) doubles.push(h);
+  }
+
+  return { eagles, birdies, bogeys, doubles, albatross };
+}
+
+/**
  * Normalize a golfer name for fuzzy matching.
  * Handles Åberg/Aberg, MacIntyre/Macintyre, etc.
  */
