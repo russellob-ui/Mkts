@@ -16,12 +16,24 @@ interface ScorecardRound {
   analysis: { eagles: number; birdies: number; bogeys: number; doubles: number };
 }
 
+interface PointsBreakdown {
+  finish: number;
+  rotd: number;
+  bor: number;
+  eagle: number;
+  other: number;
+  tournament: number;
+  season: number;
+  details: Array<{ source: string; points: number; note: string | null }>;
+}
+
 interface PlayerScorecard {
   player: { name: string; color: string | null };
   golfer: { name: string; flagEmoji: string | null };
   position: string | null;
   scoreToPar: number | null;
   rounds: ScorecardRound[];
+  points?: PointsBreakdown;
 }
 
 function holeBg(score: number, par: number): string {
@@ -224,6 +236,40 @@ export default function ScorecardsPage() {
                       <RoundCard round={round} compact={!selectedRound} />
                     </div>
                   ))}
+                </div>
+              )}
+
+              {/* Points breakdown */}
+              {p.points && (
+                <div className="px-3 py-2 border-t border-dark-border">
+                  <div className="text-[9px] text-cream/30 uppercase tracking-wider mb-1.5 font-bold">Points</div>
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-[10px]">
+                    {p.points.finish > 0 && (
+                      <div className="flex justify-between"><span className="text-cream/50">🏆 Finish</span><span className="text-gold font-mono font-bold">+{p.points.finish}</span></div>
+                    )}
+                    {p.points.rotd > 0 && (
+                      <div className="flex justify-between"><span className="text-cream/50">🔥 ROTD</span><span className="text-gold font-mono font-bold">+{p.points.rotd}</span></div>
+                    )}
+                    {p.points.bor > 0 && (
+                      <div className="flex justify-between"><span className="text-cream/50">👑 BOR</span><span className="text-gold font-mono font-bold">+{p.points.bor}</span></div>
+                    )}
+                    {p.points.eagle > 0 && (
+                      <div className="flex justify-between"><span className="text-cream/50">🦅 Eagle</span><span className="text-gold font-mono font-bold">+{p.points.eagle}</span></div>
+                    )}
+                    {p.points.other > 0 && (
+                      <div className="flex justify-between"><span className="text-cream/50">⭐ Other</span><span className="text-gold font-mono font-bold">+{p.points.other}</span></div>
+                    )}
+                  </div>
+                  <div className="flex justify-between mt-1.5 pt-1.5 border-t border-dark-border/40 text-xs">
+                    <span className="text-cream/60 font-bold">Tournament</span>
+                    <span className="text-gold font-mono font-bold">{p.points.tournament}</span>
+                  </div>
+                  {p.points.season !== p.points.tournament && (
+                    <div className="flex justify-between text-[10px] mt-0.5">
+                      <span className="text-cream/40">Season total</span>
+                      <span className="text-cream/50 font-mono">{p.points.season}</span>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

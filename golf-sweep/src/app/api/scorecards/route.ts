@@ -13,6 +13,7 @@ import {
   unwrapBson,
   type ScorecardRound,
 } from "@/lib/slashgolf";
+import { pointsLog } from "@/db/schema";
 
 export const dynamic = "force-dynamic";
 
@@ -99,12 +100,39 @@ export async function GET(request: Request) {
         } catch { /* non-fatal */ }
       }
 
+      // Points breakdown for this tournament
+      const playerPoints = await db
+        .select()
+        .from(pointsLog)
+        .where(eq(pointsLog.tournamentId, tournament.id));
+      const myPoints = playerPoints.filter((p) => p.playerId === pick.playerId);
+      const finishPts = myPoints.filter((p) => p.source === "finish").reduce((s, p) => s + p.points, 0);
+      const rotdPts = myPoints.filter((p) => p.source === "rotd").reduce((s, p) => s + p.points, 0);
+      const borPts = myPoints.filter((p) => p.source === "bor").reduce((s, p) => s + p.points, 0);
+      const eaglePts = myPoints.filter((p) => p.source === "eagle_bonus").reduce((s, p) => s + p.points, 0);
+      const otherPts = myPoints.filter((p) => !["finish", "rotd", "bor", "eagle_bonus"].includes(p.source)).reduce((s, p) => s + p.points, 0);
+      const tournTotal = myPoints.reduce((s, p) => s + p.points, 0);
+
+      // Season total (all tournaments)
+      const allPoints = await db.select().from(pointsLog);
+      const seasonTotal = allPoints.filter((p) => p.playerId === pick.playerId).reduce((s, p) => s + p.points, 0);
+
       result.push({
         player: { name: player.name, color: player.color },
         golfer: { name: golfer.name, flagEmoji: golfer.flagEmoji },
         position: lbPlayer?.position ?? null,
         scoreToPar: lbPlayer?.scoreToPar ?? null,
         rounds,
+        points: {
+          finish: Math.round(finishPts * 10) / 10,
+          rotd: Math.round(rotdPts * 10) / 10,
+          bor: Math.round(borPts * 10) / 10,
+          eagle: Math.round(eaglePts * 10) / 10,
+          other: Math.round(otherPts * 10) / 10,
+          tournament: Math.round(tournTotal),
+          season: Math.round(seasonTotal),
+          details: myPoints.map((p) => ({ source: p.source, points: Math.round(p.points * 10) / 10, note: p.note })),
+        },
       });
     }
 
