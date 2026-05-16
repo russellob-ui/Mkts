@@ -358,5 +358,10 @@ export async function ensureTables() {
     console.log("[DB] Deduplicated golfers table");
   } catch { /* non-fatal */ }
 
+  // Clean up fake albatross banter events (we don't have hole-by-hole data)
+  try {
+    await db.execute(sql`DELETE FROM banter_events WHERE event_type = 'albatross'`);
+  } catch { /* non-fatal */ }
+
   console.log("[DB] All tables ensured (v1+v2+v3+v3.5)");
 }

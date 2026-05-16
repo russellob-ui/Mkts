@@ -146,7 +146,9 @@ export async function generateBanterFromSnapshot(tournamentId: number) {
       const currTotal = current.totalScoreToPar ?? 0;
       const diff = currTotal - prevTotal;
 
-      // Eagle: drop of exactly 2
+      // Eagle: drop of exactly 2 between snapshots.
+      // Note: this is an APPROXIMATION — it could be two birdies between
+      // polls, not a single-hole eagle. But it's close enough for banter.
       if (diff === -2) {
         await insertBanter(tournamentId, current, "eagle", 8,
           `🦅 ${current.golferName} eagles!`,
@@ -154,12 +156,14 @@ export async function generateBanterFromSnapshot(tournamentId: number) {
           "🦅", tenMinAgo);
       }
 
-      // Albatross: drop of 3
-      if (diff === -3) {
-        await insertBanter(tournamentId, current, "albatross", 10,
-          `🤯 Albatross! ${current.golferName} drops 3 shots in one go!`,
-          `Incredible — ${current.playerName} celebrating`,
-          "🤯", tenMinAgo);
+      // Big move: drop of 3+ between snapshots (NOT an albatross — we
+      // don't have hole-by-hole data to confirm a real albatross. This
+      // is most likely 2-3 birdies between poll intervals.)
+      if (diff <= -3) {
+        await insertBanter(tournamentId, current, "hot_streak", 7,
+          `🔥 ${current.golferName} on fire! ${Math.abs(diff)} shots gained`,
+          `${current.playerName}'s pick surging to ${current.position}`,
+          "🔥", tenMinAgo);
       }
 
       // Birdie streak: drop of 3+ in round score
