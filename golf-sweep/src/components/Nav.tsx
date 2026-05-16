@@ -11,6 +11,7 @@ const NAV_GROUPS = [
       { href: "/banter", label: "Banter" },
       { href: "/trajectory", label: "Trajectory" },
       { href: "/hole-by-hole", label: "Hole-by-Hole" },
+      { href: "/scorecards", label: "Scorecards" },
     ],
   },
   {
