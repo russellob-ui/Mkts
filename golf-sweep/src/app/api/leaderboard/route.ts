@@ -23,7 +23,7 @@ import {
   getGolfSeasonYear,
 } from "@/lib/slashgolf";
 import { getOutrightOdds, normalizeOddsName } from "@/lib/oddsapi";
-import { writeScoreSnapshots, generateBanterFromSnapshot } from "@/lib/banter-engine";
+import { writeScoreSnapshots, generateBanterFromSnapshot, generateScorecardBanter, type GolferScorecardInfo } from "@/lib/banter-engine";
 import { finishTournament, isTournamentOfficiallyOver } from "@/lib/finish-tournament";
 import { completeRound, roundsThatShouldBeComplete } from "@/lib/complete-round";
 
@@ -122,11 +122,15 @@ async function maybePollScores(
     const pickedGolferIds = tournamentPicks.map((p) => p.golferId);
     const allGolfers = await db.select().from(golfers);
     const ourGolfers = allGolfers.filter((g) => pickedGolferIds.includes(g.id));
+    const pollPlayers = await db.select().from(players);
 
     const tournamentRounds = await db
       .select()
       .from(rounds)
       .where(eq(rounds.tournamentId, tournament.id));
+
+    // Collect scorecard info for each matched golfer (used by scorecard banter)
+    const scorecardInfos: GolferScorecardInfo[] = [];
 
     for (const golfer of ourGolfers) {
       // Always match by name — slashPlayerId is tournament-specific and
@@ -143,6 +147,34 @@ async function maybePollScores(
       }) ?? null;
 
       if (!lbPlayer) continue;
+
+      // Build scorecard info for this golfer (for hole-by-hole banter)
+      const pick = tournamentPicks.find((p) => p.golferId === golfer.id);
+      if (pick && lbPlayer.playerId) {
+        const sweepPlayer = pollPlayers.find((p) => p.id === pick.playerId);
+        if (sweepPlayer) {
+          // Derive status from thru/position
+          let golferStatus = "unknown";
+          if (lbPlayer.thru === "CUT") golferStatus = "cut";
+          else if (lbPlayer.thru === "WD") golferStatus = "wd";
+          else if (lbPlayer.thru === "DQ") golferStatus = "dq";
+          else if (lbPlayer.thru === "F") golferStatus = "finished";
+          else if (lbPlayer.thru && lbPlayer.thru !== "") golferStatus = "playing";
+          else golferStatus = "not_started";
+
+          scorecardInfos.push({
+            golferId: golfer.id,
+            playerId: pick.playerId,
+            playerName: sweepPlayer.name,
+            golferName: golfer.name,
+            slashPlayerId: lbPlayer.playerId,
+            currentRound: lbPlayer.currentRound,
+            thru: lbPlayer.thru,
+            status: golferStatus,
+            position: lbPlayer.position,
+          });
+        }
+      }
 
       // Update round scores
       for (let r = 1; r <= 4; r++) {
@@ -258,7 +290,18 @@ async function maybePollScores(
       console.error("[Leaderboard] Snapshot write error (non-fatal):", err);
     }
 
-    // Best-effort: generate banter events
+    // Best-effort: scorecard-based banter (real hole-by-hole eagles/birdies/bogeys)
+    if (tournament.slashTournId && scorecardInfos.length > 0) {
+      try {
+        generateScorecardBanter(tournament.id, tournament.slashTournId, scorecardInfos).catch((err) =>
+          console.error("[Leaderboard] Scorecard banter error:", err)
+        );
+      } catch (err) {
+        console.error("[Leaderboard] Scorecard banter trigger error (non-fatal):", err);
+      }
+    }
+
+    // Best-effort: generate snapshot-diff banter (position changes, lead changes, cuts)
     try {
       generateBanterFromSnapshot(tournament.id).catch((err) =>
         console.error("[Leaderboard] Banter generation error:", err)

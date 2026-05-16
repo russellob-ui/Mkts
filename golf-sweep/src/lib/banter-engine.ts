@@ -7,6 +7,12 @@ import {
   golfers,
 } from "@/db/schema";
 import { eq, and, desc, gte } from "drizzle-orm";
+import {
+  getScorecard,
+  analyzeScorecardRound,
+  getGolfSeasonYear,
+  type ScorecardRound,
+} from "@/lib/slashgolf";
 
 interface SnapshotData {
   golferId: number;
@@ -34,6 +40,13 @@ function parseThruNumeric(thru: string | null): number | null {
   const num = parseInt(thru, 10);
   return isNaN(num) ? null : num;
 }
+
+/**
+ * Module-level set tracking which hole-level banter events have already fired.
+ * Key format: `${golferId}-R${roundNumber}-H${holeId}-${eventType}`
+ * Prevents duplicate banter when the same scorecard is re-polled.
+ */
+const banteredHoles = new Set<string>();
 
 /** Write score snapshots for all picked golfers after a poll */
 export async function writeScoreSnapshots(
@@ -67,6 +80,138 @@ export async function writeScoreSnapshots(
     } catch (err) {
       console.error(`[Snapshots] Insert failed for golfer ${g.golferId}:`, err);
       // Continue with other golfers
+    }
+  }
+}
+
+/** Ordinal suffix helper: 1 -> "1st", 2 -> "2nd", 13 -> "13th" etc. */
+function ordinal(n: number): string {
+  const s = ["th", "st", "nd", "rd"];
+  const v = n % 100;
+  return n + (s[(v - 20) % 10] || s[v] || s[0]);
+}
+
+/**
+ * Info about a golfer that the leaderboard route already resolved, needed
+ * for scorecard fetches.
+ */
+export interface GolferScorecardInfo {
+  golferId: number;       // our DB id
+  playerId: number;       // our DB player (sweep player) id
+  playerName: string;
+  golferName: string;
+  slashPlayerId: string;  // Slash Golf API player id
+  currentRound: number;   // which round the tournament is currently on (1-4)
+  thru: string | null;    // "F", "3", null, "CUT", etc.
+  status: string;         // "playing", "finished", "not_started", "cut", etc.
+  position: string | null;
+}
+
+/**
+ * In-memory scorecard cache. Key: `${slashPlayerId}-${tournId}-${year}`.
+ * Cached for 60s alongside the leaderboard poll interval.
+ */
+const scorecardCache = new Map<string, { rounds: ScorecardRound[]; cachedAt: number }>();
+const SCORECARD_CACHE_TTL = 60_000;
+
+/**
+ * Fetch scorecards for our picked golfers and generate banter events for
+ * REAL eagles, birdies, bogeys, doubles, and albatrosses with actual hole numbers.
+ *
+ * Called from the leaderboard route after writeScoreSnapshots during live play.
+ */
+export async function generateScorecardBanter(
+  tournamentId: number,
+  slashTournId: string,
+  golferInfos: GolferScorecardInfo[]
+) {
+  const year = getGolfSeasonYear();
+  const tenMinAgo = new Date(Date.now() - 10 * 60_000);
+
+  for (const info of golferInfos) {
+    try {
+      // Skip golfers who haven't teed off yet or are cut/wd/dq
+      if (
+        info.status === "not_started" ||
+        info.status === "cut" ||
+        info.status === "wd" ||
+        info.status === "dq"
+      ) {
+        continue;
+      }
+
+      // Fetch scorecard (with caching)
+      const cacheKey = `${info.slashPlayerId}-${slashTournId}-${year}`;
+      const now = Date.now();
+      let rounds: ScorecardRound[];
+
+      const cached = scorecardCache.get(cacheKey);
+      if (cached && now - cached.cachedAt < SCORECARD_CACHE_TTL) {
+        rounds = cached.rounds;
+      } else {
+        rounds = await getScorecard(slashTournId, year, info.slashPlayerId);
+        scorecardCache.set(cacheKey, { rounds, cachedAt: now });
+      }
+
+      if (rounds.length === 0) continue;
+
+      // Find the current round's scorecard
+      const currentRound = rounds.find((r) => r.roundId === info.currentRound)
+        ?? rounds[rounds.length - 1]; // fallback to latest
+      if (!currentRound || currentRound.holes.length === 0) continue;
+
+      const analysis = analyzeScorecardRound(currentRound);
+
+      const snapshotData: SnapshotData = {
+        golferId: info.golferId,
+        playerId: info.playerId,
+        playerName: info.playerName,
+        golferName: info.golferName,
+        totalScoreToPar: null,
+        roundScoreToPar: null,
+        position: info.position,
+        positionNumeric: parsePositionNumeric(info.position),
+        thru: info.thru,
+        roundNumber: info.currentRound,
+      };
+
+      // Albatrosses
+      for (const hole of analysis.albatross) {
+        const key = `${info.golferId}-R${info.currentRound}-H${hole.holeId}-albatross`;
+        if (banteredHoles.has(key)) continue;
+        banteredHoles.add(key);
+        await insertBanter(tournamentId, snapshotData, "albatross", 10,
+          `\u{1F92F} ALBATROSS! ${info.golferName} aces the par-${hole.par} ${ordinal(hole.holeId)}!`,
+          `${info.playerName}'s pick with an incredible ${hole.holeScore} on a par ${hole.par}`,
+          "\u{1F92F}", tenMinAgo);
+      }
+
+      // Eagles
+      for (const hole of analysis.eagles) {
+        const key = `${info.golferId}-R${info.currentRound}-H${hole.holeId}-eagle`;
+        if (banteredHoles.has(key)) continue;
+        banteredHoles.add(key);
+        await insertBanter(tournamentId, snapshotData, "eagle", 8,
+          `\u{1F985} ${info.golferName} eagles the ${ordinal(hole.holeId)}! ${info.playerName}'s pick`,
+          `${hole.holeScore} on the par-${hole.par} ${ordinal(hole.holeId)}`,
+          "\u{1F985}", tenMinAgo);
+      }
+
+      // Double bogey or worse
+      for (const hole of analysis.doubles) {
+        const key = `${info.golferId}-R${info.currentRound}-H${hole.holeId}-double_bogey`;
+        if (banteredHoles.has(key)) continue;
+        banteredHoles.add(key);
+        const diff = hole.holeScore - hole.par;
+        const label = diff === 2 ? "doubles" : diff === 3 ? "triples" : `takes ${hole.holeScore} on`;
+        await insertBanter(tournamentId, snapshotData, "double_bogey", 6,
+          `\u{1F480} ${info.golferName} ${label} the ${ordinal(hole.holeId)} — ${info.playerName} in trouble`,
+          `${hole.holeScore} on the par-${hole.par} ${ordinal(hole.holeId)}`,
+          "\u{1F480}", tenMinAgo);
+      }
+    } catch (err) {
+      console.error(`[Banter] Scorecard fetch/analysis failed for golfer ${info.golferId}:`, err);
+      // Continue with other golfers — scorecard errors are non-fatal
     }
   }
 }
@@ -142,57 +287,23 @@ export async function generateBanterFromSnapshot(tournamentId: number) {
 
     for (const { current, previous } of snapshotPairs) {
       if (!previous) continue;
-      const prevTotal = previous.totalScoreToPar ?? 0;
-      const currTotal = current.totalScoreToPar ?? 0;
-      const diff = currTotal - prevTotal;
-
-      // Eagle: drop of exactly 2 between snapshots.
-      // Note: this is an APPROXIMATION — it could be two birdies between
-      // polls, not a single-hole eagle. But it's close enough for banter.
-      if (diff === -2) {
-        await insertBanter(tournamentId, current, "eagle", 8,
-          `🦅 ${current.golferName} eagles!`,
-          `${current.playerName}'s pick moves to ${current.position}`,
-          "🦅", tenMinAgo);
-      }
-
-      // Big move: drop of 3+ between snapshots (NOT an albatross — we
-      // don't have hole-by-hole data to confirm a real albatross. This
-      // is most likely 2-3 birdies between poll intervals.)
-      if (diff <= -3) {
-        await insertBanter(tournamentId, current, "hot_streak", 7,
-          `🔥 ${current.golferName} on fire! ${Math.abs(diff)} shots gained`,
-          `${current.playerName}'s pick surging to ${current.position}`,
-          "🔥", tenMinAgo);
-      }
-
-      // Birdie streak: drop of 3+ in round score
-      if (diff <= -3 && current.roundScoreToPar != null && previous.roundScoreToPar != null) {
-        const roundDiff = (current.roundScoreToPar ?? 0) - (previous.roundScoreToPar ?? 0);
-        if (roundDiff <= -3) {
-          await insertBanter(tournamentId, current, "birdie_streak", 6,
-            `🔥 ${current.golferName} on fire — ${Math.abs(roundDiff)} shots gained`,
-            `${current.playerName}'s pick is charging`,
-            "🔥", tenMinAgo);
-        }
-      }
 
       // Position jump up (5+ places)
       if (previous.positionNumeric && current.positionNumeric &&
           previous.positionNumeric - current.positionNumeric >= 5) {
         await insertBanter(tournamentId, current, "position_jump_up", 5,
-          `📈 ${current.golferName} climbs to ${current.position}`,
+          `\u{1F4C8} ${current.golferName} climbs to ${current.position}`,
           `${current.playerName}'s pick up ${previous.positionNumeric - current.positionNumeric} places`,
-          "📈", tenMinAgo);
+          "\u{1F4C8}", tenMinAgo);
       }
 
       // Position drop (5+ places)
       if (previous.positionNumeric && current.positionNumeric &&
           current.positionNumeric - previous.positionNumeric >= 5) {
         await insertBanter(tournamentId, current, "position_jump_down", 5,
-          `📉 ${current.golferName} drops to ${current.position}`,
+          `\u{1F4C9} ${current.golferName} drops to ${current.position}`,
           `Bad news for ${current.playerName}`,
-          "📉", tenMinAgo);
+          "\u{1F4C9}", tenMinAgo);
       }
 
       // Cut missed
@@ -216,9 +327,9 @@ export async function generateBanterFromSnapshot(tournamentId: number) {
     if (currentLeader && previousLeader &&
         currentLeader.current.playerId !== previousLeader.current.playerId) {
       await insertBanter(tournamentId, currentLeader.current, "lead_change", 7,
-        `👑 ${currentLeader.current.playerName}'s ${currentLeader.current.golferName} takes the sweep lead`,
+        `\u{1F451} ${currentLeader.current.playerName}'s ${currentLeader.current.golferName} takes the sweep lead`,
         `Now at ${currentLeader.current.position}`,
-        "👑", tenMinAgo);
+        "\u{1F451}", tenMinAgo);
     }
   } catch (err) {
     console.error("[Banter] Generation error:", err);
