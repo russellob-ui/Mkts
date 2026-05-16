@@ -33,7 +33,7 @@ async function getCachedScorecard(
 ): Promise<ScorecardRound[]> {
   const key = `${tournId}-${year}-${playerId}`;
   const cached = scorecardCache.get(key);
-  if (cached && Date.now() - cached.cachedAt < 60_000) {
+  if (cached && Date.now() - cached.cachedAt < 30_000) {
     return cached.data;
   }
   const data = await getScorecard(tournId, year, playerId);

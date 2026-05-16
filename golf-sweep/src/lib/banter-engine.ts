@@ -112,7 +112,7 @@ export interface GolferScorecardInfo {
  * Cached for 60s alongside the leaderboard poll interval.
  */
 const scorecardCache = new Map<string, { rounds: ScorecardRound[]; cachedAt: number }>();
-const SCORECARD_CACHE_TTL = 60_000;
+const SCORECARD_CACHE_TTL = 30_000;
 
 /**
  * Fetch scorecards for our picked golfers and generate banter events for

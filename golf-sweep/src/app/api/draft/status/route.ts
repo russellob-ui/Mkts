@@ -13,7 +13,7 @@ export const dynamic = "force-dynamic";
 // Simple in-memory cache for the leaderboard (60s TTL)
 let cachedField: ReturnType<typeof parseLeaderboardPlayers> | null = null;
 let cachedAt = 0;
-const CACHE_TTL = 60_000;
+const CACHE_TTL = 30_000;
 
 export async function GET() {
   try {

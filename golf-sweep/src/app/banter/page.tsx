@@ -36,7 +36,7 @@ export default function BanterPage() {
 
   useEffect(() => {
     fetchData();
-    const interval = setInterval(fetchData, 30000);
+    const interval = setInterval(fetchData, 20000);
     return () => clearInterval(interval);
   }, [filter]);
 
