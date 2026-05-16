@@ -228,16 +228,30 @@ export async function getScorecard(
   const data = await res.json();
   const root = data as Record<string, unknown>;
 
+  // Log the raw response structure for debugging
+  console.log(`[SlashGolf] Scorecard response keys:`, Object.keys(root));
+  console.log(`[SlashGolf] Scorecard first 500 chars:`, JSON.stringify(data).slice(0, 500));
+
   // Find the rounds array — try common keys
   let rounds: unknown[] = [];
-  for (const key of ["scorecardRows", "scorecard", "rounds", "results"]) {
+  for (const key of ["scorecardRows", "scorecard", "rounds", "results", "round", "holes"]) {
     if (Array.isArray(root[key])) {
       rounds = root[key] as unknown[];
+      console.log(`[SlashGolf] Found scorecard data under key "${key}", ${rounds.length} entries`);
       break;
     }
   }
   if (rounds.length === 0 && Array.isArray(data)) {
     rounds = data;
+    console.log(`[SlashGolf] Scorecard data is top-level array, ${rounds.length} entries`);
+  }
+  if (rounds.length === 0) {
+    // Try: maybe the entire response IS a single round with holes directly
+    const possibleHoles = root.holes ?? root.holeScores ?? root.scorecardHoles;
+    if (Array.isArray(possibleHoles) && (possibleHoles as unknown[]).length > 0) {
+      console.log(`[SlashGolf] Scorecard is single round with ${(possibleHoles as unknown[]).length} holes`);
+      rounds = [root]; // treat the whole response as one round
+    }
   }
 
   return rounds.map((r) => {
