@@ -32,6 +32,7 @@ interface LeaderboardEntry {
   currentOddsDecimal: number | null;
   roundScores: Record<number, { scoreToPar: number | null; thru: string | null }>;
   points: number;
+  seasonPoints: number;
 }
 
 interface TournamentInfo {
@@ -181,6 +182,7 @@ export default function HomePage() {
           <span className="w-12 text-right">Thru</span>
           <span className="w-10 text-right text-[9px]">Odds</span>
           <span className="w-7 text-right">Pts</span>
+          <span className="w-8 text-right text-[9px] hidden sm:inline">Szn</span>
         </div>
 
         {entries.map((entry) => {
@@ -264,6 +266,11 @@ export default function HomePage() {
             {/* Points */}
             <span className={`w-7 text-right font-bold text-[10px] ${isWinner ? "text-gold text-xs" : "text-gold"}`}>
               {entry.points > 0 ? Math.round(entry.points) : "-"}
+            </span>
+
+            {/* Season total (carried forward from all tournaments) */}
+            <span className="w-8 text-right text-[9px] text-cream/40 hidden sm:inline">
+              {entry.seasonPoints > 0 ? entry.seasonPoints : "-"}
             </span>
           </Link>
           );

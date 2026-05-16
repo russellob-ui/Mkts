@@ -768,7 +768,17 @@ export async function GET() {
         currentOddsDecimal: currentOdds?.decimal ?? null,
         roundScores: scores,
         points: totalPoints,
+        seasonPoints: 0, // populated below
       });
+    }
+
+    // Compute season points (all tournaments combined) for each player
+    const allSeasonPoints = await db.select().from(pointsLog);
+    for (const entry of entries) {
+      const seasonTotal = allSeasonPoints
+        .filter((p) => p.playerId === entry.player.id)
+        .reduce((sum, p) => sum + p.points, 0);
+      entry.seasonPoints = Math.round(seasonTotal);
     }
 
     entries.sort((a, b) => {

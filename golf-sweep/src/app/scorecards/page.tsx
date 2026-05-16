@@ -94,25 +94,39 @@ function RoundCard({ round, compact }: { round: ScorecardRound; compact?: boolea
   );
 }
 
+interface TournamentOption {
+  id: number;
+  name: string;
+  status: string;
+}
+
 export default function ScorecardsPage() {
   const [data, setData] = useState<PlayerScorecard[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedRound, setSelectedRound] = useState<number | null>(null);
+  const [tournaments, setTournaments] = useState<TournamentOption[]>([]);
+  const [selectedTournament, setSelectedTournament] = useState<number | null>(null);
+  const [currentTournamentName, setCurrentTournamentName] = useState("");
 
-  useEffect(() => {
-    fetch("/api/scorecards")
+  function fetchData(tournamentId?: number | null) {
+    const url = tournamentId ? `/api/scorecards?tournamentId=${tournamentId}` : "/api/scorecards";
+    fetch(url)
       .then((r) => r.json())
       .then((d) => {
         setData(d.players ?? []);
-        if (d.currentRound) setSelectedRound(d.currentRound);
+        setTournaments(d.tournaments ?? []);
+        setCurrentTournamentName(d.tournament?.name ?? "");
+        if (d.currentRound && !selectedRound) setSelectedRound(d.currentRound);
         setLoading(false);
       })
       .catch(() => setLoading(false));
-    const iv = setInterval(() => {
-      fetch("/api/scorecards").then((r) => r.json()).then((d) => setData(d.players ?? [])).catch(() => {});
-    }, 30000);
+  }
+
+  useEffect(() => {
+    fetchData(selectedTournament);
+    const iv = setInterval(() => fetchData(selectedTournament), 30000);
     return () => clearInterval(iv);
-  }, []);
+  }, [selectedTournament]);
 
   if (loading) return <div className="max-w-3xl mx-auto px-4 py-8 text-center text-cream/40">Loading scorecards...</div>;
 
@@ -121,7 +135,30 @@ export default function ScorecardsPage() {
   return (
     <div className="max-w-3xl mx-auto px-4 py-6">
       <h1 className="font-serif text-2xl font-bold mb-1">Scorecards</h1>
-      <p className="text-cream/40 text-xs mb-4">Hole-by-hole breakdown for all 8 picks</p>
+      <p className="text-cream/40 text-xs mb-3">Hole-by-hole breakdown for all 8 picks</p>
+
+      {/* Tournament toggle */}
+      {tournaments.length > 1 && (
+        <div className="flex gap-1 mb-3 overflow-x-auto">
+          {tournaments.map((t) => (
+            <button
+              key={t.id}
+              onClick={() => { setSelectedTournament(t.id); setSelectedRound(null); setLoading(true); }}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-colors ${
+                (selectedTournament === t.id || (!selectedTournament && t.status === "live"))
+                  ? "bg-augusta text-cream"
+                  : "bg-dark-card text-cream/50"
+              }`}
+            >
+              {t.name.replace(" Tournament", "").replace(" Championship", "")}
+              {t.status === "live" && " •"}
+            </button>
+          ))}
+        </div>
+      )}
+      {currentTournamentName && (
+        <p className="text-cream/30 text-[10px] mb-3">{currentTournamentName}</p>
+      )}
 
       {/* Round selector */}
       <div className="flex gap-1 mb-4">

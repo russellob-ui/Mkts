@@ -27,16 +27,22 @@ async function cached(tournId: string, year: number, playerId: string): Promise<
   return d;
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     await ensureTables();
 
-    const [tournament] = await db
-      .select()
-      .from(tournaments)
-      .where(eq(tournaments.status, "live"));
+    const url = new URL(request.url);
+    const requestedTournamentId = url.searchParams.get("tournamentId");
+
+    // Support historical tournament scorecards via ?tournamentId=X
+    let tournament;
+    if (requestedTournamentId) {
+      [tournament] = await db.select().from(tournaments).where(eq(tournaments.id, Number(requestedTournamentId)));
+    } else {
+      [tournament] = await db.select().from(tournaments).where(eq(tournaments.status, "live"));
+    }
     if (!tournament?.slashTournId || !process.env.RAPIDAPI_KEY) {
-      return NextResponse.json({ players: [], currentRound: null });
+      return NextResponse.json({ players: [], currentRound: null, tournaments: await getAllTournaments() });
     }
 
     const year = getGolfSeasonYear();
@@ -108,9 +114,21 @@ export async function GET() {
       return pa - pb;
     });
 
-    return NextResponse.json({ players: result, currentRound });
+    return NextResponse.json({
+      players: result,
+      currentRound,
+      tournament: { id: tournament.id, name: tournament.name, status: tournament.status },
+      tournaments: await getAllTournaments(),
+    });
   } catch (error) {
     console.error("[Scorecards]", error);
     return NextResponse.json({ error: String(error), players: [] }, { status: 500 });
   }
+}
+
+async function getAllTournaments() {
+  const all = await db.select().from(tournaments);
+  return all
+    .filter((t) => t.status === "live" || t.status === "finished")
+    .map((t) => ({ id: t.id, name: t.name, status: t.status }));
 }
