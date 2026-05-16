@@ -10,13 +10,31 @@ import {
 import { eq } from "drizzle-orm";
 import {
   getLeaderboard,
+  getScorecard,
+  analyzeScorecardRound,
   normalizeGolferName,
   parseScoreStr,
   unwrapBson,
   getGolfSeasonYear,
+  ScorecardRound,
 } from "@/lib/slashgolf";
 
 export const dynamic = "force-dynamic";
+
+// Scorecard cache — 60s per player
+const scorecardCache = new Map<string, { data: ScorecardRound[]; cachedAt: number }>();
+async function getCachedScorecard(
+  tournId: string,
+  year: number,
+  playerId: string
+): Promise<ScorecardRound[]> {
+  const key = `${tournId}-${year}-${playerId}`;
+  const cached = scorecardCache.get(key);
+  if (cached && Date.now() - cached.cachedAt < 60_000) return cached.data;
+  const data = await getScorecard(tournId, year, playerId);
+  scorecardCache.set(key, { data, cachedAt: Date.now() });
+  return data;
+}
 
 /**
  * GET /api/heatmap?tournamentId=1
@@ -133,6 +151,7 @@ export async function GET(request: NextRequest) {
     }
 
     const data = [];
+    const year = getGolfSeasonYear();
     for (const pick of tournamentPicks) {
       const player = allPlayers.find((p) => p.id === pick.playerId);
       const golfer = allGolfers.find((g) => g.id === pick.golferId);
@@ -150,12 +169,59 @@ export async function GET(request: NextRequest) {
         }
       }
 
+      // Fetch scorecard for par-type breakdown
+      let parTypePerformance: {
+        par3: number | null;
+        par4: number | null;
+        par5: number | null;
+      } = { par3: null, par4: null, par5: null };
+
+      if (
+        tournament?.slashTournId &&
+        golfer.slashPlayerId &&
+        process.env.RAPIDAPI_KEY
+      ) {
+        try {
+          const scorecardRounds = await getCachedScorecard(
+            tournament.slashTournId,
+            year,
+            golfer.slashPlayerId
+          );
+          // Only count completed rounds
+          const completedRounds = scorecardRounds.filter(
+            (r) => r.roundComplete && r.holes.length > 0
+          );
+          if (completedRounds.length > 0) {
+            let par3Total = 0, par3Count = 0;
+            let par4Total = 0, par4Count = 0;
+            let par5Total = 0, par5Count = 0;
+            for (const r of completedRounds) {
+              for (const h of r.holes) {
+                if (h.par === 0 || h.holeScore === 0) continue;
+                const diff = h.holeScore - h.par;
+                if (h.par === 3) { par3Total += diff; par3Count++; }
+                else if (h.par === 4) { par4Total += diff; par4Count++; }
+                else if (h.par >= 5) { par5Total += diff; par5Count++; }
+              }
+            }
+            parTypePerformance = {
+              par3: par3Count > 0 ? Math.round((par3Total / par3Count) * 100) / 100 : null,
+              par4: par4Count > 0 ? Math.round((par4Total / par4Count) * 100) / 100 : null,
+              par5: par5Count > 0 ? Math.round((par5Total / par5Count) * 100) / 100 : null,
+            };
+          }
+        } catch (err) {
+          console.error(`[Heatmap] Scorecard failed for ${golfer.name}:`, err);
+        }
+      }
+
       data.push({
         player: { name: player.name, slug: player.slug, color: player.color },
         golfer: { name: golfer.name, flagEmoji: golfer.flagEmoji },
         rounds: live?.rounds ?? { 1: null, 2: null, 3: null, 4: null },
         totalToPar: live?.total ?? null,
         position: live?.position ?? null,
+        parTypePerformance,
       });
     }
 

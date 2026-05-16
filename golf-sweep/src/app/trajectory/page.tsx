@@ -32,7 +32,9 @@ export default function TrajectoryPage() {
     rounds: Record<number, number | null>;
     totalToPar: number | null;
     position: string | null;
+    parTypePerformance?: { par3: number | null; par4: number | null; par5: number | null };
   }>>([]);
+  const [showParType, setShowParType] = useState(true);
   const [tab, setTab] = useState<Tab>("evolution");
   const [tournamentId, setTournamentId] = useState<number>(0);
 
@@ -347,6 +349,20 @@ export default function TrajectoryPage() {
       {/* Heatmap */}
       {tab === "heatmap" && (
         <div className="bg-dark-card border border-dark-border rounded-xl p-4 overflow-x-auto">
+          {/* Par-type toggle */}
+          {heatmapData.some((d) => d.parTypePerformance && (d.parTypePerformance.par3 !== null || d.parTypePerformance.par4 !== null || d.parTypePerformance.par5 !== null)) && (
+            <div className="flex justify-end mb-2">
+              <label className="flex items-center gap-1 cursor-pointer text-xs text-cream/50">
+                <input
+                  type="checkbox"
+                  checked={showParType}
+                  onChange={(e) => setShowParType(e.target.checked)}
+                  className="w-3 h-3"
+                />
+                Par-type breakdown
+              </label>
+            </div>
+          )}
           <table className="w-full text-sm" style={{ fontVariantNumeric: "tabular-nums" }}>
             <thead>
               <tr className="text-xs text-cream/40 uppercase">
@@ -357,6 +373,13 @@ export default function TrajectoryPage() {
                 <th className="text-center w-14 py-2">R4</th>
                 <th className="text-center w-14 py-2">Tot</th>
                 <th className="text-center w-10 py-2">Pos</th>
+                {showParType && (
+                  <>
+                    <th className="text-center w-12 py-2 text-[10px]">P3</th>
+                    <th className="text-center w-12 py-2 text-[10px]">P4</th>
+                    <th className="text-center w-12 py-2 text-[10px]">P5</th>
+                  </>
+                )}
               </tr>
             </thead>
             <tbody>
@@ -385,6 +408,52 @@ export default function TrajectoryPage() {
                       : "—"}
                   </td>
                   <td className="text-center py-2 text-cream/60 text-xs">{row.position ?? "—"}</td>
+                  {showParType && (
+                    <>
+                      <td className="text-center py-2">
+                        <div
+                          className="w-10 h-10 mx-auto rounded-md flex items-center justify-center font-mono font-bold text-xs"
+                          style={{ backgroundColor: heatColor(row.parTypePerformance?.par3 != null ? Math.round(row.parTypePerformance.par3) : null) }}
+                        >
+                          {row.parTypePerformance?.par3 != null
+                            ? row.parTypePerformance.par3 === 0
+                              ? "E"
+                              : row.parTypePerformance.par3 > 0
+                                ? `+${row.parTypePerformance.par3.toFixed(2)}`
+                                : row.parTypePerformance.par3.toFixed(2)
+                            : "—"}
+                        </div>
+                      </td>
+                      <td className="text-center py-2">
+                        <div
+                          className="w-10 h-10 mx-auto rounded-md flex items-center justify-center font-mono font-bold text-xs"
+                          style={{ backgroundColor: heatColor(row.parTypePerformance?.par4 != null ? Math.round(row.parTypePerformance.par4) : null) }}
+                        >
+                          {row.parTypePerformance?.par4 != null
+                            ? row.parTypePerformance.par4 === 0
+                              ? "E"
+                              : row.parTypePerformance.par4 > 0
+                                ? `+${row.parTypePerformance.par4.toFixed(2)}`
+                                : row.parTypePerformance.par4.toFixed(2)
+                            : "—"}
+                        </div>
+                      </td>
+                      <td className="text-center py-2">
+                        <div
+                          className="w-10 h-10 mx-auto rounded-md flex items-center justify-center font-mono font-bold text-xs"
+                          style={{ backgroundColor: heatColor(row.parTypePerformance?.par5 != null ? Math.round(row.parTypePerformance.par5) : null) }}
+                        >
+                          {row.parTypePerformance?.par5 != null
+                            ? row.parTypePerformance.par5 === 0
+                              ? "E"
+                              : row.parTypePerformance.par5 > 0
+                                ? `+${row.parTypePerformance.par5.toFixed(2)}`
+                                : row.parTypePerformance.par5.toFixed(2)
+                            : "—"}
+                        </div>
+                      </td>
+                    </>
+                  )}
                 </tr>
               ))}
             </tbody>

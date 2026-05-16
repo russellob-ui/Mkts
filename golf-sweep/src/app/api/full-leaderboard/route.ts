@@ -5,10 +5,13 @@ import { tournaments, golfers, picks, players } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import {
   getLeaderboard,
+  getScorecard,
+  analyzeScorecardRound,
   normalizeGolferName,
   parseScoreStr,
   unwrapBson,
   getGolfSeasonYear,
+  ScorecardRound,
 } from "@/lib/slashgolf";
 
 export const dynamic = "force-dynamic";
@@ -23,6 +26,7 @@ let cachedPlayers: Array<{
   thru: string | null;
   currentRoundNumber: number | null;
   roundScores: Record<number, number | null>;
+  roundBreakdown?: Record<number, { birdies: number; eagles: number; bogeys: number; doubles: number }>;
   isOurPick: boolean;
   ourPlayerName?: string;
   ourPlayerColor?: string | null;
@@ -30,6 +34,21 @@ let cachedPlayers: Array<{
   flagEmoji?: string | null;
 }> = [];
 let cachedTournamentName = "";
+
+// Scorecard cache — 60s per player
+const scorecardCache = new Map<string, { data: ScorecardRound[]; cachedAt: number }>();
+async function getCachedScorecard(
+  tournId: string,
+  year: number,
+  playerId: string
+): Promise<ScorecardRound[]> {
+  const key = `${tournId}-${year}-${playerId}`;
+  const cached = scorecardCache.get(key);
+  if (cached && Date.now() - cached.cachedAt < 60_000) return cached.data;
+  const data = await getScorecard(tournId, year, playerId);
+  scorecardCache.set(key, { data, cachedAt: Date.now() });
+  return data;
+}
 
 export async function GET() {
   try {
@@ -243,9 +262,45 @@ export async function GET() {
         isOurPick: !!ourPlayer,
         ourPlayerName: ourPlayer?.name,
         ourPlayerColor: ourPlayer?.color,
+        roundBreakdown: undefined as Record<number, { birdies: number; eagles: number; bogeys: number; doubles: number }> | undefined,
         ...(usedFallback ? { _fallbackUsed: true } : {}),
       };
     });
+
+    // Fetch scorecards for our 8 picks only (rate limit aware)
+    const year = getGolfSeasonYear();
+    for (const entry of mapped) {
+      if (!entry.isOurPick) continue;
+      // Find the golfer's slashPlayerId
+      const matchedGolfer = allGolfers.find((g) => {
+        const gNorm = normalizeGolferName(g.name);
+        const eNorm = normalizeGolferName(entry.name);
+        return gNorm === eNorm || gNorm.includes(eNorm) || eNorm.includes(gNorm);
+      });
+      if (!matchedGolfer?.slashPlayerId || !tournament.slashTournId) continue;
+
+      try {
+        const rounds = await getCachedScorecard(
+          tournament.slashTournId,
+          year,
+          matchedGolfer.slashPlayerId
+        );
+        const breakdown: Record<number, { birdies: number; eagles: number; bogeys: number; doubles: number }> = {};
+        for (const r of rounds) {
+          if (r.holes.length === 0) continue;
+          const analysis = analyzeScorecardRound(r);
+          breakdown[r.roundId] = {
+            birdies: analysis.birdies.length,
+            eagles: analysis.eagles.length,
+            bogeys: analysis.bogeys.length,
+            doubles: analysis.doubles.length,
+          };
+        }
+        entry.roundBreakdown = breakdown;
+      } catch (err) {
+        console.error(`[Full Leaderboard] Scorecard failed for ${entry.name}:`, err);
+      }
+    }
 
     // Sort by position (numeric, nulls last)
     mapped.sort((a, b) => {

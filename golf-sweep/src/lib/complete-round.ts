@@ -6,9 +6,15 @@ import {
   roundScores,
   tournamentResults,
   pointsLog,
+  golfers,
 } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
-import { calcRoundOfDay, calcBestOfRound } from "@/lib/points";
+import { calcRoundOfDay, calcBestOfRound, calcEagleBonuses } from "@/lib/points";
+import {
+  getScorecard,
+  analyzeScorecardRound,
+  getGolfSeasonYear,
+} from "@/lib/slashgolf";
 
 export interface RoundCompleteSummary {
   tournamentId: number;
@@ -16,6 +22,7 @@ export interface RoundCompleteSummary {
   alreadyComplete: boolean;
   rotd: Array<{ playerId: number; golferId: number; points: number }>;
   bor: Array<{ playerId: number; golferId: number; points: number }>;
+  eagleBonuses: Array<{ playerId: number; golferId: number; points: number }>;
 }
 
 /**
@@ -136,6 +143,7 @@ export async function completeRound(
       alreadyComplete,
       rotd: [],
       bor: [],
+      eagleBonuses: [],
     };
   }
 
@@ -234,12 +242,98 @@ export async function completeRound(
     }
   }
 
+  // --- Eagle Bonus (+2 per eagle, +5 per albatross)
+  // Check for existing eagle_bonus entries for this round to stay idempotent.
+  const existingEagleLogs = await db
+    .select()
+    .from(pointsLog)
+    .where(
+      and(
+        eq(pointsLog.tournamentId, tournamentId),
+        eq(pointsLog.source, "eagle_bonus")
+      )
+    );
+  const hasEagleBonusForThisRound = existingEagleLogs.some((l) =>
+    (l.note ?? "").toLowerCase().includes(noteSuffix)
+  );
+
+  const eagleBonusResults: RoundCompleteSummary["eagleBonuses"] = [];
+  const [tournament] = await db
+    .select()
+    .from(tournaments)
+    .where(eq(tournaments.id, tournamentId));
+
+  if (!hasEagleBonusForThisRound && tournament?.slashTournId) {
+    const year = getGolfSeasonYear();
+    const allGolfers = await db.select().from(golfers);
+
+    for (const pick of tournamentPicks) {
+      const golfer = allGolfers.find((g) => g.id === pick.golferId);
+      if (!golfer?.slashPlayerId) continue;
+
+      try {
+        const scorecardRounds = await getScorecard(
+          tournament.slashTournId,
+          year,
+          golfer.slashPlayerId,
+          roundNumber
+        );
+
+        // Only process the specific round we're completing
+        const thisRound = scorecardRounds.find(
+          (r) => r.roundId === roundNumber
+        );
+        if (!thisRound || thisRound.holes.length === 0) continue;
+
+        const analysis = analyzeScorecardRound(thisRound);
+        const bonus = calcEagleBonuses([
+          {
+            eagles: analysis.eagles.length,
+            albatross: analysis.albatross.length,
+          },
+        ]);
+
+        if (bonus > 0) {
+          const parts: string[] = [];
+          if (analysis.eagles.length > 0)
+            parts.push(
+              `${analysis.eagles.length} eagle${analysis.eagles.length > 1 ? "s" : ""}`
+            );
+          if (analysis.albatross.length > 0)
+            parts.push(
+              `${analysis.albatross.length} albatross`
+            );
+
+          await db.insert(pointsLog).values({
+            playerId: pick.playerId,
+            tournamentId,
+            source: "eagle_bonus",
+            points: bonus,
+            note: `${parts.join(", ")} in round ${roundNumber}`,
+          });
+          eagleBonusResults.push({
+            playerId: pick.playerId,
+            golferId: pick.golferId,
+            points: bonus,
+          });
+        }
+      } catch (err) {
+        console.error(
+          `[EagleBonus] Failed to fetch scorecard for golfer ${golfer.name}:`,
+          err
+        );
+        // Non-fatal — continue to next pick
+      }
+    }
+  }
+
   return {
     tournamentId,
     roundNumber,
     alreadyComplete,
     rotd: rotdResults,
     bor: borResults,
+    eagleBonuses: eagleBonusResults,
   };
 }
 

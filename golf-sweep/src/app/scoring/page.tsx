@@ -114,6 +114,34 @@ export default function ScoringPage() {
         </div>
       </section>
 
+      {/* --- Eagle Bonus ---------------------------------------------- */}
+      <section className="bg-dark-card border border-dark-border rounded-xl overflow-hidden mb-5">
+        <div className="px-4 py-2.5 border-b border-dark-border flex items-center gap-2">
+          <span className="text-lg">&#x1F985;</span>
+          <h2 className="font-serif font-bold">Eagle Bonus</h2>
+          <span className="text-[10px] text-cream/40 uppercase tracking-wider">
+            per round
+          </span>
+        </div>
+        <div className="px-4 py-3 text-sm text-cream/80 space-y-2">
+          <p>
+            <span className="text-gold font-bold">+2 points</span> for each{" "}
+            <span className="font-bold">eagle</span> your golfer makes in a
+            round (2 under par on a single hole).
+          </p>
+          <p>
+            <span className="text-gold font-bold">+5 points</span> for each{" "}
+            <span className="font-bold">albatross</span> (3 under par or
+            better on a single hole).
+          </p>
+          <p className="text-cream/60 text-xs">
+            Awarded automatically when each round is settled. Hole-in-one on a
+            par 3 counts as an eagle (+2); hole-in-one on a par 4 counts as an
+            albatross (+5).
+          </p>
+        </div>
+      </section>
+
       {/* --- Worked example ----------------------------------------- */}
       <section className="bg-dark-card border border-dark-border rounded-xl overflow-hidden mb-5">
         <div className="px-4 py-2.5 border-b border-dark-border flex items-center gap-2">
@@ -126,8 +154,9 @@ export default function ScoringPage() {
           <p className="text-cream/80">
             If your golfer finishes <span className="text-red-400 font-bold">T4</span>{" "}
             at a major, had the <span className="text-red-400 font-bold">lowest R2</span>{" "}
-            among our picks, and led our 8 after{" "}
-            <span className="text-red-400 font-bold">R2 and R3</span>:
+            among our picks, led our 8 after{" "}
+            <span className="text-red-400 font-bold">R2 and R3</span>, and
+            made <span className="text-red-400 font-bold">1 eagle</span> across the week:
           </p>
           <div className="bg-dark rounded-lg p-3 font-mono text-xs space-y-1">
             <div className="flex justify-between">
@@ -142,9 +171,13 @@ export default function ScoringPage() {
               <span className="text-cream/60">Best of Round &times; 2</span>
               <span className="text-gold font-bold">4</span>
             </div>
+            <div className="flex justify-between">
+              <span className="text-cream/60">Eagle Bonus &times; 1</span>
+              <span className="text-gold font-bold">2</span>
+            </div>
             <div className="flex justify-between border-t border-dark-border pt-1 mt-1">
               <span className="text-cream font-bold">Total</span>
-              <span className="text-gold font-black text-base">24</span>
+              <span className="text-gold font-black text-base">26</span>
             </div>
           </div>
         </div>

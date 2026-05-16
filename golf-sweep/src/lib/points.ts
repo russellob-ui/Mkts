@@ -74,3 +74,22 @@ export function calcBestOfRound(
   }
   return result;
 }
+
+/**
+ * Calculate eagle bonuses from scorecard rounds.
+ * +2 per eagle, +5 per albatross (3-under or better on a single hole).
+ * Returns total bonus for all rounds combined.
+ */
+export function calcEagleBonuses(
+  scorecardRounds: Array<{
+    eagles: number;
+    albatross: number;
+  }>
+): number {
+  let total = 0;
+  for (const r of scorecardRounds) {
+    total += r.eagles * 2;
+    total += r.albatross * 5;
+  }
+  return total;
+}

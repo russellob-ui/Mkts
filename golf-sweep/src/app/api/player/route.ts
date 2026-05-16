@@ -11,8 +11,35 @@ import {
   pointsLog,
 } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
+import {
+  getScorecard,
+  analyzeScorecardRound,
+  getGolfSeasonYear,
+  ScorecardRound,
+} from "@/lib/slashgolf";
 
 export const dynamic = "force-dynamic";
+
+// In-memory scorecard cache — 60s TTL per player
+const scorecardCache = new Map<
+  string,
+  { data: ScorecardRound[]; cachedAt: number }
+>();
+
+async function getCachedScorecard(
+  tournId: string,
+  year: number,
+  playerId: string
+): Promise<ScorecardRound[]> {
+  const key = `${tournId}-${year}-${playerId}`;
+  const cached = scorecardCache.get(key);
+  if (cached && Date.now() - cached.cachedAt < 60_000) {
+    return cached.data;
+  }
+  const data = await getScorecard(tournId, year, playerId);
+  scorecardCache.set(key, { data, cachedAt: Date.now() });
+  return data;
+}
 
 export async function GET(request: NextRequest) {
   const slug = request.nextUrl.searchParams.get("slug");
@@ -88,6 +115,60 @@ export async function GET(request: NextRequest) {
           )
         );
 
+      // Fetch scorecard if tournament has a slashTournId and golfer has a slashPlayerId
+      let scorecardRounds: Array<{
+        roundId: number;
+        roundComplete: boolean;
+        totalShots: number;
+        holes: Array<{ holeId: number; holeScore: number; par: number }>;
+        analysis: {
+          eagles: number;
+          birdies: number;
+          bogeys: number;
+          doubles: number;
+        };
+      }> = [];
+
+      if (
+        tournament.slashTournId &&
+        golfer.slashPlayerId &&
+        process.env.RAPIDAPI_KEY
+      ) {
+        try {
+          const rawRounds = await getCachedScorecard(
+            tournament.slashTournId,
+            getGolfSeasonYear(),
+            golfer.slashPlayerId
+          );
+          scorecardRounds = rawRounds
+            .filter((r) => r.holes.length > 0)
+            .map((r) => {
+              const analysis = analyzeScorecardRound(r);
+              return {
+                roundId: r.roundId,
+                roundComplete: r.roundComplete,
+                totalShots: r.totalShots,
+                holes: r.holes.map((h) => ({
+                  holeId: h.holeId,
+                  holeScore: h.holeScore,
+                  par: h.par,
+                })),
+                analysis: {
+                  eagles: analysis.eagles.length,
+                  birdies: analysis.birdies.length,
+                  bogeys: analysis.bogeys.length,
+                  doubles: analysis.doubles.length,
+                },
+              };
+            });
+        } catch (err) {
+          console.error(
+            `[Player API] Scorecard fetch failed for ${golfer.name}:`,
+            err
+          );
+        }
+      }
+
       pickDetails.push({
         tournament: {
           id: tournament.id,
@@ -109,6 +190,7 @@ export async function GET(request: NextRequest) {
             }
           : null,
         roundScores: scores,
+        scorecard: scorecardRounds,
         points: points.map((p) => ({
           source: p.source,
           points: p.points,

@@ -12,6 +12,13 @@ type PlayerStatus =
   | "dq"
   | "unknown";
 
+interface RoundBreakdown {
+  birdies: number;
+  eagles: number;
+  bogeys: number;
+  doubles: number;
+}
+
 interface FullLeaderboardEntry {
   playerId: string;
   name: string;
@@ -22,6 +29,7 @@ interface FullLeaderboardEntry {
   status: PlayerStatus;
   currentRoundNumber: number | null;
   roundScores: Record<number, number | null>;
+  roundBreakdown?: Record<number, RoundBreakdown>;
   isOurPick: boolean;
   ourPlayerName?: string;
   ourPlayerColor?: string | null;
@@ -36,6 +44,23 @@ function scoreColor(s: number | null): string {
   if (s === 0) return "text-gray-400";
   if (s <= 2) return "text-white";
   return "text-gray-500";
+}
+
+/** Render small coloured dots for birdie/eagle/bogey counts — tablet+ only */
+function BreakdownDots({ bd }: { bd: RoundBreakdown | undefined }) {
+  if (!bd) return null;
+  const dots: Array<{ color: string; key: string }> = [];
+  for (let i = 0; i < bd.eagles; i++) dots.push({ color: "bg-yellow-500", key: `e${i}` });
+  for (let i = 0; i < bd.birdies; i++) dots.push({ color: "bg-red-400", key: `b${i}` });
+  for (let i = 0; i < bd.bogeys; i++) dots.push({ color: "bg-blue-400", key: `g${i}` });
+  if (dots.length === 0) return null;
+  return (
+    <span className="hidden md:inline-flex gap-[2px] ml-0.5 items-center">
+      {dots.map((d) => (
+        <span key={d.key} className={`inline-block w-1 h-1 rounded-full ${d.color}`} />
+      ))}
+    </span>
+  );
 }
 
 export default function FullLeaderboardPage() {
@@ -147,15 +172,19 @@ export default function FullLeaderboardPage() {
               </span>
               <span className={`w-7 text-right font-mono text-[10px] hidden sm:inline ${scoreColor(entry.roundScores?.[1] ?? null)}`}>
                 {entry.roundScores?.[1] != null ? formatScore(entry.roundScores[1]) : "-"}
+                <BreakdownDots bd={entry.roundBreakdown?.[1]} />
               </span>
               <span className={`w-7 text-right font-mono text-[10px] hidden sm:inline ${scoreColor(entry.roundScores?.[2] ?? null)}`}>
                 {entry.roundScores?.[2] != null ? formatScore(entry.roundScores[2]) : "-"}
+                <BreakdownDots bd={entry.roundBreakdown?.[2]} />
               </span>
               <span className={`w-7 text-right font-mono text-[10px] hidden sm:inline ${scoreColor(entry.roundScores?.[3] ?? null)}`}>
                 {entry.roundScores?.[3] != null ? formatScore(entry.roundScores[3]) : "-"}
+                <BreakdownDots bd={entry.roundBreakdown?.[3]} />
               </span>
               <span className={`w-7 text-right font-mono text-[10px] hidden sm:inline ${scoreColor(entry.roundScores?.[4] ?? null)}`}>
                 {entry.roundScores?.[4] != null ? formatScore(entry.roundScores[4]) : "-"}
+                <BreakdownDots bd={entry.roundBreakdown?.[4]} />
               </span>
               {/* Thru column: tee time if not started, hole count / F / CUT otherwise */}
               {entry.status === "not_started" ? (
