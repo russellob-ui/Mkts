@@ -10,6 +10,7 @@ const NAV_GROUPS = [
       { href: "/full-leaderboard", label: "Full Field" },
       { href: "/banter", label: "Banter" },
       { href: "/trajectory", label: "Trajectory" },
+      { href: "/hole-by-hole", label: "Hole-by-Hole" },
     ],
   },
   {

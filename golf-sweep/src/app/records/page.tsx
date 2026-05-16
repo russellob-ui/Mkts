@@ -17,6 +17,18 @@ interface RecordEntry {
   supersededAt: string | null;
 }
 
+interface ComputedRecord {
+  recordType: string;
+  title: string;
+  playerName: string | null;
+  golferName: string;
+  tournamentName: string;
+  roundNumber: number | null;
+  value: number;
+  displayValue: string;
+  description: string;
+}
+
 const NAMED_AWARDS: Record<
   string,
   { title: string; emoji: string; description: string }
@@ -68,8 +80,15 @@ const NAMED_AWARDS: Record<
   },
 };
 
+const COMPUTED_EMOJI: Record<string, string> = {
+  most_birdies_round: "🐦",
+  most_eagles_tournament: "🦅",
+  worst_single_hole: "💣",
+};
+
 export default function RecordsPage() {
   const [records, setRecords] = useState<RecordEntry[]>([]);
+  const [computedRecords, setComputedRecords] = useState<ComputedRecord[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -77,6 +96,7 @@ export default function RecordsPage() {
       .then((r) => r.json())
       .then((d) => {
         setRecords(d.records ?? []);
+        setComputedRecords(d.computedRecords ?? []);
         setLoading(false);
       })
       .catch(() => setLoading(false));
@@ -203,6 +223,47 @@ export default function RecordsPage() {
           </div>
         )}
       </div>
+
+      {/* Computed Scorecard Records */}
+      {computedRecords.length > 0 && (
+        <div className="mb-10">
+          <h2 className="font-serif text-lg font-bold mb-4">
+            Scorecard Records
+          </h2>
+          <p className="text-cream/40 text-xs mb-3">
+            Auto-computed from hole-by-hole scorecards.
+          </p>
+
+          <div className="space-y-3">
+            {computedRecords.map((cr) => (
+              <div
+                key={cr.recordType}
+                className="bg-dark-card border border-dark-border rounded-xl p-4 flex items-center gap-4"
+              >
+                <div className="text-3xl">
+                  {COMPUTED_EMOJI[cr.recordType] ?? "⛳"}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="font-bold text-sm">{cr.title}</div>
+                  <div className="text-sm text-cream/60 mt-1">
+                    {cr.description}
+                  </div>
+                  <div className="flex items-center gap-2 mt-1 text-xs text-cream/40">
+                    {cr.playerName && <span>Picked by {cr.playerName}</span>}
+                    <span className="text-cream/20">at</span>
+                    <span>{cr.tournamentName}</span>
+                  </div>
+                </div>
+                <div className="text-right shrink-0">
+                  <div className="text-gold font-mono font-bold text-lg">
+                    {cr.displayValue}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Record History */}
       {historicRecords.length > 0 && (

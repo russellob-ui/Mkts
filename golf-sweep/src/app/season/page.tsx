@@ -15,9 +15,21 @@ interface TournamentInfo {
   status: string;
 }
 
+interface ScoringStats {
+  playerId: number;
+  playerName: string;
+  totalBirdies: number;
+  totalEagles: number;
+  totalBogeys: number;
+  birdieRate: number;
+  bestSingleRound: number | null;
+  roundsPlayed: number;
+}
+
 export default function SeasonPage() {
   const [standings, setStandings] = useState<Standing[]>([]);
   const [tournaments, setTournaments] = useState<TournamentInfo[]>([]);
+  const [scoringStats, setScoringStats] = useState<ScoringStats[]>([]);
 
   useEffect(() => {
     fetch("/api/season")
@@ -25,6 +37,7 @@ export default function SeasonPage() {
       .then((d) => {
         setStandings(d.standings ?? []);
         setTournaments(d.tournaments ?? []);
+        setScoringStats(d.scoringStats ?? []);
       });
   }, []);
 
@@ -129,6 +142,72 @@ export default function SeasonPage() {
           </div>
         )}
       </div>
+
+      {/* Scoring Stats */}
+      {scoringStats.length > 0 && scoringStats.some((s) => s.roundsPlayed > 0) && (
+        <div className="mt-8">
+          <h2 className="font-serif text-xl font-bold mb-4">
+            Scoring Stats
+          </h2>
+          <p className="text-cream/40 text-xs mb-3">
+            Hole-by-hole superlatives from finished tournaments.
+          </p>
+
+          <div className="bg-dark-card border border-dark-border rounded-xl overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-dark-border text-xs text-cream/40 uppercase tracking-wider">
+                  <th className="text-left px-4 py-3">Player</th>
+                  <th className="text-right px-3 py-3">Birdies</th>
+                  <th className="text-right px-3 py-3">Eagles</th>
+                  <th className="text-right px-3 py-3">Bogeys</th>
+                  <th className="text-right px-3 py-3">Birdie/Rnd</th>
+                  <th className="text-right px-4 py-3">Best Rnd</th>
+                </tr>
+              </thead>
+              <tbody>
+                {scoringStats
+                  .filter((s) => s.roundsPlayed > 0)
+                  .map((s) => {
+                    const standing = standings.find(
+                      (st) => st.player.id === s.playerId
+                    );
+                    const color = standing?.player.color ?? "#006747";
+
+                    return (
+                      <tr
+                        key={s.playerId}
+                        className="border-b border-dark-border/40 last:border-0 hover:bg-dark-border/20 transition-colors"
+                        style={{ borderLeft: `4px solid ${color}` }}
+                      >
+                        <td className="px-4 py-3 font-bold">{s.playerName}</td>
+                        <td className="text-right px-3 py-3 font-mono text-augusta-light">
+                          {s.totalBirdies}
+                        </td>
+                        <td className="text-right px-3 py-3 font-mono text-gold">
+                          {s.totalEagles > 0 ? s.totalEagles : (
+                            <span className="text-cream/20">-</span>
+                          )}
+                        </td>
+                        <td className="text-right px-3 py-3 font-mono text-red-400">
+                          {s.totalBogeys}
+                        </td>
+                        <td className="text-right px-3 py-3 font-mono">
+                          {s.birdieRate.toFixed(1)}
+                        </td>
+                        <td className="text-right px-4 py-3 font-mono font-bold">
+                          {s.bestSingleRound ?? (
+                            <span className="text-cream/20">-</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
