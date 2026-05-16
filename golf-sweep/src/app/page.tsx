@@ -50,20 +50,6 @@ function scoreColorClass(score: number | null): string {
   return "text-gray-500";
 }
 
-function oddsArrow(opening: number | null, current: number | null): string {
-  if (!opening || !current) return "";
-  if (current < opening - 0.5) return " ↓";
-  if (current > opening + 0.5) return " ↑";
-  return "";
-}
-
-function oddsArrowColor(opening: number | null, current: number | null): string {
-  if (!opening || !current) return "";
-  if (current < opening - 0.5) return "text-red-400";
-  if (current > opening + 0.5) return "text-gray-500";
-  return "text-cream/40";
-}
-
 export default function HomePage() {
   const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
   const [tournament, setTournament] = useState<TournamentInfo | null>(null);

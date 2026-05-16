@@ -27,12 +27,34 @@ export default function AdminPage() {
   const [passcodeResult, setPasscodeResult] = useState("");
   const [bulkPasscode, setBulkPasscode] = useState("");
 
+  // Health check
+  const [healthStatus, setHealthStatus] = useState<string | null>(null);
+  const [healthChecks, setHealthChecks] = useState<Record<string, { ok: boolean; [key: string]: unknown }> | null>(null);
+  const [healthLoading, setHealthLoading] = useState(false);
+
   function login() {
     setAuthed(true);
   }
 
+  async function fetchHealthCheck() {
+    setHealthLoading(true);
+    try {
+      const res = await fetch("/api/health-check");
+      const json = await res.json();
+      setHealthStatus(json.status ?? "error");
+      setHealthChecks(json.checks ?? null);
+    } catch {
+      setHealthStatus("error");
+      setHealthChecks(null);
+    }
+    setHealthLoading(false);
+  }
+
   useEffect(() => {
     if (authed) {
+      // Fetch health check on mount
+      fetchHealthCheck();
+
       // Load golfers for override
       fetch("/api/leaderboard")
         .then((r) => r.json())
@@ -245,6 +267,49 @@ export default function AdminPage() {
   return (
     <div className="max-w-3xl mx-auto px-4 py-6 space-y-6">
       <h1 className="font-serif text-2xl font-bold">Admin Panel</h1>
+
+      {/* Health Check */}
+      <div className="bg-dark-card border border-dark-border rounded-xl p-4">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="font-bold">Pre-Tournament Health Check</h2>
+          <button
+            onClick={fetchHealthCheck}
+            disabled={healthLoading}
+            className="bg-dark-border hover:bg-cream/20 disabled:opacity-50 text-cream px-3 py-1 rounded text-xs font-bold transition-colors"
+          >
+            {healthLoading ? "Checking..." : "Re-check"}
+          </button>
+        </div>
+
+        {healthStatus && healthStatus !== "ok" && (
+          <div className="bg-red-600/20 border border-red-500/40 rounded-lg px-4 py-2 mb-3 text-sm text-red-300 font-bold">
+            System status: {healthStatus.toUpperCase()} — one or more checks failed
+          </div>
+        )}
+
+        {healthChecks && (
+          <div className="space-y-1.5">
+            {Object.entries(healthChecks).map(([key, check]) => (
+              <div key={key} className="flex items-start gap-2 text-sm">
+                <span className="flex-shrink-0">{check.ok ? "✅" : "❌"}</span>
+                <div className="min-w-0">
+                  <span className="font-bold text-cream/90">{key}</span>
+                  <span className="text-cream/50 text-xs ml-2">
+                    {Object.entries(check)
+                      .filter(([k]) => k !== "ok")
+                      .map(([k, v]) => `${k}: ${typeof v === "object" ? JSON.stringify(v) : String(v)}`)
+                      .join(" · ")}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {healthLoading && !healthChecks && (
+          <div className="text-xs text-cream/40">Running checks...</div>
+        )}
+      </div>
 
       {/* Poll Now */}
       <div className="bg-dark-card border border-dark-border rounded-xl p-4">

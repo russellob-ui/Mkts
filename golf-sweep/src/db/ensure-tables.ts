@@ -342,28 +342,5 @@ export async function ensureTables() {
     )
   `);
 
-  // One-shot: delete incorrect PGA Championship round bonuses.
-  // completeRound was awarding BOR for R2-R4 (not played yet) and ROTD
-  // wasn't split correctly among tied players.
-  try {
-    await db.execute(sql`DELETE FROM points_log WHERE tournament_id = (SELECT id FROM tournaments WHERE name LIKE '%PGA%' AND status = 'live' LIMIT 1) AND (source = 'rotd' OR source = 'bor')`);
-    console.log("[Migration] Cleared incorrect PGA round bonuses");
-  } catch { /* non-fatal */ }
-
-  // One-shot: force odds re-poll with new best-price logic
-  try {
-    await db.execute(sql`UPDATE tournaments SET last_odds_polled_at = NULL WHERE status = 'live'`);
-    await db.execute(sql`DELETE FROM live_odds WHERE tournament_id IN (SELECT id FROM tournaments WHERE status = 'live')`);
-  } catch { /* non-fatal */ }
-
-  // One-shot: clear stale slashPlayerId values from golfers table.
-  // These IDs are tournament-specific but were cached globally, causing
-  // cross-tournament name mismatches (e.g., Fleetwood's Masters ID
-  // pointing to a different player in the PGA Championship).
-  try {
-    await db.execute(sql`UPDATE golfers SET slash_player_id = NULL`);
-    console.log("[Migration] Cleared stale slashPlayerId values");
-  } catch { /* non-fatal */ }
-
   console.log("[DB] All tables ensured (v1+v2+v3+v3.5)");
 }

@@ -258,62 +258,10 @@ export async function GET() {
     cachedAt = now;
     cachedTournamentName = tournament.name;
 
-    // Build _debug diagnostic section
-    const pickedGolferIds = tournamentPicks.map((p) => p.golferId);
-    const matchedGolfersFromPicks = allGolfers
-      .filter((g) => pickedGolferIds.includes(g.id))
-      .map((g) => ({ id: g.id, name: g.name }));
-
-    const golferIdToPlayerEntries = Array.from(golferIdToPlayer.entries()).map(
-      ([gid, p]) => ({ golferId: gid, playerName: p.name })
-    );
-
-    const perPickLeaderboardMatch = tournamentPicks.map((pick) => {
-      const golfer = allGolfers.find((g) => g.id === pick.golferId);
-      const golferName = golfer?.name ?? "(not found)";
-      const normName = normalizeGolferName(golferName);
-
-      // Simulate the same allGolfers.find logic used in mapping
-      const matchedInLeaderboard = mapped.find((m) => {
-        const mNorm = normalizeGolferName(m.name);
-        return mNorm === normName || mNorm.includes(normName) || normName.includes(mNorm);
-      });
-
-      const idLookup = golferIdToPlayer.get(pick.golferId);
-      const nameLookup = golferNameToPlayer.get(normName);
-
-      return {
-        golferName,
-        normalised: normName,
-        golferIdInPicks: pick.golferId,
-        golferIdInGolfersTable: golfer?.id ?? null,
-        leaderboardMatch: matchedInLeaderboard
-          ? { name: matchedInLeaderboard.name, isOurPick: matchedInLeaderboard.isOurPick }
-          : null,
-        idLookupResult: idLookup ? idLookup.name : null,
-        nameFallbackResult: nameLookup ? nameLookup.name : null,
-      };
-    });
-
-    const _debug = {
-      tournament: { id: tournament.id, name: tournament.name },
-      tournamentPicksCount: tournamentPicks.length,
-      tournamentPicks: tournamentPicks.map((p) => ({
-        playerId: p.playerId,
-        golferId: p.golferId,
-      })),
-      matchedGolfersFromPicks,
-      golferIdToPlayerEntries,
-      perPickLeaderboardMatch,
-      highlightedCount: mapped.filter((m) => m.isOurPick).length,
-      fallbackUsedCount: mapped.filter((m) => (m as Record<string, unknown>)._fallbackUsed).length,
-    };
-
     return NextResponse.json({
       players: mapped,
       tournament: tournament.name,
       cachedAgo: 0,
-      _debug,
     });
   } catch (error) {
     console.error("[Full Leaderboard] Error:", error);
