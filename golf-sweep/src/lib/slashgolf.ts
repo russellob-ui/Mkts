@@ -257,13 +257,22 @@ export async function getScorecard(
   return rounds.map((r) => {
     const obj = r as Record<string, unknown>;
     const holesRaw = obj.holes ?? obj.holeScores ?? obj.scorecardHoles;
-    const holes: ScorecardHole[] = Array.isArray(holesRaw)
-      ? (holesRaw as Array<Record<string, unknown>>).map((h) => ({
-          holeId: Number(unwrapBson(h.holeId ?? h.hole ?? h.holeNumber) ?? 0),
-          holeScore: Number(unwrapBson(h.holeScore ?? h.score ?? h.strokes) ?? 0),
-          par: Number(unwrapBson(h.par ?? h.holePar) ?? 0),
-        }))
-      : [];
+
+    // Holes can be an OBJECT keyed by hole number {"1": {...}, "2": {...}}
+    // or an ARRAY [{...}, {...}]. Slash Golf uses the object form.
+    let holesArray: Array<Record<string, unknown>> = [];
+    if (holesRaw && typeof holesRaw === "object" && !Array.isArray(holesRaw)) {
+      holesArray = Object.values(holesRaw as Record<string, unknown>)
+        .filter((v): v is Record<string, unknown> => typeof v === "object" && v !== null);
+    } else if (Array.isArray(holesRaw)) {
+      holesArray = holesRaw as Array<Record<string, unknown>>;
+    }
+
+    const holes: ScorecardHole[] = holesArray.map((h) => ({
+      holeId: Number(unwrapBson(h.holeId ?? h.hole ?? h.holeNumber) ?? 0),
+      holeScore: Number(unwrapBson(h.holeScore ?? h.score ?? h.strokes) ?? 0),
+      par: Number(unwrapBson(h.par ?? h.holePar) ?? 0),
+    })).sort((a, b) => a.holeId - b.holeId);
 
     return {
       roundId: Number(unwrapBson(obj.roundId ?? obj.round) ?? 0),
