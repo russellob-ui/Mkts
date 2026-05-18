@@ -342,5 +342,43 @@ export async function ensureTables() {
     )
   `);
 
+  // One-shot: re-settle PGA Championship finish points with correct final positions.
+  // The auto-finish captured positions mid-reshuffle (Thomas got "2" instead of "T4").
+  // Delete stale finish points so finishTournament can re-award with correct positions.
+  try {
+    await db.execute(sql`
+      DELETE FROM points_log
+      WHERE source = 'finish'
+      AND tournament_id IN (SELECT id FROM tournaments WHERE status = 'finished' AND name LIKE '%PGA%')
+    `);
+    console.log("[Migration] Cleared PGA finish points for re-settlement");
+  } catch { /* non-fatal */ }
+
+  // One-shot: correct PGA Championship final positions from official PGA Tour data.
+  // Auto-finish captured mid-reshuffle positions (Thomas="2", Åberg="T10" etc.)
+  // Official: T4 Thomas, T4 Åberg, T7 McIlroy, T7 Schauffele, T14 Scheffler, T35 Potgieter
+  try {
+    const pgaCorrections = [
+      { golfer: "Justin Thomas", pos: "T4", score: -5 },
+      { golfer: "Ludvig", pos: "T4", score: -5 },  // Åberg
+      { golfer: "Rory McIlroy", pos: "T7", score: -4 },
+      { golfer: "Xander Schauffele", pos: "T7", score: -4 },
+      { golfer: "Scottie Scheffler", pos: "T14", score: -2 },
+      { golfer: "Aldrich Potgieter", pos: "T35", score: 1 },
+      { golfer: "Robert MacIntyre", pos: "CUT", score: 5 },
+      { golfer: "Tommy Fleetwood", pos: "CUT", score: 5 },
+    ];
+    for (const c of pgaCorrections) {
+      await db.execute(sql`
+        UPDATE tournament_results SET final_position = ${c.pos}, final_score_to_par = ${c.score}
+        WHERE tournament_id IN (SELECT id FROM tournaments WHERE name LIKE '%PGA%')
+        AND golfer_id IN (SELECT id FROM golfers WHERE LOWER(name) LIKE ${`%${c.golfer.toLowerCase()}%`})
+      `);
+    }
+    console.log("[Migration] Corrected PGA final positions from official data");
+  } catch (err) {
+    console.error("[Migration] PGA position correction failed:", err);
+  }
+
   console.log("[DB] All tables ensured (v1+v2+v3+v3.5)");
 }
