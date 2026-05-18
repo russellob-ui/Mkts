@@ -342,24 +342,5 @@ export async function ensureTables() {
     )
   `);
 
-  // One-shot: reopen PGA Championship so finishTournament re-polls fresh
-  // final positions from Slash Golf and re-awards finish points correctly.
-  // The auto-finish captured mid-reshuffle positions (Thomas="2" not "T4").
-  try {
-    // Delete stale finish points
-    await db.execute(sql`
-      DELETE FROM points_log
-      WHERE source = 'finish'
-      AND tournament_id IN (SELECT id FROM tournaments WHERE name LIKE '%PGA%')
-    `);
-    // Set PGA back to live so the leaderboard self-heal re-finishes it
-    // with fresh positions from the Slash Golf API
-    await db.execute(sql`
-      UPDATE tournaments SET status = 'live'
-      WHERE name LIKE '%PGA%' AND status = 'finished'
-    `);
-    console.log("[Migration] Reopened PGA for re-settlement with fresh positions");
-  } catch { /* non-fatal */ }
-
   console.log("[DB] All tables ensured (v1+v2+v3+v3.5)");
 }

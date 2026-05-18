@@ -424,7 +424,14 @@ export async function GET() {
       }
     }
 
+    // Fallback priority: live → most recently finished → upcoming → any
+    // Between tournaments, show the finished results (not the empty next one)
     const tournament = liveTournaments[liveTournaments.length - 1] ?? (
+      await db.select().from(tournaments)
+        .where(eq(tournaments.status, "finished"))
+        .orderBy(desc(tournaments.id))
+        .limit(1)
+    )[0] ?? (
       await db.select().from(tournaments)
         .where(eq(tournaments.status, "upcoming"))
         .limit(1)
