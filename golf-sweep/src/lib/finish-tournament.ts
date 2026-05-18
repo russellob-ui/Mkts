@@ -9,6 +9,12 @@ import {
 } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import { getFinishPoints } from "@/lib/points";
+import {
+  getLeaderboard,
+  parseLeaderboardPlayers,
+  normalizeGolferName,
+  getGolfSeasonYear,
+} from "@/lib/slashgolf";
 
 export interface FinishSummary {
   tournamentId: number;
@@ -71,6 +77,48 @@ export async function finishTournament(
     .select()
     .from(picks)
     .where(eq(picks.tournamentId, tournamentId));
+
+  // Re-poll the Slash Golf API for the LATEST final positions.
+  // The positions stored in tournament_results may be stale (captured
+  // mid-reshuffle during auto-finish). Re-polling ensures we use the
+  // actual official final positions for points calculation.
+  if (tournament.slashTournId && process.env.RAPIDAPI_KEY) {
+    try {
+      const lbRaw = await getLeaderboard(tournament.slashTournId, getGolfSeasonYear());
+      const lbPlayers = parseLeaderboardPlayers(lbRaw);
+
+      for (const pick of tournamentPicks) {
+        const golfer = allGolfers.find((g) => g.id === pick.golferId);
+        if (!golfer) continue;
+
+        const normalized = normalizeGolferName(golfer.name);
+        const lbPlayer = lbPlayers.find((p) => {
+          const pNorm = normalizeGolferName(p.name);
+          return pNorm === normalized || pNorm.includes(normalized) || normalized.includes(pNorm);
+        });
+
+        if (lbPlayer) {
+          // Update tournament_results with the LATEST position from the API
+          const [existing] = await db.select().from(tournamentResults).where(
+            and(eq(tournamentResults.golferId, pick.golferId), eq(tournamentResults.tournamentId, tournamentId))
+          );
+          if (existing) {
+            await db.update(tournamentResults)
+              .set({ finalPosition: lbPlayer.position, finalScoreToPar: lbPlayer.scoreToPar, madeCut: lbPlayer.madeCut })
+              .where(eq(tournamentResults.id, existing.id));
+          } else {
+            await db.insert(tournamentResults).values({
+              golferId: pick.golferId, tournamentId,
+              finalPosition: lbPlayer.position, finalScoreToPar: lbPlayer.scoreToPar, madeCut: lbPlayer.madeCut,
+            });
+          }
+        }
+      }
+      console.log("[FinishTournament] Re-polled final positions from Slash Golf");
+    } catch (err) {
+      console.error("[FinishTournament] Re-poll failed (using cached positions):", err);
+    }
+  }
 
   // Which players already have finish points for this tournament?
   // Filters double-awarding on repeat invocation.
