@@ -342,24 +342,33 @@ export async function ensureTables() {
     )
   `);
 
-  // One-shot: delete ALL PGA bonus points and reopen for re-settlement
-  // with fresh API data. completeRound now re-polls from Slash Golf.
+  // One-shot: delete stale PGA bonus points and reopen for re-settlement.
+  // Guarded by system_health sentinel so it only runs once.
   try {
-    await db.execute(sql`
-      DELETE FROM points_log
-      WHERE (source = 'rotd' OR source = 'bor' OR source = 'finish' OR source = 'eagle_bonus')
-      AND tournament_id IN (SELECT id FROM tournaments WHERE name LIKE '%PGA%')
+    const sentinelRows = await db.execute(sql`
+      SELECT id FROM system_health WHERE check_type = 'pga_resettlement_v2' LIMIT 1
     `);
-    await db.execute(sql`
-      UPDATE tournaments SET status = 'live'
-      WHERE name LIKE '%PGA%' AND status = 'finished'
-    `);
-    // Reset round statuses so completeRound re-runs
-    await db.execute(sql`
-      UPDATE rounds SET status = 'upcoming'
-      WHERE tournament_id IN (SELECT id FROM tournaments WHERE name LIKE '%PGA%')
-    `);
-    console.log("[Migration] Reopened PGA for full re-settlement with fresh API data");
+    const hasSentinel = (sentinelRows as unknown as unknown[]).length > 0;
+    if (!hasSentinel) {
+      await db.execute(sql`
+        DELETE FROM points_log
+        WHERE (source = 'rotd' OR source = 'bor' OR source = 'finish' OR source = 'eagle_bonus')
+        AND tournament_id IN (SELECT id FROM tournaments WHERE name LIKE '%PGA%')
+      `);
+      await db.execute(sql`
+        UPDATE tournaments SET status = 'live'
+        WHERE name LIKE '%PGA%' AND status = 'finished'
+      `);
+      await db.execute(sql`
+        UPDATE rounds SET status = 'upcoming'
+        WHERE tournament_id IN (SELECT id FROM tournaments WHERE name LIKE '%PGA%')
+      `);
+      await db.execute(sql.raw(`
+        INSERT INTO system_health (check_type, status, details)
+        VALUES ('pga_resettlement_v2', 'done', '{"ran_at": "${new Date().toISOString()}"}')
+      `));
+      console.log("[Migration] Reopened PGA for full re-settlement with fresh API data");
+    }
   } catch { /* non-fatal */ }
 
   console.log("[DB] All tables ensured (v1+v2+v3+v3.5)");
