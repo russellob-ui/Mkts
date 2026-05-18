@@ -342,5 +342,25 @@ export async function ensureTables() {
     )
   `);
 
+  // One-shot: delete ALL PGA bonus points and reopen for re-settlement
+  // with fresh API data. completeRound now re-polls from Slash Golf.
+  try {
+    await db.execute(sql`
+      DELETE FROM points_log
+      WHERE (source = 'rotd' OR source = 'bor' OR source = 'finish' OR source = 'eagle_bonus')
+      AND tournament_id IN (SELECT id FROM tournaments WHERE name LIKE '%PGA%')
+    `);
+    await db.execute(sql`
+      UPDATE tournaments SET status = 'live'
+      WHERE name LIKE '%PGA%' AND status = 'finished'
+    `);
+    // Reset round statuses so completeRound re-runs
+    await db.execute(sql`
+      UPDATE rounds SET status = 'upcoming'
+      WHERE tournament_id IN (SELECT id FROM tournaments WHERE name LIKE '%PGA%')
+    `);
+    console.log("[Migration] Reopened PGA for full re-settlement with fresh API data");
+  } catch { /* non-fatal */ }
+
   console.log("[DB] All tables ensured (v1+v2+v3+v3.5)");
 }

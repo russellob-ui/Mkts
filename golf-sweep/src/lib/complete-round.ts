@@ -120,21 +120,57 @@ export async function completeRound(
     .from(picks)
     .where(eq(picks.tournamentId, tournamentId));
 
+  // Re-poll scores from Slash Golf scorecard API for accurate data.
+  // The round_scores table may have stale values from API lag during polling.
+  const [tournamentForPoll] = await db.select().from(tournaments).where(eq(tournaments.id, tournamentId));
+  const allGolfers = await db.select().from(golfers);
+
+  // Map: golferId → per-round scoreToPar from scorecard API
+  const freshScores = new Map<number, Record<number, number | null>>();
+
+  if (tournamentForPoll?.slashTournId && process.env.RAPIDAPI_KEY) {
+    const year = getGolfSeasonYear();
+    const { getLeaderboard: getLb, parseLeaderboardPlayers: parseLb, normalizeGolferName: normName } = await import("@/lib/slashgolf");
+    try {
+      const lbRaw = await getLb(tournamentForPoll.slashTournId, year);
+      const lbPlayers = parseLb(lbRaw);
+
+      for (const pick of tournamentPicks) {
+        const golfer = allGolfers.find((g) => g.id === pick.golferId);
+        if (!golfer) continue;
+        const normalized = normName(golfer.name);
+        const lbPlayer = lbPlayers.find((p) => {
+          const n = normName(p.name);
+          return n === normalized || n.includes(normalized) || normalized.includes(n);
+        });
+        if (lbPlayer) {
+          freshScores.set(pick.golferId, lbPlayer.roundScores);
+        }
+      }
+    } catch (err) {
+      console.error("[CompleteRound] Re-poll failed, using cached round_scores:", err);
+    }
+  }
+
+  // Helper: get round score for a golfer, preferring fresh API data
+  async function getRoundScore(golferId: number, rNum: number): Promise<number | null> {
+    const fresh = freshScores.get(golferId);
+    if (fresh && fresh[rNum] != null) return fresh[rNum]!;
+    // Fallback to DB round_scores
+    const allRoundRows = await db.select().from(rounds).where(eq(rounds.tournamentId, tournamentId));
+    const rr = allRoundRows.find((x) => x.roundNumber === rNum);
+    if (!rr) return null;
+    const [score] = await db.select().from(roundScores).where(
+      and(eq(roundScores.golferId, golferId), eq(roundScores.roundId, rr.id))
+    );
+    return score?.scoreToPar ?? null;
+  }
+
   // --- Guard: don't award bonuses if no scores exist for this round.
-  // The self-heal calls completeRound for R1-R4 on every request, but
-  // R2-R4 won't have data until those rounds are actually played.
   let totalScoresForRound = 0;
   for (const pick of tournamentPicks) {
-    const [score] = await db
-      .select()
-      .from(roundScores)
-      .where(
-        and(
-          eq(roundScores.golferId, pick.golferId),
-          eq(roundScores.roundId, round.id)
-        )
-      );
-    if (score?.scoreToPar != null) totalScoresForRound++;
+    const score = await getRoundScore(pick.golferId, roundNumber);
+    if (score != null) totalScoresForRound++;
   }
   if (totalScoresForRound === 0) {
     return {
@@ -156,19 +192,11 @@ export async function completeRound(
       scoreToPar: number | null;
     }> = [];
     for (const pick of tournamentPicks) {
-      const [score] = await db
-        .select()
-        .from(roundScores)
-        .where(
-          and(
-            eq(roundScores.golferId, pick.golferId),
-            eq(roundScores.roundId, round.id)
-          )
-        );
+      const score = await getRoundScore(pick.golferId, roundNumber);
       roundScoreRows.push({
         golferId: pick.golferId,
         playerId: pick.playerId,
-        scoreToPar: score?.scoreToPar ?? null,
+        scoreToPar: score,
       });
     }
     const rotdMap = calcRoundOfDay(roundScoreRows);
@@ -195,29 +223,15 @@ export async function completeRound(
   // BOR using R4 totals and pick the wrong leader.
   const borResults: RoundCompleteSummary["bor"] = [];
   if (!hasBorForThisRound) {
-    const allRoundRows = await db
-      .select()
-      .from(rounds)
-      .where(eq(rounds.tournamentId, tournamentId));
-
+    // Compute cumulative score through this round using fresh API data
     const cumScores: Array<{ golferId: number; totalToPar: number | null }> = [];
     for (const pick of tournamentPicks) {
       let cumulative = 0;
       let hasAny = false;
       for (let r = 1; r <= roundNumber; r++) {
-        const rr = allRoundRows.find((x) => x.roundNumber === r);
-        if (!rr) continue;
-        const [score] = await db
-          .select()
-          .from(roundScores)
-          .where(
-            and(
-              eq(roundScores.golferId, pick.golferId),
-              eq(roundScores.roundId, rr.id)
-            )
-          );
-        if (score?.scoreToPar != null) {
-          cumulative += score.scoreToPar;
+        const score = await getRoundScore(pick.golferId, r);
+        if (score != null) {
+          cumulative += score;
           hasAny = true;
         }
       }
@@ -258,14 +272,9 @@ export async function completeRound(
   );
 
   const eagleBonusResults: RoundCompleteSummary["eagleBonuses"] = [];
-  const [tournament] = await db
-    .select()
-    .from(tournaments)
-    .where(eq(tournaments.id, tournamentId));
 
-  if (!hasEagleBonusForThisRound && tournament?.slashTournId) {
+  if (!hasEagleBonusForThisRound && tournamentForPoll?.slashTournId) {
     const year = getGolfSeasonYear();
-    const allGolfers = await db.select().from(golfers);
 
     for (const pick of tournamentPicks) {
       const golfer = allGolfers.find((g) => g.id === pick.golferId);
@@ -273,7 +282,7 @@ export async function completeRound(
 
       try {
         const scorecardRounds = await getScorecard(
-          tournament.slashTournId,
+          tournamentForPoll.slashTournId,
           year,
           golfer.slashPlayerId,
           roundNumber
