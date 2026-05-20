@@ -21,7 +21,18 @@ export const players = pgTable("players", {
   passcode: text("passcode"),
   color: text("color"),
   rowColor: text("row_color"),
+  isCommissioner: boolean("is_commissioner").default(false),
   createdAt: timestamp("created_at").defaultNow(),
+});
+
+// ---- Invite Codes ----
+
+export const inviteCodes = pgTable("invite_codes", {
+  id: serial("id").primaryKey(),
+  code: text("code").notNull().unique(),
+  usedByPlayerId: integer("used_by_player_id").references(() => players.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  usedAt: timestamp("used_at"),
 });
 
 // ---- 48 World Cup Teams ----

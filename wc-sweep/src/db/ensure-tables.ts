@@ -210,5 +210,31 @@ export async function ensureTables() {
     )
   `);
 
+  // -- Add is_commissioner column to players (safe idempotent ALTER) --
+  try {
+    await db.execute(sql`ALTER TABLE players ADD COLUMN IF NOT EXISTS is_commissioner BOOLEAN DEFAULT false`);
+  } catch (e) {
+    // column may already exist on older PG versions without IF NOT EXISTS support
+    console.log("[DB] is_commissioner column may already exist:", e);
+  }
+
+  // -- Invite codes table --
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS invite_codes (
+      id SERIAL PRIMARY KEY,
+      code TEXT NOT NULL UNIQUE,
+      used_by_player_id INTEGER REFERENCES players(id),
+      created_at TIMESTAMP DEFAULT NOW(),
+      used_at TIMESTAMP
+    )
+  `);
+
+  // -- One-shot: make the first player the commissioner --
+  try {
+    await db.execute(sql`UPDATE players SET is_commissioner = true WHERE id = (SELECT MIN(id) FROM players)`);
+  } catch (e) {
+    console.log("[DB] Commissioner migration note:", e);
+  }
+
   console.log("[DB] WC Sweep tables ensured");
 }
