@@ -10,6 +10,7 @@ import {
 } from "@/db/schema";
 import { and, gte, lte, eq } from "drizzle-orm";
 import { sendDigestEmail } from "@/lib/send-email";
+import { sendWhatsAppGroupMessage } from "@/lib/whatsapp";
 
 export const dynamic = "force-dynamic";
 
@@ -324,9 +325,51 @@ ${myPoints ? `
       }
     }
 
+    // Send WhatsApp group summary
+    let whatsappSent = false;
+    try {
+      const todayMatchList = todayMatches
+        .map((m) => {
+          const home = allTeams.find((t) => t.id === m.homeTeamId);
+          const away = allTeams.find((t) => t.id === m.awayTeamId);
+          const homeOwner = allAssignments.find((a) => a.teamId === m.homeTeamId);
+          const awayOwner = allAssignments.find((a) => a.teamId === m.awayTeamId);
+          const hName = home?.flagEmoji ?? "";
+          const aName = away?.flagEmoji ?? "";
+          const hOwner = homeOwner ? allPlayers.find((p) => p.id === homeOwner.playerId)?.name ?? "" : "";
+          const aOwner = awayOwner ? allPlayers.find((p) => p.id === awayOwner.playerId)?.name ?? "" : "";
+          const time = m.kickoff ? new Date(m.kickoff).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/London" }) : "TBC";
+          return `${time} ${hName} ${home?.name ?? "?"} vs ${away?.name ?? "?"} ${aName}\n   ${hOwner} vs ${aOwner}`;
+        })
+        .join("\n\n");
+
+      const leaderboardText = allPlayers
+        .map((p) => {
+          const pts = allPoints.filter((pt) => pt.playerId === p.id).reduce((s, pt) => s + pt.points, 0);
+          return { name: p.name, pts };
+        })
+        .sort((a, b) => b.pts - a.pts)
+        .slice(0, 5)
+        .map((p, i) => `${i + 1}. ${p.name} — ${p.pts.toFixed(1)} pts`)
+        .join("\n");
+
+      const waMsg = `⚽ *WC Sweep 2026 — Daily Update*\n\n` +
+        (todayMatches.length > 0
+          ? `🏟️ *Today's Matches*\n\n${todayMatchList}\n\n`
+          : `No matches today.\n\n`) +
+        `🏆 *Leaderboard*\n${leaderboardText}\n\n` +
+        `📱 Open the app → ${process.env.NEXT_PUBLIC_APP_URL ?? "https://mkts-dun.vercel.app"}\n` +
+        `🎯 Don't forget your predictions!`;
+
+      whatsappSent = await sendWhatsAppGroupMessage(waMsg);
+    } catch (err) {
+      console.error("[Daily Digest] WhatsApp failed:", err);
+    }
+
     return NextResponse.json({
       sent,
       errors,
+      whatsappSent,
       totalPlayers: allPlayers.length,
       playersWithEmail: allPlayers.filter((p) => p.email).length,
     });

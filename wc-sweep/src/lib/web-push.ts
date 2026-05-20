@@ -61,7 +61,7 @@ export async function sendPushNotification(
         TTL: "86400",
         Urgency: "normal",
       },
-      body: encrypted,
+      body: new Uint8Array(encrypted),
     });
 
     if (res.status === 201 || res.status === 200) {

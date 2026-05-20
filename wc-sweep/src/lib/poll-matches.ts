@@ -18,6 +18,7 @@ import {
 } from "@/lib/api-football";
 import { calcMatchPoints } from "@/lib/points";
 import { resolvePredictions } from "@/lib/resolve-predictions";
+import { sendWhatsAppGroupMessage } from "@/lib/whatsapp";
 
 // ---- Types ----
 
@@ -469,6 +470,10 @@ async function generateGoalBanter(
       importance,
       source: "auto",
     });
+    // Send goal to WhatsApp group
+    try {
+      await sendWhatsAppGroupMessage(`${emoji} ${headline}\n${detail}`);
+    } catch { /* non-fatal */ }
     return true;
   } catch {
     return false;
