@@ -3,6 +3,7 @@ import { db } from "@/db";
 import { ensureTables } from "@/db/ensure-tables";
 import { wcTeams, groupStandings } from "@/db/schema";
 import { sql } from "drizzle-orm";
+import { verifyAdminRequest } from "@/lib/admin-auth";
 
 let tablesEnsured = false;
 
@@ -93,12 +94,15 @@ const WC_2026_TEAMS: Array<{
   { name: "Jamaica", fifaCode: "JAM", groupLetter: "L", flagEmoji: "\u{1F1EF}\u{1F1F2}", tier: 4 },
 ];
 
-export async function POST() {
+export async function POST(request: Request) {
   try {
     if (!tablesEnsured) {
       await ensureTables();
       tablesEnsured = true;
     }
+
+    const authError = await verifyAdminRequest(request);
+    if (authError) return authError;
 
     // Create unique index on fifa_code if it doesn't exist, for idempotent seeding
     await db.execute(

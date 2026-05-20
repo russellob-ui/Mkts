@@ -112,7 +112,11 @@ export default function AdminPage() {
     setLoading(true);
     setResult(null);
     try {
-      const res = await fetch(url, { method: "POST" });
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ adminPasscode: newPasscode }),
+      });
       const data = await res.json();
       if (res.ok) {
         setResult({ ok: true, msg: data.message ?? "Done" });

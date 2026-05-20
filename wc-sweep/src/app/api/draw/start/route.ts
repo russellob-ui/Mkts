@@ -9,15 +9,19 @@ import {
 } from "@/db/schema";
 import { generateSeed, generateDraw } from "@/lib/draw";
 import { eq } from "drizzle-orm";
+import { verifyAdminRequest } from "@/lib/admin-auth";
 
 let tablesEnsured = false;
 
-export async function POST() {
+export async function POST(request: Request) {
   try {
     if (!tablesEnsured) {
       await ensureTables();
       tablesEnsured = true;
     }
+
+    const authError = await verifyAdminRequest(request);
+    if (authError) return authError;
 
     // Check if draw already completed
     const stateRows = await db.select().from(drawState);

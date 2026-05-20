@@ -4,15 +4,19 @@ import { ensureTables } from "@/db/ensure-tables";
 import { matches, wcTeams } from "@/db/schema";
 import { sql } from "drizzle-orm";
 import { getFixturesByLeague, mapStatus } from "@/lib/api-football";
+import { verifyAdminRequest } from "@/lib/admin-auth";
 
 let tablesEnsured = false;
 
-export async function POST() {
+export async function POST(request: Request) {
   try {
     if (!tablesEnsured) {
       await ensureTables();
       tablesEnsured = true;
     }
+
+    const authError = await verifyAdminRequest(request);
+    if (authError) return authError;
 
     // Fetch all WC 2026 fixtures from API-Football
     const fixtures = await getFixturesByLeague(2026);

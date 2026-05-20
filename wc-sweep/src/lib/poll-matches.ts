@@ -17,6 +17,7 @@ import {
   type ApiEvent,
 } from "@/lib/api-football";
 import { calcMatchPoints } from "@/lib/points";
+import { resolvePredictions } from "@/lib/resolve-predictions";
 
 // ---- Types ----
 
@@ -242,8 +243,16 @@ export async function settleMatch(matchId: number): Promise<void> {
     .from(teamAssignments)
     .where(eq(teamAssignments.teamId, match.awayTeamId));
 
+  // Check if either player activated a wildcard on this match
+  const wildcardRows = await db.select().from(pointsLog).where(
+    and(eq(pointsLog.matchId, matchId), eq(pointsLog.source, "wildcard_activated"))
+  );
+  const wildcardPlayerIds = new Set(wildcardRows.map((r) => r.playerId));
+
   // Award points for home team
   if (homeAssignment) {
+    const homeWildcard = wildcardPlayerIds.has(homeAssignment.playerId);
+    const multiplier = homeWildcard ? 2 : 1;
     const homePoints = calcMatchPoints(
       homeScore,
       awayScore,
@@ -253,6 +262,8 @@ export async function settleMatch(matchId: number): Promise<void> {
       homeTeam.tier
     );
     for (const entry of homePoints) {
+      const pts = entry.points * multiplier;
+      const note = homeWildcard ? `${entry.note} [WILDCARD x2]` : entry.note;
       await db.execute(sql`
         INSERT INTO points_log (player_id, team_id, match_id, source, points, note)
         VALUES (
@@ -260,8 +271,8 @@ export async function settleMatch(matchId: number): Promise<void> {
           ${homeTeam.id},
           ${matchId},
           ${entry.source},
-          ${entry.points},
-          ${entry.note}
+          ${pts},
+          ${note}
         )
         ON CONFLICT (player_id, team_id, match_id, source) DO NOTHING
       `);
@@ -270,6 +281,8 @@ export async function settleMatch(matchId: number): Promise<void> {
 
   // Award points for away team
   if (awayAssignment) {
+    const awayWildcard = wildcardPlayerIds.has(awayAssignment.playerId);
+    const multiplier = awayWildcard ? 2 : 1;
     const awayPoints = calcMatchPoints(
       homeScore,
       awayScore,
@@ -279,6 +292,8 @@ export async function settleMatch(matchId: number): Promise<void> {
       awayTeam.tier
     );
     for (const entry of awayPoints) {
+      const pts = entry.points * multiplier;
+      const note = awayWildcard ? `${entry.note} [WILDCARD x2]` : entry.note;
       await db.execute(sql`
         INSERT INTO points_log (player_id, team_id, match_id, source, points, note)
         VALUES (
@@ -286,8 +301,8 @@ export async function settleMatch(matchId: number): Promise<void> {
           ${awayTeam.id},
           ${matchId},
           ${entry.source},
-          ${entry.points},
-          ${entry.note}
+          ${pts},
+          ${note}
         )
         ON CONFLICT (player_id, team_id, match_id, source) DO NOTHING
       `);
@@ -351,7 +366,8 @@ export async function settleMatch(matchId: number): Promise<void> {
     emoji = "🎉";
     importance = 7;
   } else {
-    headline = `FT: ${scoreLine} — honours even`;
+    const drawNames = [homeOwner, awayOwner].filter(Boolean).join(" & ");
+    headline = `FT: ${scoreLine} — honours even${drawNames ? ` for ${drawNames}` : ""}`;
     emoji = "🤝";
     importance = 5;
   }
@@ -371,6 +387,13 @@ export async function settleMatch(matchId: number): Promise<void> {
     importance,
     source: "auto",
   });
+
+  // Resolve predictions for this match
+  try {
+    await resolvePredictions(matchId);
+  } catch (err) {
+    console.error(`[settleMatch] Failed to resolve predictions for match ${matchId}:`, err);
+  }
 }
 
 // ---- Helpers ----
@@ -378,6 +401,7 @@ export async function settleMatch(matchId: number): Promise<void> {
 function mapEventType(type: string, detail: string): string {
   const t = type.toLowerCase();
   if (t === "goal") {
+    if (detail === "Missed Penalty") return "penalty_miss";
     if (detail === "Penalty") return "penalty_goal";
     if (detail === "Own Goal") return "own_goal";
     return "goal";
