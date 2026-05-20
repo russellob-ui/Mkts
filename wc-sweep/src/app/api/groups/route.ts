@@ -17,12 +17,11 @@ export async function GET() {
       tablesEnsured = true;
     }
 
-    const allStandings = await db.select().from(groupStandings);
     const allTeams = await db.select().from(wcTeams);
+    const allStandings = await db.select().from(groupStandings);
     const allAssignments = await db.select().from(teamAssignments);
     const allPlayers = await db.select().from(players);
 
-    // Build a map of teamId -> owner player
     const ownerMap = new Map<
       number,
       { ownerName: string; ownerColor: string }
@@ -37,61 +36,63 @@ export async function GET() {
       }
     }
 
-    // Group standings by group letter
-    const groups: Record<
-      string,
-      Array<{
-        teamId: number;
-        teamName: string;
-        flagEmoji: string;
-        ownerName: string | null;
-        ownerColor: string | null;
-        played: number;
-        won: number;
-        drawn: number;
-        lost: number;
-        gf: number;
-        ga: number;
-        gd: number;
-        points: number;
-        position: number | null;
-        qualified: boolean;
-      }>
-    > = {};
+    const standingsMap = new Map(
+      allStandings.map((s) => [s.teamId, s])
+    );
 
-    for (const s of allStandings) {
-      const team = allTeams.find((t) => t.id === s.teamId);
-      const owner = ownerMap.get(s.teamId);
+    const groups: Record<string, Array<{
+      teamId: number;
+      teamName: string;
+      flagEmoji: string;
+      tier: number;
+      ownerName: string | null;
+      ownerColor: string | null;
+      played: number;
+      won: number;
+      drawn: number;
+      lost: number;
+      gf: number;
+      ga: number;
+      gd: number;
+      points: number;
+      position: number | null;
+      qualified: boolean;
+    }>> = {};
+
+    for (const team of allTeams) {
+      const s = standingsMap.get(team.id);
+      const owner = ownerMap.get(team.id);
 
       const entry = {
-        teamId: s.teamId,
-        teamName: team?.name ?? "?",
-        flagEmoji: team?.flagEmoji ?? "🏳️",
+        teamId: team.id,
+        teamName: team.name,
+        flagEmoji: team.flagEmoji ?? "🏳️",
+        tier: team.tier,
         ownerName: owner?.ownerName ?? null,
         ownerColor: owner?.ownerColor ?? null,
-        played: s.played,
-        won: s.won,
-        drawn: s.drawn,
-        lost: s.lost,
-        gf: s.goalsFor,
-        ga: s.goalsAgainst,
-        gd: s.goalDifference,
-        points: s.points,
-        position: s.position,
-        qualified: s.qualified ?? false,
+        played: s?.played ?? 0,
+        won: s?.won ?? 0,
+        drawn: s?.drawn ?? 0,
+        lost: s?.lost ?? 0,
+        gf: s?.goalsFor ?? 0,
+        ga: s?.goalsAgainst ?? 0,
+        gd: s?.goalDifference ?? 0,
+        points: s?.points ?? 0,
+        position: s?.position ?? null,
+        qualified: s?.qualified ?? false,
       };
 
-      if (!groups[s.groupLetter]) {
-        groups[s.groupLetter] = [];
-      }
-      groups[s.groupLetter].push(entry);
+      const letter = team.groupLetter;
+      if (!groups[letter]) groups[letter] = [];
+      groups[letter].push(entry);
     }
 
-    // Sort each group by position
     for (const letter of Object.keys(groups)) {
-      groups[letter].sort(
-        (a, b) => (a.position ?? 999) - (b.position ?? 999)
-      );
+      groups[letter].sort((a, b) => {
+        if (a.points !== b.points) return b.points - a.points;
+        if (a.gd !== b.gd) return b.gd - a.gd;
+        return b.gf - a.gf;
+      });
     }
 
     return NextResponse.json({ groups });
