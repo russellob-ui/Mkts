@@ -22,6 +22,10 @@ export const players = pgTable("players", {
   color: text("color"),
   rowColor: text("row_color"),
   isCommissioner: boolean("is_commissioner").default(false),
+  email: text("email"),
+  phone: text("phone"), // WhatsApp number with country code e.g. +447548442766
+  pushSubscription: text("push_subscription"), // Web push subscription JSON
+  notificationPrefs: text("notification_prefs"), // JSON preferences
   createdAt: timestamp("created_at").defaultNow(),
 });
 

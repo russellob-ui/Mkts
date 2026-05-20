@@ -218,6 +218,16 @@ export async function ensureTables() {
     console.log("[DB] is_commissioner column may already exist:", e);
   }
 
+  // -- Add notification columns to players --
+  try {
+    await db.execute(sql`ALTER TABLE players ADD COLUMN IF NOT EXISTS email TEXT`);
+    await db.execute(sql`ALTER TABLE players ADD COLUMN IF NOT EXISTS phone TEXT`);
+    await db.execute(sql`ALTER TABLE players ADD COLUMN IF NOT EXISTS push_subscription TEXT`);
+    await db.execute(sql`ALTER TABLE players ADD COLUMN IF NOT EXISTS notification_prefs TEXT`);
+  } catch (e) {
+    console.log("[DB] notification columns may already exist:", e);
+  }
+
   // -- Invite codes table --
   await db.execute(sql`
     CREATE TABLE IF NOT EXISTS invite_codes (

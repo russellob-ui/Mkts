@@ -28,6 +28,9 @@ export async function GET() {
       avatarEmoji: p.avatarEmoji,
       color: p.color,
       rowColor: p.rowColor,
+      email: p.email,
+      phone: p.phone,
+      pushSubscription: p.pushSubscription ? true : false,
       createdAt: p.createdAt,
       teamCount: assignmentCounts.get(p.id) ?? 0,
     }));

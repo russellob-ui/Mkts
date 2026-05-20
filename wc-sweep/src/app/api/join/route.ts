@@ -14,12 +14,14 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { name, passcode, color, avatarEmoji, inviteCode } = body as {
+    const { name, passcode, color, avatarEmoji, inviteCode, email, phone } = body as {
       name?: string;
       passcode?: string;
       color?: string;
       avatarEmoji?: string;
       inviteCode?: string;
+      email?: string;
+      phone?: string;
     };
 
     if (!name || !name.trim()) {
@@ -32,6 +34,20 @@ export async function POST(request: Request) {
     if (!passcode || !passcode.trim()) {
       return NextResponse.json(
         { error: "Passcode is required" },
+        { status: 400 }
+      );
+    }
+
+    if (!email || !email.includes("@")) {
+      return NextResponse.json(
+        { error: "A valid email address is required" },
+        { status: 400 }
+      );
+    }
+
+    if (!phone || !/^\+\d{10,}$/.test(phone.replace(/\s/g, ""))) {
+      return NextResponse.json(
+        { error: "Phone number must start with + and contain at least 10 digits" },
         { status: 400 }
       );
     }
@@ -94,6 +110,8 @@ export async function POST(request: Request) {
         passcode: passcode.trim(),
         color: color?.trim() || null,
         avatarEmoji: avatarEmoji?.trim() || null,
+        email: email.trim(),
+        phone: phone.replace(/\s/g, ""),
       })
       .returning();
 

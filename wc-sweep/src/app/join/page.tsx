@@ -31,6 +31,8 @@ function JoinForm() {
 
   const [inviteCode, setInviteCode] = useState(codeFromUrl);
   const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
   const [passcode, setPasscode] = useState("");
   const [color, setColor] = useState("#d4a843");
   const [avatarEmoji, setAvatarEmoji] = useState("⚽");
@@ -55,6 +57,8 @@ function JoinForm() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: name.trim(),
+          email: email.trim(),
+          phone: phone.trim(),
           passcode: passcode.trim(),
           color,
           avatarEmoji,
@@ -136,6 +140,38 @@ function JoinForm() {
             placeholder="e.g. Russell"
             value={name}
             onChange={(e) => setName(e.target.value)}
+            required
+            className="w-full bg-dark border border-dark-border rounded-lg px-3 py-2.5 text-sm text-cream placeholder:text-cream/30 focus:outline-none focus:border-wc-gold"
+          />
+        </div>
+
+        {/* Email */}
+        <div className="space-y-1.5">
+          <label className="text-xs font-semibold text-cream/60 uppercase tracking-wider">
+            Email
+          </label>
+          <p className="text-xs text-cream/40">For daily digest and notifications.</p>
+          <input
+            type="email"
+            placeholder="you@example.com"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+            className="w-full bg-dark border border-dark-border rounded-lg px-3 py-2.5 text-sm text-cream placeholder:text-cream/30 focus:outline-none focus:border-wc-gold"
+          />
+        </div>
+
+        {/* WhatsApp Number */}
+        <div className="space-y-1.5">
+          <label className="text-xs font-semibold text-cream/60 uppercase tracking-wider">
+            WhatsApp Number
+          </label>
+          <p className="text-xs text-cream/40">With country code, for group updates.</p>
+          <input
+            type="tel"
+            placeholder="+44..."
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
             required
             className="w-full bg-dark border border-dark-border rounded-lg px-3 py-2.5 text-sm text-cream placeholder:text-cream/30 focus:outline-none focus:border-wc-gold"
           />
