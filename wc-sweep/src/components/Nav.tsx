@@ -2,16 +2,44 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 
-const NAV_LINKS = [
-  { href: "/", label: "Home" },
-  { href: "/groups", label: "Groups" },
-  { href: "/bracket", label: "Bracket" },
-  { href: "/draw", label: "Draw" },
-  { href: "/predictions", label: "Predictions" },
-  { href: "/chat", label: "Chat" },
-  { href: "/scoring", label: "Scoring Rules" },
+const NAV_SECTIONS = [
+  {
+    label: "Live",
+    links: [
+      { href: "/", label: "Home" },
+      { href: "/groups", label: "Groups" },
+      { href: "/bracket", label: "Bracket" },
+      { href: "/golden-boot", label: "Golden Boot" },
+    ],
+  },
+  {
+    label: "Play",
+    links: [
+      { href: "/predictions", label: "Predictions" },
+      { href: "/wildcards", label: "Wildcards" },
+      { href: "/chat", label: "Chat" },
+    ],
+  },
+  {
+    label: "Social",
+    links: [
+      { href: "/my-day", label: "My Day" },
+      { href: "/digest", label: "Digest" },
+      { href: "/rivalry", label: "Rivalry" },
+      { href: "/achievements", label: "Achievements" },
+      { href: "/stats", label: "Stats" },
+    ],
+  },
+  {
+    label: "End",
+    links: [
+      { href: "/yearbook", label: "Yearbook" },
+      { href: "/scoring", label: "Scoring Rules" },
+    ],
+  },
 ];
 
+const ALL_LINKS = NAV_SECTIONS.flatMap((s) => s.links);
 const ADMIN_LINK = { href: "/admin", label: "Admin" };
 
 export default function Nav() {
@@ -43,7 +71,7 @@ export default function Nav() {
 
           {/* Desktop links */}
           <div className="hidden md:flex items-center gap-4 text-sm text-cream/60">
-            {NAV_LINKS.filter((l) => l.href !== "/").map((link) => (
+            {ALL_LINKS.filter((l) => l.href !== "/").map((link) => (
               <Link
                 key={link.href}
                 href={link.href}
@@ -120,21 +148,28 @@ export default function Nav() {
           </div>
 
           {/* Menu links */}
-          <div className="max-w-5xl mx-auto px-4 py-6">
-            <div className="space-y-1">
-              {NAV_LINKS.map((link) => (
-                <Link
-                  key={link.href}
-                  href={link.href}
-                  onClick={() => setOpen(false)}
-                  className="block px-3 py-3 text-base font-medium text-cream hover:text-wc-gold hover:bg-dark-border/40 rounded-lg transition-colors"
-                >
-                  {link.label}
-                </Link>
-              ))}
-            </div>
+          <div className="max-w-5xl mx-auto px-4 py-6 space-y-6">
+            {NAV_SECTIONS.map((section) => (
+              <div key={section.label}>
+                <div className="text-xs font-semibold text-cream/30 uppercase tracking-wider px-3 mb-1">
+                  {section.label}
+                </div>
+                <div className="space-y-0.5">
+                  {section.links.map((link) => (
+                    <Link
+                      key={link.href}
+                      href={link.href}
+                      onClick={() => setOpen(false)}
+                      className="block px-3 py-3 text-base font-medium text-cream hover:text-wc-gold hover:bg-dark-border/40 rounded-lg transition-colors"
+                    >
+                      {link.label}
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            ))}
 
-            <div className="mt-8 pt-4 border-t border-dark-border">
+            <div className="pt-4 border-t border-dark-border">
               <Link
                 href={ADMIN_LINK.href}
                 onClick={() => setOpen(false)}
