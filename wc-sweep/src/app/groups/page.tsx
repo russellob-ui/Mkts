@@ -23,6 +23,7 @@ interface GroupTeam {
 export default function GroupsPage() {
   const [groups, setGroups] = useState<Record<string, GroupTeam[]>>({});
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     async function load() {
@@ -31,9 +32,12 @@ export default function GroupsPage() {
         if (res.ok) {
           const data = await res.json();
           setGroups(data.groups ?? {});
+          setError(null);
+        } else {
+          setError(`API returned ${res.status}`);
         }
-      } catch {
-        // API not ready yet
+      } catch (err) {
+        setError(String(err));
       } finally {
         setLoading(false);
       }
@@ -58,9 +62,13 @@ export default function GroupsPage() {
 
       {loading ? (
         <div className="text-center py-12 text-cream/40">Loading...</div>
+      ) : error ? (
+        <div className="bg-dark-card border border-red-500 rounded-lg p-6 text-center text-red-400">
+          Error: {error}
+        </div>
       ) : sortedLetters.length === 0 ? (
         <div className="bg-dark-card border border-dark-border rounded-lg p-6 text-center text-cream/40">
-          No group standings available yet.
+          No group standings available yet. (0 groups returned from API)
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
