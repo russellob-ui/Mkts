@@ -124,23 +124,11 @@ export async function POST() {
     // Seed group_standings rows for each team (0-0-0 initial standings)
     const allTeams = await db.select().from(wcTeams);
     for (const team of allTeams) {
-      await db
-        .insert(groupStandings)
-        .values({
-          teamId: team.id,
-          groupLetter: team.groupLetter,
-          played: 0,
-          won: 0,
-          drawn: 0,
-          lost: 0,
-          goalsFor: 0,
-          goalsAgainst: 0,
-          goalDifference: 0,
-          points: 0,
-          position: null,
-          qualified: false,
-        })
-        .onConflictDoNothing();
+      await db.execute(
+        sql`INSERT INTO group_standings (team_id, group_letter, played, won, drawn, lost, goals_for, goals_against, goal_difference, points, position, qualified)
+            VALUES (${team.id}, ${team.groupLetter}, 0, 0, 0, 0, 0, 0, 0, 0, NULL, false)
+            ON CONFLICT (team_id) DO NOTHING`
+      );
     }
 
     return NextResponse.json({
