@@ -45,6 +45,8 @@ interface UpcomingMatch {
   stage: string;
 }
 
+type PredictionTab = "match_result" | "exact_score" | "first_scorer";
+
 function formatKickoff(iso: string): string {
   if (!iso) return "";
   const d = new Date(iso);
@@ -60,15 +62,67 @@ function formatKickoff(iso: string): string {
   return `${day} ${time}`;
 }
 
+function ConfidenceStars({
+  value,
+  onChange,
+  disabled,
+}: {
+  value: number;
+  onChange: (v: number) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <div className="flex items-center gap-1">
+      <span className="text-xs text-cream/40 mr-1">Confidence:</span>
+      {[1, 2, 3, 4, 5].map((star) => (
+        <button
+          key={star}
+          type="button"
+          disabled={disabled}
+          onClick={() => onChange(star)}
+          className={`text-lg transition-all ${
+            star <= value
+              ? "text-wc-gold drop-shadow-[0_0_4px_rgba(212,168,67,0.5)]"
+              : "text-cream/20 hover:text-cream/40"
+          } ${disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`}
+        >
+          ★
+        </button>
+      ))}
+      {value > 1 && (
+        <span className="text-xs text-cream/40 ml-1">
+          {value === 2
+            ? "1.25x"
+            : value === 3
+              ? "1.5x"
+              : value === 4
+                ? "1.75x"
+                : "2x"}
+          {" / "}
+          <span className="text-red-400">-{value - 1} if wrong</span>
+        </span>
+      )}
+    </div>
+  );
+}
+
 export default function PredictionsPage() {
   const [playersList, setPlayersList] = useState<Player[]>([]);
   const [selectedPlayerId, setSelectedPlayerId] = useState<number | null>(null);
   const [predictions, setPredictions] = useState<Prediction[]>([]);
   const [upcomingMatches, setUpcomingMatches] = useState<UpcomingMatch[]>([]);
   const [passcode, setPasscode] = useState("");
-  const [submitting, setSubmitting] = useState<number | null>(null);
+  const [submitting, setSubmitting] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<PredictionTab>("match_result");
+
+  // Local state for exact scores and first scorers (before submission)
+  const [exactScores, setExactScores] = useState<
+    Record<number, { home: string; away: string }>
+  >({});
+  const [firstScorers, setFirstScorers] = useState<Record<number, string>>({});
+  const [confidences, setConfidences] = useState<Record<string, number>>({});
 
   // Load passcode from localStorage
   useEffect(() => {
@@ -96,10 +150,12 @@ export default function PredictionsPage() {
             color: p.color,
           }));
           setPlayersList(list);
-          // Auto-select first player if none selected
           if (!selectedPlayerId && list.length > 0) {
             const storedId = localStorage.getItem("wc_sweep_player_id");
-            if (storedId && list.find((p: Player) => p.playerId === Number(storedId))) {
+            if (
+              storedId &&
+              list.find((p: Player) => p.playerId === Number(storedId))
+            ) {
               setSelectedPlayerId(Number(storedId));
             } else {
               setSelectedPlayerId(list[0].playerId);
@@ -130,12 +186,36 @@ export default function PredictionsPage() {
 
       if (predsRes.ok) {
         const predsData = await predsRes.json();
-        setPredictions(predsData.predictions ?? []);
+        const preds: Prediction[] = predsData.predictions ?? [];
+        setPredictions(preds);
+
+        // Initialize local state from existing predictions
+        const newExactScores: Record<number, { home: string; away: string }> =
+          {};
+        const newFirstScorers: Record<number, string> = {};
+        const newConfidences: Record<string, number> = {};
+
+        for (const p of preds) {
+          if (!p.matchId) continue;
+          if (p.predictionType === "exact_score") {
+            const [h, a] = p.predictionValue.split("-");
+            newExactScores[p.matchId] = { home: h ?? "", away: a ?? "" };
+          } else if (p.predictionType === "first_scorer") {
+            newFirstScorers[p.matchId] = p.predictionValue;
+          } else if (p.predictionType === "confidence") {
+            // Find which other prediction types exist for this match
+            // Store confidence keyed by matchId (applies to all prediction types for that match)
+            newConfidences[String(p.matchId)] = Number(p.predictionValue) || 1;
+          }
+        }
+
+        setExactScores((prev) => ({ ...prev, ...newExactScores }));
+        setFirstScorers((prev) => ({ ...prev, ...newFirstScorers }));
+        setConfidences((prev) => ({ ...prev, ...newConfidences }));
       }
 
       if (matchesRes.ok) {
         const matchesData = await matchesRes.json();
-        // Collect all scheduled matches from the various buckets
         const all: UpcomingMatch[] = [];
         for (const bucket of ["today", "upcoming"]) {
           const items = matchesData[bucket] ?? [];
@@ -154,7 +234,6 @@ export default function PredictionsPage() {
             }
           }
         }
-        // Also fetch all scheduled matches directly in case they're beyond 48h
         const allMatchesRes = await fetch("/api/matches?date=all");
         if (allMatchesRes.ok) {
           const allData = await allMatchesRes.json();
@@ -187,7 +266,6 @@ export default function PredictionsPage() {
     }
   }, [selectedPlayerId]);
 
-  // Load data on player change + poll
   useEffect(() => {
     setLoading(true);
     loadData();
@@ -195,21 +273,27 @@ export default function PredictionsPage() {
     return () => clearInterval(interval);
   }, [loadData]);
 
-  async function submitPrediction(matchId: number, value: string) {
+  async function submitPrediction(
+    matchId: number,
+    type: PredictionTab,
+    value: string
+  ) {
     if (!selectedPlayerId) return;
-    setSubmitting(matchId);
+    setSubmitting(`${type}-${matchId}`);
     setError(null);
 
     try {
+      const conf = confidences[String(matchId)] ?? 1;
       const res = await fetch("/api/predictions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           playerId: selectedPlayerId,
           matchId,
-          predictionType: "match_result",
+          predictionType: type,
           predictionValue: value,
           passcode,
+          confidence: conf,
         }),
       });
 
@@ -217,7 +301,6 @@ export default function PredictionsPage() {
         const data = await res.json();
         setError(data.error ?? "Failed to submit prediction");
       } else {
-        // Refresh predictions
         await loadData();
       }
     } catch {
@@ -227,20 +310,38 @@ export default function PredictionsPage() {
     }
   }
 
-  // Helpers: look up current prediction for a match
-  function getPrediction(matchId: number): Prediction | undefined {
+  function getPrediction(
+    matchId: number,
+    type: string = "match_result"
+  ): Prediction | undefined {
     return predictions.find(
-      (p) => p.matchId === matchId && p.predictionType === "match_result"
+      (p) => p.matchId === matchId && p.predictionType === type
     );
   }
 
+  function getConfidence(matchId: number): number {
+    return confidences[String(matchId)] ?? 1;
+  }
+
+  function setConfidence(matchId: number, value: number) {
+    setConfidences((prev) => ({ ...prev, [String(matchId)]: value }));
+  }
+
   // Separate resolved predictions (past) from unresolved
-  const resolvedPredictions = predictions.filter((p) => p.resolved);
+  const resolvedPredictions = predictions.filter(
+    (p) => p.resolved && p.predictionType !== "confidence"
+  );
   const correctCount = resolvedPredictions.filter((p) => p.correct).length;
   const totalPoints = resolvedPredictions.reduce(
     (s, p) => s + (p.pointsAwarded ?? 0),
     0
   );
+
+  const tabs: { key: PredictionTab; label: string }[] = [
+    { key: "match_result", label: "Match Result" },
+    { key: "exact_score", label: "Exact Score" },
+    { key: "first_scorer", label: "First Scorer" },
+  ];
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-6 space-y-6">
@@ -249,7 +350,7 @@ export default function PredictionsPage() {
           <span className="text-wc-gold">Match</span> Predictions
         </h1>
         <p className="text-cream/50 text-sm">
-          Predict match results &middot; 2 points per correct prediction
+          Predict match results, exact scores &amp; first scorers
         </p>
       </div>
 
@@ -291,11 +392,28 @@ export default function PredictionsPage() {
         </div>
       )}
 
+      {/* Tabs */}
+      <div className="flex border-b border-dark-border">
+        {tabs.map((tab) => (
+          <button
+            key={tab.key}
+            onClick={() => setActiveTab(tab.key)}
+            className={`flex-1 py-3 px-2 text-sm font-medium transition-all text-center ${
+              activeTab === tab.key
+                ? "text-wc-gold border-b-2 border-wc-gold"
+                : "text-cream/40 hover:text-cream/60"
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
       {loading ? (
         <div className="text-center py-12 text-cream/40">Loading...</div>
       ) : (
         <>
-          {/* Upcoming matches with prediction buttons */}
+          {/* Upcoming matches with prediction inputs */}
           <section className="space-y-3">
             <h2 className="font-serif text-xl font-bold text-wc-gold border-b border-dark-border pb-2">
               Upcoming Matches
@@ -306,8 +424,8 @@ export default function PredictionsPage() {
               </div>
             ) : (
               upcomingMatches.map((match) => {
-                const pred = getPrediction(match.id);
-                const isSubmitting = submitting === match.id;
+                const isSubmitting = submitting === `${activeTab}-${match.id}`;
+                const matchConf = getConfidence(match.id);
 
                 return (
                   <div
@@ -331,50 +449,59 @@ export default function PredictionsPage() {
                       </div>
                     </div>
 
-                    {/* Prediction buttons */}
-                    <div className="flex gap-2">
-                      {(["home", "draw", "away"] as const).map((value) => {
-                        const isSelected = pred?.predictionValue === value;
-                        const label =
-                          value === "home"
-                            ? match.homeTeam
-                            : value === "away"
-                              ? match.awayTeam
-                              : "Draw";
+                    {/* Tab-specific prediction input */}
+                    {activeTab === "match_result" && (
+                      <MatchResultInput
+                        match={match}
+                        prediction={getPrediction(match.id, "match_result")}
+                        isSubmitting={isSubmitting}
+                        onSubmit={(value) =>
+                          submitPrediction(match.id, "match_result", value)
+                        }
+                      />
+                    )}
 
-                        return (
-                          <button
-                            key={value}
-                            onClick={() => submitPrediction(match.id, value)}
-                            disabled={isSubmitting}
-                            className={`flex-1 py-2 px-2 rounded text-xs font-medium transition-all ${
-                              isSelected
-                                ? "bg-wc-gold/20 border-2 border-wc-gold text-wc-gold"
-                                : "bg-dark border border-dark-border text-cream/60 hover:border-cream/30 hover:text-cream"
-                            } ${isSubmitting ? "opacity-50" : ""}`}
-                          >
-                            <span className="flex items-center justify-center gap-1">
-                              {isSelected && (
-                                <svg
-                                  className="w-3.5 h-3.5"
-                                  fill="none"
-                                  viewBox="0 0 24 24"
-                                  stroke="currentColor"
-                                  strokeWidth={3}
-                                >
-                                  <path
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    d="M5 13l4 4L19 7"
-                                  />
-                                </svg>
-                              )}
-                              {label}
-                            </span>
-                          </button>
-                        );
-                      })}
-                    </div>
+                    {activeTab === "exact_score" && (
+                      <ExactScoreInput
+                        match={match}
+                        scores={exactScores[match.id] ?? { home: "", away: "" }}
+                        prediction={getPrediction(match.id, "exact_score")}
+                        isSubmitting={isSubmitting}
+                        onScoreChange={(home, away) =>
+                          setExactScores((prev) => ({
+                            ...prev,
+                            [match.id]: { home, away },
+                          }))
+                        }
+                        onSubmit={(value) =>
+                          submitPrediction(match.id, "exact_score", value)
+                        }
+                      />
+                    )}
+
+                    {activeTab === "first_scorer" && (
+                      <FirstScorerInput
+                        scorer={firstScorers[match.id] ?? ""}
+                        prediction={getPrediction(match.id, "first_scorer")}
+                        isSubmitting={isSubmitting}
+                        onScorerChange={(value) =>
+                          setFirstScorers((prev) => ({
+                            ...prev,
+                            [match.id]: value,
+                          }))
+                        }
+                        onSubmit={(value) =>
+                          submitPrediction(match.id, "first_scorer", value)
+                        }
+                      />
+                    )}
+
+                    {/* Confidence slider — always shown */}
+                    <ConfidenceStars
+                      value={matchConf}
+                      onChange={(v) => setConfidence(match.id, v)}
+                      disabled={isSubmitting}
+                    />
                   </div>
                 );
               })
@@ -388,6 +515,7 @@ export default function PredictionsPage() {
                 Results
                 <span className="text-sm font-sans font-normal text-cream/50 ml-2">
                   {correctCount}/{resolvedPredictions.length} correct &middot;{" "}
+                  {totalPoints > 0 ? "+" : ""}
                   {totalPoints} pts
                 </span>
               </h2>
@@ -437,7 +565,8 @@ export default function PredictionsPage() {
                                 d="M5 13l4 4L19 7"
                               />
                             </svg>
-                            +{pred.pointsAwarded}
+                            {(pred.pointsAwarded ?? 0) > 0 ? "+" : ""}
+                            {pred.pointsAwarded}
                           </span>
                         ) : (
                           <span className="inline-flex items-center gap-1 text-xs font-medium text-red-400 bg-red-400/10 px-2 py-0.5 rounded-full">
@@ -454,19 +583,32 @@ export default function PredictionsPage() {
                                 d="M6 18L18 6M6 6l12 12"
                               />
                             </svg>
-                            Wrong
+                            {(pred.pointsAwarded ?? 0) < 0
+                              ? `${pred.pointsAwarded}`
+                              : "Wrong"}
                           </span>
                         )}
                       </div>
                     </div>
                     <div className="mt-1 text-xs text-cream/40">
+                      <span className="text-cream/30 mr-1">
+                        [{pred.predictionType === "match_result"
+                          ? "Result"
+                          : pred.predictionType === "exact_score"
+                            ? "Score"
+                            : pred.predictionType === "first_scorer"
+                              ? "Scorer"
+                              : pred.predictionType}]
+                      </span>
                       You predicted:{" "}
                       <span className="text-cream/60">
-                        {pred.predictionValue === "home"
-                          ? `${pred.match?.homeTeam ?? "Home"} win`
-                          : pred.predictionValue === "away"
-                            ? `${pred.match?.awayTeam ?? "Away"} win`
-                            : "Draw"}
+                        {pred.predictionType === "match_result"
+                          ? pred.predictionValue === "home"
+                            ? `${pred.match?.homeTeam ?? "Home"} win`
+                            : pred.predictionValue === "away"
+                              ? `${pred.match?.awayTeam ?? "Away"} win`
+                              : "Draw"
+                          : pred.predictionValue}
                       </span>
                     </div>
                   </div>
@@ -474,6 +616,219 @@ export default function PredictionsPage() {
             </section>
           )}
         </>
+      )}
+    </div>
+  );
+}
+
+/* ---- Sub-components ---- */
+
+function MatchResultInput({
+  match,
+  prediction,
+  isSubmitting,
+  onSubmit,
+}: {
+  match: UpcomingMatch;
+  prediction: Prediction | undefined;
+  isSubmitting: boolean;
+  onSubmit: (value: string) => void;
+}) {
+  return (
+    <div className="flex gap-2">
+      {(["home", "draw", "away"] as const).map((value) => {
+        const isSelected = prediction?.predictionValue === value;
+        const label =
+          value === "home"
+            ? match.homeTeam
+            : value === "away"
+              ? match.awayTeam
+              : "Draw";
+
+        return (
+          <button
+            key={value}
+            onClick={() => onSubmit(value)}
+            disabled={isSubmitting}
+            className={`flex-1 py-2 px-2 rounded text-xs font-medium transition-all ${
+              isSelected
+                ? "bg-wc-gold/20 border-2 border-wc-gold text-wc-gold"
+                : "bg-dark border border-dark-border text-cream/60 hover:border-cream/30 hover:text-cream"
+            } ${isSubmitting ? "opacity-50" : ""}`}
+          >
+            <span className="flex items-center justify-center gap-1">
+              {isSelected && (
+                <svg
+                  className="w-3.5 h-3.5"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={3}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M5 13l4 4L19 7"
+                  />
+                </svg>
+              )}
+              {label}
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function ExactScoreInput({
+  match,
+  scores,
+  prediction,
+  isSubmitting,
+  onScoreChange,
+  onSubmit,
+}: {
+  match: UpcomingMatch;
+  scores: { home: string; away: string };
+  prediction: Prediction | undefined;
+  isSubmitting: boolean;
+  onScoreChange: (home: string, away: string) => void;
+  onSubmit: (value: string) => void;
+}) {
+  const canSubmit =
+    scores.home !== "" &&
+    scores.away !== "" &&
+    !isNaN(Number(scores.home)) &&
+    !isNaN(Number(scores.away));
+  const currentValue = `${scores.home}-${scores.away}`;
+  const isAlreadySubmitted = prediction?.predictionValue === currentValue;
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center gap-2 justify-center">
+        <span className="text-xs text-cream/40">{match.homeTeam}</span>
+        <input
+          type="number"
+          min={0}
+          max={20}
+          value={scores.home}
+          onChange={(e) => onScoreChange(e.target.value, scores.away)}
+          className="w-14 bg-dark border border-dark-border rounded px-2 py-1.5 text-center text-cream text-sm"
+          placeholder="0"
+        />
+        <span className="text-cream/30">-</span>
+        <input
+          type="number"
+          min={0}
+          max={20}
+          value={scores.away}
+          onChange={(e) => onScoreChange(scores.home, e.target.value)}
+          className="w-14 bg-dark border border-dark-border rounded px-2 py-1.5 text-center text-cream text-sm"
+          placeholder="0"
+        />
+        <span className="text-xs text-cream/40">{match.awayTeam}</span>
+      </div>
+      <button
+        onClick={() => canSubmit && onSubmit(currentValue)}
+        disabled={!canSubmit || isSubmitting}
+        className={`w-full py-2 rounded text-xs font-medium transition-all ${
+          isAlreadySubmitted
+            ? "bg-wc-gold/20 border-2 border-wc-gold text-wc-gold"
+            : canSubmit
+              ? "bg-dark border border-dark-border text-cream/60 hover:border-wc-gold hover:text-wc-gold"
+              : "bg-dark border border-dark-border text-cream/20 cursor-not-allowed"
+        } ${isSubmitting ? "opacity-50" : ""}`}
+      >
+        {isAlreadySubmitted ? (
+          <span className="flex items-center justify-center gap-1">
+            <svg
+              className="w-3.5 h-3.5"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={3}
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M5 13l4 4L19 7"
+              />
+            </svg>
+            Saved: {prediction?.predictionValue}
+          </span>
+        ) : prediction ? (
+          `Update (was ${prediction.predictionValue})`
+        ) : (
+          "Submit Score"
+        )}
+      </button>
+    </div>
+  );
+}
+
+function FirstScorerInput({
+  scorer,
+  prediction,
+  isSubmitting,
+  onScorerChange,
+  onSubmit,
+}: {
+  scorer: string;
+  prediction: Prediction | undefined;
+  isSubmitting: boolean;
+  onScorerChange: (value: string) => void;
+  onSubmit: (value: string) => void;
+}) {
+  const canSubmit = scorer.trim().length > 0;
+  const isAlreadySubmitted =
+    prediction?.predictionValue.toLowerCase() === scorer.trim().toLowerCase() &&
+    scorer.trim().length > 0;
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center gap-2">
+        <input
+          type="text"
+          value={scorer}
+          onChange={(e) => onScorerChange(e.target.value)}
+          placeholder="Player name (e.g. Kane)"
+          className="flex-1 bg-dark border border-dark-border rounded px-3 py-1.5 text-cream text-sm placeholder:text-cream/20"
+        />
+        <button
+          onClick={() => canSubmit && onSubmit(scorer.trim())}
+          disabled={!canSubmit || isSubmitting}
+          className={`px-4 py-1.5 rounded text-xs font-medium transition-all ${
+            isAlreadySubmitted
+              ? "bg-wc-gold/20 border-2 border-wc-gold text-wc-gold"
+              : canSubmit
+                ? "bg-dark border border-dark-border text-cream/60 hover:border-wc-gold hover:text-wc-gold"
+                : "bg-dark border border-dark-border text-cream/20 cursor-not-allowed"
+          } ${isSubmitting ? "opacity-50" : ""}`}
+        >
+          {isAlreadySubmitted ? (
+            <svg
+              className="w-3.5 h-3.5"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={3}
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M5 13l4 4L19 7"
+              />
+            </svg>
+          ) : (
+            "Save"
+          )}
+        </button>
+      </div>
+      {prediction && (
+        <div className="text-xs text-cream/30">
+          Current: <span className="text-cream/50">{prediction.predictionValue}</span>
+        </div>
       )}
     </div>
   );

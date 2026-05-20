@@ -297,3 +297,54 @@ export const systemHealth = pgTable("system_health", {
   details: jsonb("details"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
+
+// ---- Quiz Results ----
+
+export const quizResults = pgTable(
+  "quiz_results",
+  {
+    id: serial("id").primaryKey(),
+    playerId: integer("player_id")
+      .notNull()
+      .references(() => players.id),
+    quizDate: text("quiz_date").notNull(),
+    answers: jsonb("answers").notNull(),
+    score: integer("score").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("quiz_results_unique_idx").on(table.playerId, table.quizDate),
+  ]
+);
+
+// ---- Superlative Votes ----
+
+export const superlativeVotes = pgTable(
+  "superlative_votes",
+  {
+    id: serial("id").primaryKey(),
+    voterId: integer("voter_id")
+      .notNull()
+      .references(() => players.id),
+    category: text("category").notNull(),
+    nomineePlayerSlug: text("nominee_player_slug").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("superlative_votes_unique_idx").on(
+      table.voterId,
+      table.category
+    ),
+  ]
+);
+
+// ---- Forfeit Spins ----
+
+export const forfeitSpins = pgTable("forfeit_spins", {
+  id: serial("id").primaryKey(),
+  spinnerId: integer("spinner_id").references(() => players.id),
+  forfeit: text("forfeit").notNull(),
+  targetPlayerSlug: text("target_player_slug"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});

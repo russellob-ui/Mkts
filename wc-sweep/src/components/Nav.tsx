@@ -16,6 +16,8 @@ const NAV_SECTIONS = [
     label: "Play",
     links: [
       { href: "/predictions", label: "Predictions" },
+      { href: "/props", label: "Props" },
+      { href: "/streaks", label: "Streaks" },
       { href: "/wildcards", label: "Wildcards" },
       { href: "/chat", label: "Chat" },
     ],

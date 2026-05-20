@@ -52,6 +52,38 @@ interface RivalryData {
   headToHead: HeadToHeadMatch[];
 }
 
+interface H2HMatch {
+  matchId: number;
+  homeTeam: string;
+  awayTeam: string;
+  homeFlag: string;
+  awayFlag: string;
+  homeScore: number | null;
+  awayScore: number | null;
+  status: string;
+  stage: string;
+  kickoff: string;
+  p1Side: "home" | "away";
+  p2Side: "home" | "away";
+  p1TeamName: string;
+  p2TeamName: string;
+  p1Flag: string;
+  p2Flag: string;
+  p1Points: number;
+  p2Points: number;
+  p1Won: boolean | null;
+  p2Won: boolean | null;
+}
+
+interface H2HData {
+  h2h: {
+    player1: { id: number; name: string; slug: string; color: string; totalH2HPoints: number };
+    player2: { id: number; name: string; slug: string; color: string; totalH2HPoints: number };
+    matches: H2HMatch[];
+    summary: { p1Wins: number; p2Wins: number; draws: number };
+  };
+}
+
 interface PlayerOption {
   slug: string;
   name: string;
@@ -76,6 +108,7 @@ export default function RivalryPage() {
   const [slug1, setSlug1] = useState("");
   const [slug2, setSlug2] = useState("");
   const [data, setData] = useState<RivalryData | null>(null);
+  const [h2hData, setH2hData] = useState<H2HData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -103,6 +136,7 @@ export default function RivalryPage() {
   useEffect(() => {
     if (!slug1 || !slug2 || slug1 === slug2) {
       setData(null);
+      setH2hData(null);
       return;
     }
     let cancelled = false;
@@ -110,16 +144,26 @@ export default function RivalryPage() {
       setLoading(true);
       setError(null);
       try {
-        const res = await fetch(
-          `/api/rivalry?player1=${encodeURIComponent(slug1)}&player2=${encodeURIComponent(slug2)}`
-        );
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({}));
-          setError(err.error ?? `API returned ${res.status}`);
+        const [rivalryRes, h2hRes] = await Promise.all([
+          fetch(
+            `/api/rivalry?player1=${encodeURIComponent(slug1)}&player2=${encodeURIComponent(slug2)}`
+          ),
+          fetch(
+            `/api/h2h?player1=${encodeURIComponent(slug1)}&player2=${encodeURIComponent(slug2)}`
+          ),
+        ]);
+        if (!rivalryRes.ok) {
+          const err = await rivalryRes.json().catch(() => ({}));
+          setError(err.error ?? `API returned ${rivalryRes.status}`);
           setData(null);
+          setH2hData(null);
         } else {
-          const json = await res.json();
+          const json = await rivalryRes.json();
           if (!cancelled) setData(json);
+        }
+        if (h2hRes.ok) {
+          const h2hJson = await h2hRes.json();
+          if (!cancelled) setH2hData(h2hJson);
         }
       } catch (err) {
         if (!cancelled) setError(String(err));
@@ -494,6 +538,196 @@ export default function RivalryPage() {
               </div>
             </div>
           </div>
+
+          {/* HEAD-TO-HEAD MATCHES (from /api/h2h) */}
+          {h2hData && (
+            <div className="bg-dark-card border border-dark-border rounded-lg overflow-hidden">
+              <div className="px-4 py-2 border-b border-dark-border bg-dark-border/30">
+                <h3 className="font-serif font-bold text-wc-gold">
+                  Head-to-Head Match History
+                </h3>
+                <p className="text-xs text-cream/40">
+                  Detailed match-by-match with points earned
+                </p>
+              </div>
+
+              {/* Summary Banner */}
+              {(h2hData.h2h.summary.p1Wins > 0 ||
+                h2hData.h2h.summary.p2Wins > 0 ||
+                h2hData.h2h.summary.draws > 0) && (
+                <div className="px-4 py-3 border-b border-dark-border bg-dark-border/20">
+                  <div className="text-center text-sm font-medium">
+                    {h2hData.h2h.summary.p1Wins > h2hData.h2h.summary.p2Wins ? (
+                      <span>
+                        <span style={{ color: h2hData.h2h.player1.color }}>
+                          {h2hData.h2h.player1.name}
+                        </span>
+                        <span className="text-cream/60">
+                          {" "}leads{" "}
+                        </span>
+                        <span className="text-wc-gold font-bold">
+                          {h2hData.h2h.summary.p1Wins}-{h2hData.h2h.summary.p2Wins}
+                        </span>
+                        <span className="text-cream/60">
+                          {" "}in head-to-head matches
+                          {h2hData.h2h.summary.draws > 0 &&
+                            ` (${h2hData.h2h.summary.draws} ${h2hData.h2h.summary.draws === 1 ? "draw" : "draws"})`}
+                        </span>
+                      </span>
+                    ) : h2hData.h2h.summary.p2Wins > h2hData.h2h.summary.p1Wins ? (
+                      <span>
+                        <span style={{ color: h2hData.h2h.player2.color }}>
+                          {h2hData.h2h.player2.name}
+                        </span>
+                        <span className="text-cream/60">
+                          {" "}leads{" "}
+                        </span>
+                        <span className="text-wc-gold font-bold">
+                          {h2hData.h2h.summary.p2Wins}-{h2hData.h2h.summary.p1Wins}
+                        </span>
+                        <span className="text-cream/60">
+                          {" "}in head-to-head matches
+                          {h2hData.h2h.summary.draws > 0 &&
+                            ` (${h2hData.h2h.summary.draws} ${h2hData.h2h.summary.draws === 1 ? "draw" : "draws"})`}
+                        </span>
+                      </span>
+                    ) : (
+                      <span className="text-cream/60">
+                        Tied at{" "}
+                        <span className="text-wc-gold font-bold">
+                          {h2hData.h2h.summary.p1Wins}-{h2hData.h2h.summary.p2Wins}
+                        </span>
+                        {h2hData.h2h.summary.draws > 0 &&
+                          ` with ${h2hData.h2h.summary.draws} ${h2hData.h2h.summary.draws === 1 ? "draw" : "draws"}`}
+                      </span>
+                    )}
+                  </div>
+                  {/* Points comparison */}
+                  <div className="flex justify-center gap-6 mt-1 text-xs text-cream/40">
+                    <span>
+                      <span style={{ color: h2hData.h2h.player1.color }}>
+                        {h2hData.h2h.player1.name}
+                      </span>
+                      :{" "}
+                      <span className="font-bold text-cream/70">
+                        {h2hData.h2h.player1.totalH2HPoints} pts
+                      </span>
+                    </span>
+                    <span>
+                      <span style={{ color: h2hData.h2h.player2.color }}>
+                        {h2hData.h2h.player2.name}
+                      </span>
+                      :{" "}
+                      <span className="font-bold text-cream/70">
+                        {h2hData.h2h.player2.totalH2HPoints} pts
+                      </span>
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {h2hData.h2h.matches.length === 0 ? (
+                <div className="p-6 text-center text-cream/40 text-sm">
+                  No direct matchups yet
+                </div>
+              ) : (
+                <div className="divide-y divide-dark-border/50">
+                  {h2hData.h2h.matches.map((m) => (
+                    <div key={m.matchId} className="px-4 py-3">
+                      <div className="flex items-center justify-between text-xs text-cream/40 mb-1">
+                        <span>{m.stage}</span>
+                        <span>
+                          {m.status === "finished"
+                            ? "FT"
+                            : m.status === "live"
+                              ? `LIVE`
+                              : new Date(m.kickoff).toLocaleDateString(
+                                  undefined,
+                                  { month: "short", day: "numeric" }
+                                )}
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+                        <div className="flex items-center gap-2">
+                          <span>{m.p1Flag}</span>
+                          <div>
+                            <span
+                              className={`text-sm font-medium ${
+                                m.p1Won === true
+                                  ? "text-wc-gold"
+                                  : m.p1Won === false
+                                    ? "text-cream/50"
+                                    : "text-cream"
+                              }`}
+                            >
+                              {m.p1TeamName}
+                            </span>
+                            {m.status === "finished" && (
+                              <div className="text-[10px] text-cream/40">
+                                {m.p1Points} pts
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                        <div className="text-center font-bold text-lg min-w-[60px]">
+                          {m.homeScore !== null && m.awayScore !== null ? (
+                            <>
+                              <span
+                                className={
+                                  m.p1Won === true
+                                    ? "text-wc-gold"
+                                    : "text-cream/60"
+                                }
+                              >
+                                {m.p1Side === "home"
+                                  ? m.homeScore
+                                  : m.awayScore}
+                              </span>
+                              <span className="text-cream/30 mx-1">-</span>
+                              <span
+                                className={
+                                  m.p2Won === true
+                                    ? "text-wc-gold"
+                                    : "text-cream/60"
+                                }
+                              >
+                                {m.p2Side === "home"
+                                  ? m.homeScore
+                                  : m.awayScore}
+                              </span>
+                            </>
+                          ) : (
+                            <span className="text-cream/30 text-sm">vs</span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 justify-end">
+                          <div className="text-right">
+                            <span
+                              className={`text-sm font-medium ${
+                                m.p2Won === true
+                                  ? "text-wc-gold"
+                                  : m.p2Won === false
+                                    ? "text-cream/50"
+                                    : "text-cream"
+                              }`}
+                            >
+                              {m.p2TeamName}
+                            </span>
+                            {m.status === "finished" && (
+                              <div className="text-[10px] text-cream/40 text-right">
+                                {m.p2Points} pts
+                              </div>
+                            )}
+                          </div>
+                          <span>{m.p2Flag}</span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </>
       )}
     </div>

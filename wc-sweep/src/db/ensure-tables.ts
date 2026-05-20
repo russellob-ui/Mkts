@@ -236,5 +236,42 @@ export async function ensureTables() {
     console.log("[DB] Commissioner migration note:", e);
   }
 
+  // -- Quiz Results --
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS quiz_results (
+      id SERIAL PRIMARY KEY,
+      player_id INTEGER NOT NULL REFERENCES players(id),
+      quiz_date TEXT NOT NULL,
+      answers JSONB NOT NULL,
+      score INTEGER NOT NULL,
+      created_at TIMESTAMP DEFAULT NOW() NOT NULL
+    )
+  `);
+  await db.execute(sql`CREATE UNIQUE INDEX IF NOT EXISTS quiz_results_unique_idx ON quiz_results(player_id, quiz_date)`);
+
+  // -- Superlative Votes --
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS superlative_votes (
+      id SERIAL PRIMARY KEY,
+      voter_id INTEGER NOT NULL REFERENCES players(id),
+      category TEXT NOT NULL,
+      nominee_player_slug TEXT NOT NULL,
+      created_at TIMESTAMP DEFAULT NOW() NOT NULL,
+      updated_at TIMESTAMP DEFAULT NOW()
+    )
+  `);
+  await db.execute(sql`CREATE UNIQUE INDEX IF NOT EXISTS superlative_votes_unique_idx ON superlative_votes(voter_id, category)`);
+
+  // -- Forfeit Spins --
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS forfeit_spins (
+      id SERIAL PRIMARY KEY,
+      spinner_id INTEGER REFERENCES players(id),
+      forfeit TEXT NOT NULL,
+      target_player_slug TEXT,
+      created_at TIMESTAMP DEFAULT NOW() NOT NULL
+    )
+  `);
+
   console.log("[DB] WC Sweep tables ensured");
 }
