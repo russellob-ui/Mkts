@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { ensureTables } from "@/db/ensure-tables";
-import { wcTeams } from "@/db/schema";
+import { wcTeams, groupStandings } from "@/db/schema";
 import { sql } from "drizzle-orm";
 
 let tablesEnsured = false;
@@ -121,8 +121,27 @@ export async function POST() {
       inserted++;
     }
 
-    // Count actual teams in DB
+    // Seed group_standings rows for each team (0-0-0 initial standings)
     const allTeams = await db.select().from(wcTeams);
+    for (const team of allTeams) {
+      await db
+        .insert(groupStandings)
+        .values({
+          teamId: team.id,
+          groupLetter: team.groupLetter,
+          played: 0,
+          won: 0,
+          drawn: 0,
+          lost: 0,
+          goalsFor: 0,
+          goalsAgainst: 0,
+          goalDifference: 0,
+          points: 0,
+          position: null,
+          qualified: false,
+        })
+        .onConflictDoNothing();
+    }
 
     return NextResponse.json({
       message: `Seeded World Cup 2026 teams`,
