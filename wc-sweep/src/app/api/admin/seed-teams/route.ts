@@ -20,76 +20,76 @@ const WC_2026_TEAMS: Array<{
   flagEmoji: string;
   tier: number;
 }> = [
-  // Group A
-  { name: "Morocco", fifaCode: "MAR", groupLetter: "A", flagEmoji: "\u{1F1F2}\u{1F1E6}", tier: 2 },
-  { name: "Peru", fifaCode: "PER", groupLetter: "A", flagEmoji: "\u{1F1F5}\u{1F1EA}", tier: 3 },
-  { name: "Australia", fifaCode: "AUS", groupLetter: "A", flagEmoji: "\u{1F1E6}\u{1F1FA}", tier: 3 },
-  { name: "Denmark", fifaCode: "DEN", groupLetter: "A", flagEmoji: "\u{1F1E9}\u{1F1F0}", tier: 2 },
+  // Group A (Host pot — USA)
+  { name: "USA", fifaCode: "USA", groupLetter: "A", flagEmoji: "\u{1F1FA}\u{1F1F8}", tier: 1 },
+  { name: "Colombia", fifaCode: "COL", groupLetter: "A", flagEmoji: "\u{1F1E8}\u{1F1F4}", tier: 2 },
+  { name: "Senegal", fifaCode: "SEN", groupLetter: "A", flagEmoji: "\u{1F1F8}\u{1F1F3}", tier: 3 },
+  { name: "New Zealand", fifaCode: "NZL", groupLetter: "A", flagEmoji: "\u{1F1F3}\u{1F1FF}", tier: 4 },
 
   // Group B
-  { name: "Portugal", fifaCode: "POR", groupLetter: "B", flagEmoji: "\u{1F1F5}\u{1F1F9}", tier: 1 },
+  { name: "England", fifaCode: "ENG", groupLetter: "B", flagEmoji: "\u{1F3F4}\u{E0067}\u{E0062}\u{E0065}\u{E006E}\u{E0067}\u{E007F}", tier: 1 },
+  { name: "Serbia", fifaCode: "SRB", groupLetter: "B", flagEmoji: "\u{1F1F7}\u{1F1F8}", tier: 3 },
   { name: "Paraguay", fifaCode: "PAR", groupLetter: "B", flagEmoji: "\u{1F1F5}\u{1F1FE}", tier: 3 },
-  { name: "Iran", fifaCode: "IRN", groupLetter: "B", flagEmoji: "\u{1F1EE}\u{1F1F7}", tier: 3 },
-  { name: "Cameroon", fifaCode: "CMR", groupLetter: "B", flagEmoji: "\u{1F1E8}\u{1F1F2}", tier: 3 },
+  { name: "Slovenia", fifaCode: "SVN", groupLetter: "B", flagEmoji: "\u{1F1F8}\u{1F1EE}", tier: 3 },
 
   // Group C
-  { name: "Belgium", fifaCode: "BEL", groupLetter: "C", flagEmoji: "\u{1F1E7}\u{1F1EA}", tier: 1 },
-  { name: "Bolivia", fifaCode: "BOL", groupLetter: "C", flagEmoji: "\u{1F1E7}\u{1F1F4}", tier: 4 },
-  { name: "Saudi Arabia", fifaCode: "KSA", groupLetter: "C", flagEmoji: "\u{1F1F8}\u{1F1E6}", tier: 4 },
-  { name: "Israel", fifaCode: "ISR", groupLetter: "C", flagEmoji: "\u{1F1EE}\u{1F1F1}", tier: 4 },
+  { name: "Argentina", fifaCode: "ARG", groupLetter: "C", flagEmoji: "\u{1F1E6}\u{1F1F7}", tier: 1 },
+  { name: "Peru", fifaCode: "PER", groupLetter: "C", flagEmoji: "\u{1F1F5}\u{1F1EA}", tier: 3 },
+  { name: "Egypt", fifaCode: "EGY", groupLetter: "C", flagEmoji: "\u{1F1EA}\u{1F1EC}", tier: 3 },
+  { name: "Uzbekistan", fifaCode: "UZB", groupLetter: "C", flagEmoji: "\u{1F1FA}\u{1F1FF}", tier: 4 },
 
   // Group D
-  { name: "Germany", fifaCode: "GER", groupLetter: "D", flagEmoji: "\u{1F1E9}\u{1F1EA}", tier: 1 },
-  { name: "Uruguay", fifaCode: "URU", groupLetter: "D", flagEmoji: "\u{1F1FA}\u{1F1FE}", tier: 2 },
-  { name: "Qatar", fifaCode: "QAT", groupLetter: "D", flagEmoji: "\u{1F1F6}\u{1F1E6}", tier: 4 },
-  { name: "Honduras", fifaCode: "HON", groupLetter: "D", flagEmoji: "\u{1F1ED}\u{1F1F3}", tier: 4 },
+  { name: "France", fifaCode: "FRA", groupLetter: "D", flagEmoji: "\u{1F1EB}\u{1F1F7}", tier: 1 },
+  { name: "Australia", fifaCode: "AUS", groupLetter: "D", flagEmoji: "\u{1F1E6}\u{1F1FA}", tier: 3 },
+  { name: "Tunisia", fifaCode: "TUN", groupLetter: "D", flagEmoji: "\u{1F1F9}\u{1F1F3}", tier: 3 },
+  { name: "Indonesia", fifaCode: "IDN", groupLetter: "D", flagEmoji: "\u{1F1EE}\u{1F1E9}", tier: 4 },
 
-  // Group E
-  { name: "Argentina", fifaCode: "ARG", groupLetter: "E", flagEmoji: "\u{1F1E6}\u{1F1F7}", tier: 1 },
-  { name: "Uzbekistan", fifaCode: "UZB", groupLetter: "E", flagEmoji: "\u{1F1FA}\u{1F1FF}", tier: 4 },
-  { name: "Senegal", fifaCode: "SEN", groupLetter: "E", flagEmoji: "\u{1F1F8}\u{1F1F3}", tier: 3 },
-  { name: "Chile", fifaCode: "CHI", groupLetter: "E", flagEmoji: "\u{1F1E8}\u{1F1F1}", tier: 3 },
+  // Group E (Host pot — Mexico)
+  { name: "Mexico", fifaCode: "MEX", groupLetter: "E", flagEmoji: "\u{1F1F2}\u{1F1FD}", tier: 2 },
+  { name: "Japan", fifaCode: "JPN", groupLetter: "E", flagEmoji: "\u{1F1EF}\u{1F1F5}", tier: 2 },
+  { name: "Ecuador", fifaCode: "ECU", groupLetter: "E", flagEmoji: "\u{1F1EA}\u{1F1E8}", tier: 3 },
+  { name: "Wales", fifaCode: "WAL", groupLetter: "E", flagEmoji: "\u{1F3F4}\u{E0067}\u{E0062}\u{E0077}\u{E006C}\u{E0073}\u{E007F}", tier: 3 },
 
   // Group F
   { name: "Spain", fifaCode: "ESP", groupLetter: "F", flagEmoji: "\u{1F1EA}\u{1F1F8}", tier: 1 },
-  { name: "Serbia", fifaCode: "SRB", groupLetter: "F", flagEmoji: "\u{1F1F7}\u{1F1F8}", tier: 2 },
-  { name: "Albania", fifaCode: "ALB", groupLetter: "F", flagEmoji: "\u{1F1E6}\u{1F1F1}", tier: 4 },
-  { name: "Slovenia", fifaCode: "SVN", groupLetter: "F", flagEmoji: "\u{1F1F8}\u{1F1EE}", tier: 3 },
+  { name: "Uruguay", fifaCode: "URU", groupLetter: "F", flagEmoji: "\u{1F1FA}\u{1F1FE}", tier: 2 },
+  { name: "Chile", fifaCode: "CHI", groupLetter: "F", flagEmoji: "\u{1F1E8}\u{1F1F1}", tier: 3 },
+  { name: "Bolivia", fifaCode: "BOL", groupLetter: "F", flagEmoji: "\u{1F1E7}\u{1F1F4}", tier: 4 },
 
   // Group G
-  { name: "England", fifaCode: "ENG", groupLetter: "G", flagEmoji: "\u{1F3F4}\u{E0067}\u{E0062}\u{E0065}\u{E006E}\u{E0067}\u{E007F}", tier: 1 },
-  { name: "Japan", fifaCode: "JPN", groupLetter: "G", flagEmoji: "\u{1F1EF}\u{1F1F5}", tier: 2 },
+  { name: "Portugal", fifaCode: "POR", groupLetter: "G", flagEmoji: "\u{1F1F5}\u{1F1F9}", tier: 1 },
+  { name: "Denmark", fifaCode: "DEN", groupLetter: "G", flagEmoji: "\u{1F1E9}\u{1F1F0}", tier: 2 },
+  { name: "Iran", fifaCode: "IRN", groupLetter: "G", flagEmoji: "\u{1F1EE}\u{1F1F7}", tier: 3 },
   { name: "Costa Rica", fifaCode: "CRC", groupLetter: "G", flagEmoji: "\u{1F1E8}\u{1F1F7}", tier: 4 },
-  { name: "Tunisia", fifaCode: "TUN", groupLetter: "G", flagEmoji: "\u{1F1F9}\u{1F1F3}", tier: 3 },
 
   // Group H
-  { name: "Netherlands", fifaCode: "NED", groupLetter: "H", flagEmoji: "\u{1F1F3}\u{1F1F1}", tier: 1 },
-  { name: "Ecuador", fifaCode: "ECU", groupLetter: "H", flagEmoji: "\u{1F1EA}\u{1F1E8}", tier: 3 },
-  { name: "Ivory Coast", fifaCode: "CIV", groupLetter: "H", flagEmoji: "\u{1F1E8}\u{1F1EE}", tier: 3 },
-  { name: "Indonesia", fifaCode: "IDN", groupLetter: "H", flagEmoji: "\u{1F1EE}\u{1F1E9}", tier: 4 },
+  { name: "Germany", fifaCode: "GER", groupLetter: "H", flagEmoji: "\u{1F1E9}\u{1F1EA}", tier: 1 },
+  { name: "Morocco", fifaCode: "MAR", groupLetter: "H", flagEmoji: "\u{1F1F2}\u{1F1E6}", tier: 2 },
+  { name: "South Korea", fifaCode: "KOR", groupLetter: "H", flagEmoji: "\u{1F1F0}\u{1F1F7}", tier: 2 },
+  { name: "Honduras", fifaCode: "HON", groupLetter: "H", flagEmoji: "\u{1F1ED}\u{1F1F3}", tier: 4 },
 
-  // Group I
-  { name: "France", fifaCode: "FRA", groupLetter: "I", flagEmoji: "\u{1F1EB}\u{1F1F7}", tier: 1 },
-  { name: "Colombia", fifaCode: "COL", groupLetter: "I", flagEmoji: "\u{1F1E8}\u{1F1F4}", tier: 2 },
-  { name: "Panama", fifaCode: "PAN", groupLetter: "I", flagEmoji: "\u{1F1F5}\u{1F1E6}", tier: 4 },
-  { name: "New Zealand", fifaCode: "NZL", groupLetter: "I", flagEmoji: "\u{1F1F3}\u{1F1FF}", tier: 4 },
+  // Group I (Host pot — Canada)
+  { name: "Canada", fifaCode: "CAN", groupLetter: "I", flagEmoji: "\u{1F1E8}\u{1F1E6}", tier: 2 },
+  { name: "Italy", fifaCode: "ITA", groupLetter: "I", flagEmoji: "\u{1F1EE}\u{1F1F9}", tier: 1 },
+  { name: "Cameroon", fifaCode: "CMR", groupLetter: "I", flagEmoji: "\u{1F1E8}\u{1F1F2}", tier: 3 },
+  { name: "Trinidad and Tobago", fifaCode: "TRI", groupLetter: "I", flagEmoji: "\u{1F1F9}\u{1F1F9}", tier: 4 },
 
   // Group J
   { name: "Brazil", fifaCode: "BRA", groupLetter: "J", flagEmoji: "\u{1F1E7}\u{1F1F7}", tier: 1 },
-  { name: "Italy", fifaCode: "ITA", groupLetter: "J", flagEmoji: "\u{1F1EE}\u{1F1F9}", tier: 1 },
-  { name: "Nigeria", fifaCode: "NGA", groupLetter: "J", flagEmoji: "\u{1F1F3}\u{1F1EC}", tier: 3 },
-  { name: "Ecuador", fifaCode: "ECU", groupLetter: "J", flagEmoji: "\u{1F1EA}\u{1F1E8}", tier: 3 },
+  { name: "Croatia", fifaCode: "CRO", groupLetter: "J", flagEmoji: "\u{1F1ED}\u{1F1F7}", tier: 1 },
+  { name: "Saudi Arabia", fifaCode: "KSA", groupLetter: "J", flagEmoji: "\u{1F1F8}\u{1F1E6}", tier: 4 },
+  { name: "Albania", fifaCode: "ALB", groupLetter: "J", flagEmoji: "\u{1F1E6}\u{1F1F1}", tier: 4 },
 
   // Group K
-  { name: "USA", fifaCode: "USA", groupLetter: "K", flagEmoji: "\u{1F1FA}\u{1F1F8}", tier: 1 },
-  { name: "Mexico", fifaCode: "MEX", groupLetter: "K", flagEmoji: "\u{1F1F2}\u{1F1FD}", tier: 2 },
-  { name: "South Korea", fifaCode: "KOR", groupLetter: "K", flagEmoji: "\u{1F1F0}\u{1F1F7}", tier: 2 },
-  { name: "Trinidad and Tobago", fifaCode: "TRI", groupLetter: "K", flagEmoji: "\u{1F1F9}\u{1F1F9}", tier: 4 },
+  { name: "Netherlands", fifaCode: "NED", groupLetter: "K", flagEmoji: "\u{1F1F3}\u{1F1F1}", tier: 1 },
+  { name: "Belgium", fifaCode: "BEL", groupLetter: "K", flagEmoji: "\u{1F1E7}\u{1F1EA}", tier: 1 },
+  { name: "Nigeria", fifaCode: "NGA", groupLetter: "K", flagEmoji: "\u{1F1F3}\u{1F1EC}", tier: 3 },
+  { name: "Ivory Coast", fifaCode: "CIV", groupLetter: "K", flagEmoji: "\u{1F1E8}\u{1F1EE}", tier: 3 },
 
   // Group L
-  { name: "Croatia", fifaCode: "CRO", groupLetter: "L", flagEmoji: "\u{1F1ED}\u{1F1F7}", tier: 1 },
-  { name: "Canada", fifaCode: "CAN", groupLetter: "L", flagEmoji: "\u{1F1E8}\u{1F1E6}", tier: 2 },
-  { name: "Wales", fifaCode: "WAL", groupLetter: "L", flagEmoji: "\u{1F3F4}\u{E0067}\u{E0062}\u{E0077}\u{E006C}\u{E0073}\u{E007F}", tier: 3 },
+  { name: "Switzerland", fifaCode: "SUI", groupLetter: "L", flagEmoji: "\u{1F1E8}\u{1F1ED}", tier: 2 },
+  { name: "Panama", fifaCode: "PAN", groupLetter: "L", flagEmoji: "\u{1F1F5}\u{1F1E6}", tier: 4 },
+  { name: "Qatar", fifaCode: "QAT", groupLetter: "L", flagEmoji: "\u{1F1F6}\u{1F1E6}", tier: 4 },
   { name: "Jamaica", fifaCode: "JAM", groupLetter: "L", flagEmoji: "\u{1F1EF}\u{1F1F2}", tier: 4 },
 ];
 
@@ -100,10 +100,15 @@ export async function POST() {
       tablesEnsured = true;
     }
 
+    // Create unique index on fifa_code if it doesn't exist, for idempotent seeding
+    await db.execute(
+      sql`CREATE UNIQUE INDEX IF NOT EXISTS wc_teams_fifa_code_idx ON wc_teams(fifa_code)`
+    );
+
     let inserted = 0;
 
     for (const team of WC_2026_TEAMS) {
-      const result = await db
+      await db
         .insert(wcTeams)
         .values({
           name: team.name,
@@ -113,13 +118,15 @@ export async function POST() {
           tier: team.tier,
         })
         .onConflictDoNothing();
-      // Count inserted (pg driver returns rowCount on the result)
       inserted++;
     }
 
+    // Count actual teams in DB
+    const allTeams = await db.select().from(wcTeams);
+
     return NextResponse.json({
-      message: `Seeded ${WC_2026_TEAMS.length} World Cup 2026 teams`,
-      teamCount: WC_2026_TEAMS.length,
+      message: `Seeded World Cup 2026 teams`,
+      teamCount: allTeams.length,
     });
   } catch (err) {
     console.error("[Seed Teams]", err);

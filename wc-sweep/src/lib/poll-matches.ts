@@ -56,10 +56,14 @@ export async function pollLiveMatches(): Promise<PollSummary> {
   const allAssignments = await db.select().from(teamAssignments);
   const allPlayers = await db.select().from(players);
 
-  const teamById = new Map(allTeams.map((t) => [t.id, t]));
-  const teamByApiId = new Map(allTeams.map((t) => [t.apiTeamId, t]));
-  const assignmentByTeamId = new Map(allAssignments.map((a) => [a.teamId, a]));
-  const playerById = new Map(allPlayers.map((p) => [p.id, p]));
+  type Team = (typeof allTeams)[number];
+  type Assignment = (typeof allAssignments)[number];
+  type Player = (typeof allPlayers)[number];
+
+  const teamById = new Map<number, Team>(allTeams.map((t) => [t.id, t]));
+  const teamByApiId = new Map<number | null, Team>(allTeams.map((t) => [t.apiTeamId, t]));
+  const assignmentByTeamId = new Map<number, Assignment>(allAssignments.map((a) => [a.teamId, a]));
+  const playerById = new Map<number, Player>(allPlayers.map((p) => [p.id, p]));
 
   for (const fixture of liveFixtures) {
     try {
@@ -391,12 +395,12 @@ function mapEventType(type: string, detail: string): string {
 
 async function generateGoalBanter(
   matchId: number,
-  scoringTeam: { id: number; name: string; flagEmoji: string | null },
+  scoringTeam: { id: number; name: string; flagEmoji: string | null; [key: string]: unknown },
   evt: ApiEvent,
-  assignmentByTeamId: Map<number, { playerId: number; teamId: number }>,
-  playerById: Map<number, { id: number; name: string }>,
-  homeTeam: { id: number; name: string },
-  awayTeam: { id: number; name: string },
+  assignmentByTeamId: Map<number, { playerId: number; teamId: number; [key: string]: unknown }>,
+  playerById: Map<number, { id: number; name: string; [key: string]: unknown }>,
+  homeTeam: { id: number; name: string; [key: string]: unknown },
+  awayTeam: { id: number; name: string; [key: string]: unknown },
   fixture: ApiFixture
 ): Promise<boolean> {
   const assignment = assignmentByTeamId.get(scoringTeam.id);

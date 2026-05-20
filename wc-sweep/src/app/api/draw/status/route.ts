@@ -7,7 +7,6 @@ import {
   wcTeams,
   players,
 } from "@/db/schema";
-import { eq } from "drizzle-orm";
 
 let tablesEnsured = false;
 
