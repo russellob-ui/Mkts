@@ -20,6 +20,8 @@ const NAV_SECTIONS = [
       { href: "/streaks", label: "Streaks" },
       { href: "/wildcards", label: "Wildcards" },
       { href: "/chat", label: "Chat" },
+      { href: "/quiz", label: "Quiz" },
+      { href: "/bingo", label: "Bingo" },
     ],
   },
   {
@@ -28,14 +30,25 @@ const NAV_SECTIONS = [
       { href: "/my-day", label: "My Day" },
       { href: "/digest", label: "Digest" },
       { href: "/rivalry", label: "Rivalry" },
+      { href: "/trash-talk", label: "Trash Talk" },
+      { href: "/superlatives", label: "Superlatives" },
       { href: "/achievements", label: "Achievements" },
       { href: "/stats", label: "Stats" },
+    ],
+  },
+  {
+    label: "Data",
+    links: [
+      { href: "/what-if", label: "What If" },
+      { href: "/expected-points", label: "xPts" },
+      { href: "/form", label: "Form" },
     ],
   },
   {
     label: "End",
     links: [
       { href: "/yearbook", label: "Yearbook" },
+      { href: "/forfeit", label: "Forfeit Wheel" },
       { href: "/scoring", label: "Scoring Rules" },
     ],
   },
