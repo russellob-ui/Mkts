@@ -1,0 +1,41 @@
+@import "tailwindcss";
+
+@theme inline {
+  --color-wc-red: #8a1538;
+  --color-wc-blue: #1a237e;
+  --color-wc-gold: #d4a843;
+  --color-wc-green: #00695c;
+  --color-cream: #f5f1e8;
+  --color-cream-dark: #e8e0d0;
+  --color-dark: #0a0a0f;
+  --color-dark-card: #141420;
+  --color-dark-border: #252540;
+  --color-accent: #d4a843;
+  --font-serif: "Playfair Display", Georgia, serif;
+  --font-sans: "Inter", system-ui, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  background: var(--color-dark);
+  color: var(--color-cream);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+@keyframes pulse-live {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(1.3); }
+}
+
+.live-dot {
+  animation: pulse-live 2s ease-in-out infinite;
+}
+
+.tier-1 { color: #ffd700; }
+.tier-2 { color: #c0c0c0; }
+.tier-3 { color: #cd7f32; }
+.tier-4 { color: #22c55e; }
