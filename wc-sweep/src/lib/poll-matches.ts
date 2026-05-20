@@ -13,6 +13,7 @@ import {
   getLiveFixtures,
   getFixtureEvents,
   mapStatus,
+  getTierMultiplier,
   type ApiFixture,
   type ApiEvent,
 } from "@/lib/api-football";
@@ -390,10 +391,28 @@ export async function settleMatch(matchId: number): Promise<void> {
   });
 
   // Send rich full-time WhatsApp message
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "mkts-dun.vercel.app";
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "https://wc-sweep.vercel.app");
   const hFlag = homeTeam.flagEmoji ?? "";
   const aFlag = awayTeam.flagEmoji ?? "";
-  const ftMsg = `🏁 *FULL TIME*\n\n${hFlag} *${homeTeam.name} ${homeScore}* - ${awayScore} ${awayTeam.name} ${aFlag}\n\n*Points:*\n${homeOwner ?? "Unowned"}: +pts\n${awayOwner ?? "Unowned"}: +pts\n\n📊 Standings → ${appUrl}`;
+
+  // Look up actual points just awarded for this match
+  const matchPtsRows = await db.select().from(pointsLog).where(eq(pointsLog.matchId, matchId));
+  const homePts = homeAssignment
+    ? matchPtsRows.filter((r) => r.playerId === homeAssignment.playerId).reduce((s, r) => s + r.points, 0)
+    : 0;
+  const awayPts = awayAssignment
+    ? matchPtsRows.filter((r) => r.playerId === awayAssignment.playerId).reduce((s, r) => s + r.points, 0)
+    : 0;
+  const homeOwnerLabel = homeOwner ?? "Unowned";
+  const awayOwnerLabel = awayOwner ?? "Unowned";
+
+  const ftMsg =
+    `🏁 *FULL TIME*\n\n` +
+    `${hFlag} *${homeTeam.name} ${homeScore}* - ${awayScore} ${awayTeam.name} ${aFlag}\n\n` +
+    `*Points:*\n` +
+    `${homeOwnerLabel}: +${Math.round(homePts * 10) / 10} pts\n` +
+    `${awayOwnerLabel}: +${Math.round(awayPts * 10) / 10} pts\n\n` +
+    `📊 Standings → ${appUrl}`;
   try {
     await sendWhatsAppGroupMessage(ftMsg);
   } catch { /* non-fatal */ }
@@ -469,15 +488,28 @@ async function generateGoalBanter(
   const homeScore = fixture.goals.home ?? 0;
   const awayScore = fixture.goals.away ?? 0;
   const ownerName = owner?.name ?? "Unowned";
-  const tierMult = assignment ? `x${((scoringTeam as Record<string, unknown>).tier as number) ?? 1}.0` : "";
+  const tier = ((scoringTeam as Record<string, unknown>).tier as number) ?? 1;
+  const multiplier = getTierMultiplier(tier);
 
   let waMsg: string;
   if (isOwnGoal) {
-    waMsg = `😬 *OWN GOAL!* ${minute}'\n\n${homeFlag} *${homeTeam.name} ${homeScore}* - ${awayScore} ${awayTeam.name} ${awayFlag}\n\n😬 ${playerName} puts it in his own net\n\n_${ownerName} affected_`;
+    waMsg =
+      `😬 *OWN GOAL!* ${minute}'\n\n` +
+      `${homeFlag} *${homeTeam.name} ${homeScore}* - ${awayScore} ${awayTeam.name} ${awayFlag}\n\n` +
+      `😬 ${playerName}\n\n` +
+      `_${ownerName} affected_`;
   } else if (isPenalty) {
-    waMsg = `🎯 *PENALTY GOAL!* ${minute}'\n\n${homeFlag} *${homeTeam.name} ${homeScore}* - ${awayScore} ${awayTeam.name} ${awayFlag}\n\n🎯 ${playerName} converts from the spot${evt.assist?.name ? ` (Won by: ${evt.assist.name})` : ""}\n\n_${ownerName} picks up pts (${tierMult})_`;
+    waMsg =
+      `🎯 *PENALTY GOAL!* ${minute}'\n\n` +
+      `${homeFlag} *${homeTeam.name} ${homeScore}* - ${awayScore} ${awayTeam.name} ${awayFlag}\n\n` +
+      `🎯 ${playerName}${evt.assist?.name ? ` (Assist: ${evt.assist.name})` : ""}\n\n` +
+      `_${ownerName} picks up +pts (x${multiplier})_`;
   } else {
-    waMsg = `⚽ *GOAL!* ${minute}'\n\n${homeFlag} *${homeTeam.name} ${homeScore}* - ${awayScore} ${awayTeam.name} ${awayFlag}\n\n⚽ ${playerName}${evt.assist?.name ? ` (Assist: ${evt.assist.name})` : ""}\n\n_${ownerName} picks up pts (${tierMult})_`;
+    waMsg =
+      `⚽ *GOAL!* ${minute}'\n\n` +
+      `${homeFlag} *${homeTeam.name} ${homeScore}* - ${awayScore} ${awayTeam.name} ${awayFlag}\n\n` +
+      `⚽ ${playerName}${evt.assist?.name ? ` (Assist: ${evt.assist.name})` : ""}\n\n` +
+      `_${ownerName} picks up +pts (x${multiplier})_`;
   }
 
   try {
