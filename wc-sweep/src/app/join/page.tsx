@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 
@@ -18,6 +18,14 @@ const COLOR_OPTIONS = [
 ];
 
 export default function JoinPage() {
+  return (
+    <Suspense fallback={<div className="text-center py-12 text-cream/40">Loading...</div>}>
+      <JoinForm />
+    </Suspense>
+  );
+}
+
+function JoinForm() {
   const searchParams = useSearchParams();
   const codeFromUrl = searchParams.get("code") ?? "";
 
