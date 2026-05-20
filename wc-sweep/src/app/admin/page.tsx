@@ -23,6 +23,15 @@ interface HealthResult {
   timestamp: string;
 }
 
+interface InviteCode {
+  id: number;
+  code: string;
+  used: boolean;
+  usedBy: string | null;
+  createdAt: string;
+  usedAt: string | null;
+}
+
 const STATUS_COLORS: Record<string, string> = {
   pass: "bg-green-600",
   warn: "bg-yellow-500",
@@ -32,7 +41,42 @@ const STATUS_COLORS: Record<string, string> = {
   critical: "text-red-400",
 };
 
+const VERIFY_STORAGE_KEY = "wc_admin_verified";
+const VERIFY_EXPIRY_MS = 24 * 60 * 60 * 1000; // 24 hours
+
+function getStoredVerification(): { verified: boolean; passcode: string; playerName: string } | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = localStorage.getItem(VERIFY_STORAGE_KEY);
+    if (!raw) return null;
+    const data = JSON.parse(raw);
+    if (Date.now() - data.timestamp > VERIFY_EXPIRY_MS) {
+      localStorage.removeItem(VERIFY_STORAGE_KEY);
+      return null;
+    }
+    return { verified: true, passcode: data.passcode, playerName: data.playerName };
+  } catch {
+    return null;
+  }
+}
+
+function storeVerification(passcode: string, playerName: string) {
+  localStorage.setItem(
+    VERIFY_STORAGE_KEY,
+    JSON.stringify({ passcode, playerName, timestamp: Date.now() })
+  );
+}
+
 export default function AdminPage() {
+  // Auth gate
+  const [verified, setVerified] = useState(false);
+  const [commissionerName, setCommissionerName] = useState("");
+  const [storedPasscode, setStoredPasscode] = useState("");
+  const [gatePasscode, setGatePasscode] = useState("");
+  const [gateLoading, setGateLoading] = useState(false);
+  const [gateError, setGateError] = useState("");
+  const [checkingStored, setCheckingStored] = useState(true);
+
   // Players
   const [players, setPlayers] = useState<PlayerRow[]>([]);
   const [playersLoading, setPlayersLoading] = useState(true);
@@ -54,6 +98,41 @@ export default function AdminPage() {
   const [health, setHealth] = useState<HealthResult | null>(null);
   const [healthLoading, setHealthLoading] = useState(false);
 
+  // Invite Codes
+  const [inviteCodes, setInviteCodes] = useState<InviteCode[]>([]);
+  const [inviteLoading, setInviteLoading] = useState(false);
+  const [generatingCode, setGeneratingCode] = useState(false);
+  const [newCode, setNewCode] = useState<string | null>(null);
+  const [copySuccess, setCopySuccess] = useState(false);
+
+  // Check stored verification on mount
+  useEffect(() => {
+    async function checkStored() {
+      const stored = getStoredVerification();
+      if (stored) {
+        try {
+          const res = await fetch("/api/admin/verify", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ passcode: stored.passcode }),
+          });
+          const data = await res.json();
+          if (data.verified) {
+            setVerified(true);
+            setCommissionerName(data.playerName);
+            setStoredPasscode(stored.passcode);
+          } else {
+            localStorage.removeItem(VERIFY_STORAGE_KEY);
+          }
+        } catch {
+          // Stored creds invalid, continue to gate
+        }
+      }
+      setCheckingStored(false);
+    }
+    checkStored();
+  }, []);
+
   const loadPlayers = useCallback(async () => {
     try {
       const res = await fetch("/api/admin/players");
@@ -68,9 +147,55 @@ export default function AdminPage() {
     }
   }, []);
 
+  const loadInviteCodes = useCallback(async () => {
+    setInviteLoading(true);
+    try {
+      const res = await fetch("/api/invite");
+      if (res.ok) {
+        const data = await res.json();
+        setInviteCodes(data.codes ?? []);
+      }
+    } catch {
+      // ignore
+    } finally {
+      setInviteLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
-    loadPlayers();
-  }, [loadPlayers]);
+    if (verified) {
+      loadPlayers();
+      loadInviteCodes();
+    }
+  }, [verified, loadPlayers, loadInviteCodes]);
+
+  async function handleGateSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setGateError("");
+    setGateLoading(true);
+
+    try {
+      const res = await fetch("/api/admin/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ passcode: gatePasscode.trim() }),
+      });
+      const data = await res.json();
+
+      if (data.verified) {
+        storeVerification(gatePasscode.trim(), data.playerName);
+        setVerified(true);
+        setCommissionerName(data.playerName);
+        setStoredPasscode(gatePasscode.trim());
+      } else {
+        setGateError("Access denied. Commissioner passcode required.");
+      }
+    } catch {
+      setGateError("Network error. Please try again.");
+    } finally {
+      setGateLoading(false);
+    }
+  }
 
   async function addPlayer(e: React.FormEvent) {
     e.preventDefault();
@@ -115,7 +240,7 @@ export default function AdminPage() {
       const res = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ adminPasscode: newPasscode }),
+        body: JSON.stringify({ adminPasscode: storedPasscode }),
       });
       const data = await res.json();
       if (res.ok) {
@@ -156,11 +281,194 @@ export default function AdminPage() {
     }
   }
 
+  async function generateInviteCode() {
+    setGeneratingCode(true);
+    setNewCode(null);
+    setCopySuccess(false);
+    try {
+      const res = await fetch("/api/invite", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ adminPasscode: storedPasscode }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setNewCode(data.code);
+        loadInviteCodes();
+      }
+    } catch {
+      // ignore
+    } finally {
+      setGeneratingCode(false);
+    }
+  }
+
+  async function copyInviteLink(code: string) {
+    const url = `${window.location.origin}/join?code=${code}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopySuccess(true);
+      setTimeout(() => setCopySuccess(false), 2000);
+    } catch {
+      // Fallback: select text
+      const el = document.createElement("textarea");
+      el.value = url;
+      document.body.appendChild(el);
+      el.select();
+      document.execCommand("copy");
+      document.body.removeChild(el);
+      setCopySuccess(true);
+      setTimeout(() => setCopySuccess(false), 2000);
+    }
+  }
+
+  // Loading state while checking stored verification
+  if (checkingStored) {
+    return (
+      <div className="max-w-2xl mx-auto px-4 py-12 text-center">
+        <div className="text-cream/40 text-sm">Checking access...</div>
+      </div>
+    );
+  }
+
+  // Passcode gate
+  if (!verified) {
+    return (
+      <div className="max-w-sm mx-auto px-4 py-16 space-y-6">
+        <div className="text-center space-y-2">
+          <h1 className="font-serif text-2xl font-bold">
+            <span className="text-wc-gold">Commissioner</span>{" "}
+            <span className="text-cream">Access</span>
+          </h1>
+          <p className="text-cream/40 text-sm">
+            Enter your commissioner passcode to continue.
+          </p>
+        </div>
+
+        <form
+          onSubmit={handleGateSubmit}
+          className="bg-dark-card border border-dark-border rounded-lg p-6 space-y-4"
+        >
+          <input
+            type="password"
+            placeholder="Passcode"
+            value={gatePasscode}
+            onChange={(e) => setGatePasscode(e.target.value)}
+            required
+            autoFocus
+            className="w-full bg-dark border border-dark-border rounded-lg px-3 py-2.5 text-sm text-cream placeholder:text-cream/30 focus:outline-none focus:border-wc-gold"
+          />
+          {gateError && (
+            <div className="text-red-400 text-sm text-center bg-red-400/10 border border-red-400/20 rounded-lg p-3">
+              {gateError}
+            </div>
+          )}
+          <button
+            type="submit"
+            disabled={gateLoading}
+            className="w-full bg-wc-gold text-dark font-semibold text-sm px-4 py-2.5 rounded-lg hover:bg-wc-gold/90 disabled:opacity-50 transition-colors cursor-pointer"
+          >
+            {gateLoading ? "Verifying..." : "Enter"}
+          </button>
+        </form>
+      </div>
+    );
+  }
+
+  // Full admin dashboard (verified)
   return (
     <div className="max-w-2xl mx-auto px-4 py-6 space-y-8">
-      <h1 className="font-serif text-2xl font-bold">
-        <span className="text-wc-gold">Admin</span> Dashboard
-      </h1>
+      <div className="flex items-center justify-between">
+        <h1 className="font-serif text-2xl font-bold">
+          <span className="text-wc-gold">Admin</span> Dashboard
+        </h1>
+        <div className="text-xs text-cream/40">
+          Signed in as <span className="text-wc-gold">{commissionerName}</span>
+        </div>
+      </div>
+
+      {/* ---- Invite Codes Section ---- */}
+      <section className="space-y-4">
+        <h2 className="text-sm font-semibold text-cream/60 uppercase tracking-wider">
+          Invite Codes
+        </h2>
+
+        <div className="bg-dark-card border border-dark-border rounded-lg p-4 space-y-4">
+          <div className="flex items-center justify-between">
+            <p className="text-xs text-cream/40">
+              Generate codes and share links for friends to join.
+            </p>
+            <button
+              type="button"
+              onClick={generateInviteCode}
+              disabled={generatingCode}
+              className="bg-wc-gold text-dark font-semibold text-xs px-3 py-2 rounded-lg hover:bg-wc-gold/90 disabled:opacity-50 transition-colors cursor-pointer shrink-0"
+            >
+              {generatingCode ? "Generating..." : "Generate New Code"}
+            </button>
+          </div>
+
+          {newCode && (
+            <div className="bg-wc-gold/10 border border-wc-gold/30 rounded-lg p-3 flex items-center justify-between gap-3">
+              <div>
+                <div className="text-xs text-cream/50 mb-1">New invite code:</div>
+                <div className="font-mono text-lg font-bold text-wc-gold tracking-widest">
+                  {newCode}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => copyInviteLink(newCode)}
+                className="bg-wc-gold text-dark font-semibold text-xs px-3 py-2 rounded-lg hover:bg-wc-gold/90 transition-colors cursor-pointer shrink-0"
+              >
+                {copySuccess ? "Copied!" : "Copy Link"}
+              </button>
+            </div>
+          )}
+
+          {inviteLoading ? (
+            <div className="text-cream/40 text-xs">Loading codes...</div>
+          ) : inviteCodes.length === 0 ? (
+            <div className="text-cream/40 text-xs">No invite codes yet.</div>
+          ) : (
+            <div className="space-y-1.5">
+              {inviteCodes.map((ic) => (
+                <div
+                  key={ic.id}
+                  className="flex items-center justify-between gap-3 py-2 px-3 bg-dark/50 rounded-lg"
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <span
+                      className={`w-2 h-2 rounded-full shrink-0 ${
+                        ic.used ? "bg-cream/30" : "bg-green-500"
+                      }`}
+                    />
+                    <span className="font-mono text-sm font-semibold tracking-wider">
+                      {ic.code}
+                    </span>
+                    {ic.used ? (
+                      <span className="text-xs text-cream/40 truncate">
+                        Used by {ic.usedBy}
+                      </span>
+                    ) : (
+                      <span className="text-xs text-green-400">Available</span>
+                    )}
+                  </div>
+                  {!ic.used && (
+                    <button
+                      type="button"
+                      onClick={() => copyInviteLink(ic.code)}
+                      className="text-xs text-wc-gold hover:text-wc-gold/80 transition-colors cursor-pointer shrink-0"
+                    >
+                      Copy Link
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </section>
 
       {/* ---- Players Section ---- */}
       <section className="space-y-4">

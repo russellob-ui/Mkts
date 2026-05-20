@@ -40,7 +40,7 @@ const NAV_SECTIONS = [
 ];
 
 const ALL_LINKS = NAV_SECTIONS.flatMap((s) => s.links);
-const ADMIN_LINK = { href: "/admin", label: "Admin" };
+const JOIN_LINK = { href: "/join", label: "Join" };
 
 export default function Nav() {
   const [open, setOpen] = useState(false);
@@ -81,10 +81,10 @@ export default function Nav() {
               </Link>
             ))}
             <Link
-              href={ADMIN_LINK.href}
+              href={JOIN_LINK.href}
               className="text-xs text-cream/40 hover:text-cream transition-colors"
             >
-              {ADMIN_LINK.label}
+              {JOIN_LINK.label}
             </Link>
           </div>
 
@@ -171,11 +171,11 @@ export default function Nav() {
 
             <div className="pt-4 border-t border-dark-border">
               <Link
-                href={ADMIN_LINK.href}
+                href={JOIN_LINK.href}
                 onClick={() => setOpen(false)}
                 className="block px-3 py-3 text-sm text-cream/50 hover:text-cream hover:bg-dark-border/40 rounded-lg transition-colors"
               >
-                {ADMIN_LINK.label}
+                {JOIN_LINK.label}
               </Link>
             </div>
           </div>
