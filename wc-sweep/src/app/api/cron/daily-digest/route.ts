@@ -11,13 +11,45 @@ import {
 import { and, gte, lte, eq } from "drizzle-orm";
 import { sendDigestEmail } from "@/lib/send-email";
 import { sendWhatsAppGroupMessage } from "@/lib/whatsapp";
+import { getTierMultiplier } from "@/lib/api-football";
 
 export const dynamic = "force-dynamic";
 
 let tablesEnsured = false;
 
+const WC_START = new Date("2026-06-11T00:00:00Z");
+
 function escHtml(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+function computeMatchDay(now: Date): number {
+  const diff = now.getTime() - WC_START.getTime();
+  return Math.max(1, Math.ceil(diff / (1000 * 60 * 60 * 24)));
+}
+
+function formatDateUK(d: Date): string {
+  return d.toLocaleDateString("en-GB", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    timeZone: "Europe/London",
+  });
+}
+
+function formatTimeUK(d: Date): string {
+  return d.toLocaleTimeString("en-GB", {
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "Europe/London",
+  });
+}
+
+function medalOrRank(rank: number): string {
+  if (rank === 1) return "🥇";
+  if (rank === 2) return "🥈";
+  if (rank === 3) return "🥉";
+  return `${rank}.`;
 }
 
 export async function GET() {
@@ -39,6 +71,9 @@ export async function GET() {
     const teamById = new Map<number, Team>(allTeams.map((t) => [t.id, t]));
     const assignByTeam = new Map<number, Assignment>(
       allAssignments.map((a) => [a.teamId, a])
+    );
+    const playerNameById = new Map<number, string>(
+      allPlayers.map((p) => [p.id, p.name])
     );
 
     // Yesterday's date window
@@ -72,17 +107,26 @@ export async function GET() {
       .select()
       .from(matches)
       .where(
-        and(
-          gte(matches.kickoff, today),
-          lte(matches.kickoff, todayEnd)
-        )
+        and(gte(matches.kickoff, today), lte(matches.kickoff, todayEnd))
       );
 
-    // Points awarded yesterday
-    const yesterdayPoints = allPoints.filter((p) => {
-      const c = p.createdAt ? new Date(p.createdAt) : null;
-      return c && c >= yesterday && c <= yesterdayEnd;
-    });
+    // Sort today's matches by kickoff time
+    todayMatches.sort(
+      (a, b) =>
+        new Date(a.kickoff).getTime() - new Date(b.kickoff).getTime()
+    );
+
+    // Build a map of match points per player (for yesterday's results)
+    // matchId -> playerId -> total points
+    const matchPlayerPoints = new Map<number, Map<number, number>>();
+    for (const m of yesterdayMatches) {
+      const ptsForMatch = allPoints.filter((pt) => pt.matchId === m.id);
+      const playerPts = new Map<number, number>();
+      for (const pt of ptsForMatch) {
+        playerPts.set(pt.playerId, (playerPts.get(pt.playerId) ?? 0) + pt.points);
+      }
+      matchPlayerPoints.set(m.id, playerPts);
+    }
 
     // Current leaderboard
     const standings = allPlayers
@@ -107,29 +151,147 @@ export async function GET() {
       })
       .sort((a, b) => b.totalPoints - a.totalPoints);
 
-    // Points by player for yesterday
-    const playerPointsMap = new Map<
-      number,
-      { total: number; breakdown: string[] }
-    >();
-    for (const p of yesterdayPoints) {
-      const existing = playerPointsMap.get(p.playerId);
-      const team = teamById.get(p.teamId);
-      const line = `${team?.flagEmoji ?? ""} ${team?.name ?? "?"}: ${p.points > 0 ? "+" : ""}${Math.round(p.points * 10) / 10} (${p.source.replace(/_/g, " ")})`;
-      if (existing) {
-        existing.total += p.points;
-        existing.breakdown.push(line);
-      } else {
-        playerPointsMap.set(p.playerId, {
-          total: p.points,
-          breakdown: [line],
-        });
-      }
+    // Compute previous day's standings for rank change arrows
+    const yesterdayPointIds = new Set(
+      allPoints
+        .filter((p) => {
+          const c = p.createdAt ? new Date(p.createdAt) : null;
+          return c && c >= yesterday;
+        })
+        .map((p) => p.id)
+    );
+    const previousStandings = allPlayers
+      .map((p) => {
+        const pAssign = allAssignments.filter((a) => a.playerId === p.id);
+        const total = pAssign.reduce((sum, a) => {
+          return (
+            sum +
+            allPoints
+              .filter(
+                (pt) =>
+                  pt.playerId === p.id &&
+                  pt.teamId === a.teamId &&
+                  !yesterdayPointIds.has(pt.id)
+              )
+              .reduce((s, pt) => s + pt.points, 0)
+          );
+        }, 0);
+        return { playerId: p.id, totalPoints: Math.round(total * 10) / 10 };
+      })
+      .sort((a, b) => b.totalPoints - a.totalPoints);
+
+    const prevRankMap = new Map<number, number>(
+      previousStandings.map((s, i) => [s.playerId, i + 1])
+    );
+
+    const matchDay = computeMatchDay(now);
+    const dateStr = formatDateUK(now);
+    const appUrl =
+      process.env.NEXT_PUBLIC_APP_URL ??
+      (process.env.VERCEL_URL
+        ? `https://${process.env.VERCEL_URL}`
+        : "https://wc-sweep.vercel.app");
+
+    // ---- Helper: get owner name for a team ----
+    function ownerName(teamId: number): string {
+      const assignment = assignByTeam.get(teamId);
+      if (!assignment) return "Unassigned";
+      return playerNameById.get(assignment.playerId) ?? "Unknown";
     }
 
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? process.env.VERCEL_URL
-      ? `https://${process.env.VERCEL_URL}`
-      : "https://wc-sweep.vercel.app";
+    function ownerPlayerId(teamId: number): number | null {
+      const assignment = assignByTeam.get(teamId);
+      return assignment?.playerId ?? null;
+    }
+
+    // ======================================
+    // A) WhatsApp group message
+    // ======================================
+
+    let todayMatchLines: string;
+    if (todayMatches.length > 0) {
+      todayMatchLines = todayMatches
+        .map((m) => {
+          const home = teamById.get(m.homeTeamId);
+          const away = teamById.get(m.awayTeamId);
+          const time = formatTimeUK(new Date(m.kickoff));
+          const hFlag = home?.flagEmoji ?? "";
+          const aFlag = away?.flagEmoji ?? "";
+          const hOwner = ownerName(m.homeTeamId);
+          const aOwner = ownerName(m.awayTeamId);
+          return `🏟️ ${time} ${hFlag} ${home?.name ?? "?"} vs ${away?.name ?? "?"} ${aFlag}\n   _${hOwner} vs ${aOwner}_`;
+        })
+        .join("\n\n");
+    } else {
+      todayMatchLines = "No matches today";
+    }
+
+    const leaderboardLines = standings
+      .map((s, i) => {
+        const rank = i + 1;
+        const medal = medalOrRank(rank);
+        const prevRank = prevRankMap.get(s.playerId) ?? rank;
+        const diff = prevRank - rank;
+        let arrow = "";
+        if (diff > 0) arrow = ` ↑${diff}`;
+        else if (diff < 0) arrow = ` ↓${Math.abs(diff)}`;
+        return `${medal} ${s.name} — ${s.totalPoints} pts${arrow}`;
+      })
+      .join("\n");
+
+    let yesterdayResultsSection = "";
+    if (yesterdayMatches.length > 0) {
+      const resultLines = yesterdayMatches
+        .map((m) => {
+          const home = teamById.get(m.homeTeamId);
+          const away = teamById.get(m.awayTeamId);
+          const hFlag = home?.flagEmoji ?? "";
+          const aFlag = away?.flagEmoji ?? "";
+          const playerPts = matchPlayerPoints.get(m.id);
+          // Determine winner owner + points
+          let winInfo = "";
+          if (
+            m.homeScore != null &&
+            m.awayScore != null &&
+            m.homeScore > m.awayScore
+          ) {
+            const homeOwnerId = ownerPlayerId(m.homeTeamId);
+            const pts = homeOwnerId != null ? (playerPts?.get(homeOwnerId) ?? 0) : 0;
+            winInfo = ` — ${ownerName(m.homeTeamId)} +${Math.round(pts * 10) / 10}`;
+          } else if (
+            m.homeScore != null &&
+            m.awayScore != null &&
+            m.awayScore > m.homeScore
+          ) {
+            const awayOwnerId = ownerPlayerId(m.awayTeamId);
+            const pts = awayOwnerId != null ? (playerPts?.get(awayOwnerId) ?? 0) : 0;
+            winInfo = ` — ${ownerName(m.awayTeamId)} +${Math.round(pts * 10) / 10}`;
+          } else {
+            winInfo = " — Draw";
+          }
+          return `${hFlag} ${home?.name ?? "?"} ${m.homeScore ?? 0}-${m.awayScore ?? 0} ${away?.name ?? "?"} ${aFlag}${winInfo}`;
+        })
+        .join("\n");
+
+      yesterdayResultsSection = `\n━━━━━━━━━━━━━━━\n\n📊 *YESTERDAY'S RESULTS*\n${resultLines}`;
+    }
+
+    const waMsg =
+      `☀️ *MATCH DAY ${matchDay}* — ${dateStr}\n\n` +
+      `⚽ *TODAY'S MATCHES*\n\n${todayMatchLines}\n\n` +
+      `━━━━━━━━━━━━━━━\n\n` +
+      `🏆 *LEADERBOARD*\n${leaderboardLines}` +
+      `${yesterdayResultsSection}\n\n` +
+      `━━━━━━━━━━━━━━━\n\n` +
+      `🎯 *DON'T FORGET*\n` +
+      `• Submit predictions before kickoff\n` +
+      `• Daily quiz is live\n` +
+      `• Prop bets close at first kickoff\n\n` +
+      `📱 Open app → ${appUrl}`;
+
+    // ======================================
+    // B) Personalized email per player
+    // ======================================
 
     let sent = 0;
     let errors = 0;
@@ -155,163 +317,179 @@ export async function GET() {
       );
       const playerTeamIds = new Set(playerAssignments.map((a) => a.teamId));
 
-      // Build "YOUR TEAMS TODAY" section
+      // Player's rank
+      const playerRank =
+        standings.findIndex((s) => s.playerId === player.id) + 1;
+      const playerTotal =
+        standings.find((s) => s.playerId === player.id)?.totalPoints ?? 0;
+
+      // Player's teams playing today
       const teamsPlayingToday = todayMatches.filter(
-        (m) => playerTeamIds.has(m.homeTeamId) || playerTeamIds.has(m.awayTeamId)
+        (m) =>
+          playerTeamIds.has(m.homeTeamId) || playerTeamIds.has(m.awayTeamId)
       );
 
-      // Build "YESTERDAY'S RESULTS"
-      const yesterdayResults = yesterdayMatches
-        .map((m) => {
-          const home = teamById.get(m.homeTeamId);
-          const away = teamById.get(m.awayTeamId);
-          const homeOwner = assignByTeam.get(m.homeTeamId);
-          const awayOwner = assignByTeam.get(m.awayTeamId);
-          const isPlayerMatch =
-            playerTeamIds.has(m.homeTeamId) || playerTeamIds.has(m.awayTeamId);
-          return {
-            label: `${home?.flagEmoji ?? ""} ${home?.name ?? "?"} ${m.homeScore ?? 0}-${m.awayScore ?? 0} ${away?.name ?? "?"} ${away?.flagEmoji ?? ""}`,
-            homeOwner: homeOwner
-              ? allPlayers.find((p) => p.id === homeOwner.playerId)?.name ??
-                null
-              : null,
-            awayOwner: awayOwner
-              ? allPlayers.find((p) => p.id === awayOwner.playerId)?.name ??
-                null
-              : null,
-            isPlayerMatch,
-          };
+      // Build "Your Teams Today" cards
+      let yourTeamsTodayHtml = "";
+      if (teamsPlayingToday.length > 0) {
+        const cards = teamsPlayingToday
+          .map((m) => {
+            const isHome = playerTeamIds.has(m.homeTeamId);
+            const myTeamId = isHome ? m.homeTeamId : m.awayTeamId;
+            const oppTeamId = isHome ? m.awayTeamId : m.homeTeamId;
+            const myTeam = teamById.get(myTeamId);
+            const oppTeam = teamById.get(oppTeamId);
+            const multiplier = myTeam
+              ? getTierMultiplier(myTeam.tier)
+              : 1;
+            const kickoff = formatTimeUK(new Date(m.kickoff));
+            return `<div style="margin:0 15px 10px;background:#141420;border:1px solid #252540;border-radius:8px;padding:15px;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
+    <tr>
+      <td style="font-size:14px;">
+        <span style="font-size:20px;">${myTeam?.flagEmoji ?? ""}</span>
+        <strong style="color:#f5f1e8;">${escHtml(myTeam?.name ?? "?")}</strong>
+        <span style="color:#d4a843;font-size:12px;">x${multiplier}</span>
+      </td>
+      <td style="text-align:right;font-size:13px;color:#f5f1e899;">
+        vs ${escHtml(oppTeam?.name ?? "?")}<br>
+        <strong>${kickoff}</strong>
+      </td>
+    </tr>
+  </table>
+</div>`;
+          })
+          .join("\n");
+
+        yourTeamsTodayHtml = `
+<div style="padding:15px 20px;">
+  <h2 style="color:#d4a843;font-size:16px;margin:0 0 10px;border-bottom:1px solid #252540;padding-bottom:8px;">⚽ Your Teams Today</h2>
+</div>
+${cards}`;
+      }
+
+      // Build "Yesterday's Results" section
+      let yesterdayResultsHtml = "";
+      if (yesterdayMatches.length > 0) {
+        const resultCards = yesterdayMatches
+          .map((m) => {
+            const home = teamById.get(m.homeTeamId);
+            const away = teamById.get(m.awayTeamId);
+            const hFlag = home?.flagEmoji ?? "";
+            const aFlag = away?.flagEmoji ?? "";
+            const playerPts = matchPlayerPoints.get(m.id);
+            // Points info
+            let ptsLine = "";
+            if (
+              m.homeScore != null &&
+              m.awayScore != null &&
+              m.homeScore > m.awayScore
+            ) {
+              const homeOwnerId = ownerPlayerId(m.homeTeamId);
+              const pts = homeOwnerId != null ? (playerPts?.get(homeOwnerId) ?? 0) : 0;
+              ptsLine = `${escHtml(ownerName(m.homeTeamId))} +${Math.round(pts * 10) / 10} pts`;
+            } else if (
+              m.homeScore != null &&
+              m.awayScore != null &&
+              m.awayScore > m.homeScore
+            ) {
+              const awayOwnerId = ownerPlayerId(m.awayTeamId);
+              const pts = awayOwnerId != null ? (playerPts?.get(awayOwnerId) ?? 0) : 0;
+              ptsLine = `${escHtml(ownerName(m.awayTeamId))} +${Math.round(pts * 10) / 10} pts`;
+            } else {
+              ptsLine = "Draw — both owners share pts";
+            }
+            return `<div style="background:#141420;border:1px solid #252540;border-radius:6px;padding:10px 12px;margin-bottom:8px;">
+  <div style="text-align:center;font-size:14px;">
+    ${hFlag} <strong>${escHtml(home?.name ?? "?")}</strong> ${m.homeScore ?? 0} - ${m.awayScore ?? 0} <strong>${escHtml(away?.name ?? "?")}</strong> ${aFlag}
+  </div>
+  <div style="text-align:center;font-size:12px;color:#d4a843;margin-top:4px;">
+    ${ptsLine}
+  </div>
+</div>`;
+          })
+          .join("\n");
+
+        yesterdayResultsHtml = `
+<div style="padding:15px 20px;">
+  <h2 style="color:#d4a843;font-size:16px;margin:0 0 10px;border-bottom:1px solid #252540;padding-bottom:8px;">Yesterday's Results</h2>
+  ${resultCards}
+</div>`;
+      }
+
+      // Build leaderboard table
+      const leaderboardRows = standings
+        .map((s, i) => {
+          const rank = i + 1;
+          const medal = medalOrRank(rank);
+          const isCurrentPlayer = s.playerId === player.id;
+          const prevRank = prevRankMap.get(s.playerId) ?? rank;
+          const diff = prevRank - rank;
+          let arrow = "";
+          if (diff > 0) arrow = ` <span style="color:#4caf50;">↑${diff}</span>`;
+          else if (diff < 0)
+            arrow = ` <span style="color:#f44336;">↓${Math.abs(diff)}</span>`;
+
+          const borderLeft = isCurrentPlayer
+            ? "border-left:3px solid #d4a843;"
+            : "";
+          const nameWeight = isCurrentPlayer ? "font-weight:bold;" : "";
+
+          return `<tr style="border-bottom:1px solid #252540;${borderLeft}">
+  <td style="padding:8px 5px;width:30px;">${medal}</td>
+  <td style="padding:8px 5px;${nameWeight}">${escHtml(s.name)}${arrow}</td>
+  <td style="padding:8px 5px;text-align:right;color:#d4a843;font-weight:bold;">${s.totalPoints}</td>
+</tr>`;
         })
-        .sort((a, b) => (a.isPlayerMatch === b.isPlayerMatch ? 0 : a.isPlayerMatch ? -1 : 1));
+        .join("\n");
 
-      // Player's position in standings
-      const playerRank = standings.findIndex(
-        (s) => s.playerId === player.id
-      ) + 1;
-      const playerTotal = standings.find(
-        (s) => s.playerId === player.id
-      )?.totalPoints ?? 0;
-
-      // Yesterday's points for this player
-      const myPoints = playerPointsMap.get(player.id);
-
-      // Build HTML email
       const html = `<!DOCTYPE html>
 <html>
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
-<body style="margin:0;padding:0;background:#0a0a0f;color:#f5f1e8;font-family:Inter,system-ui,sans-serif;">
-<div style="max-width:600px;margin:0 auto;padding:20px;">
+<body style="margin:0;padding:0;background:#0a0a0f;">
+<div style="background:#0a0a0f;color:#f5f1e8;font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:0;">
 
-<div style="text-align:center;padding:24px 0;border-bottom:1px solid #252540;">
-  <h1 style="margin:0;font-size:24px;font-family:Playfair Display,Georgia,serif;">
-    <span style="color:#d4a843;">WC</span> Sweep 2026
-  </h1>
-</div>
+  <!-- Hero banner -->
+  <div style="background:linear-gradient(135deg,#1a237e,#8a1538);padding:30px 20px;text-align:center;">
+    <div style="font-size:36px;">⚽</div>
+    <h1 style="color:#d4a843;margin:10px 0 5px;font-size:24px;">WC SWEEP 2026</h1>
+    <p style="color:#f5f1e8;opacity:0.7;margin:0;font-size:14px;">Match Day ${matchDay} — ${escHtml(dateStr)}</p>
+  </div>
 
-<div style="padding:24px 0;">
-  <h2 style="margin:0 0 8px 0;font-size:20px;color:#f5f1e8;">
-    Good morning, ${escHtml(player.name)}!
-  </h2>
-  <p style="margin:0;color:#f5f1e8aa;font-size:14px;">
-    Here's your World Cup Sweep update.
-  </p>
-</div>
+  <!-- Personal greeting -->
+  <div style="padding:20px;text-align:center;">
+    <p style="font-size:18px;margin:0;">Good morning, <strong style="color:#d4a843;">${escHtml(player.name)}</strong></p>
+    <p style="opacity:0.5;font-size:13px;margin:5px 0 0;">You're currently <strong>#${playerRank}</strong> with <strong style="color:#d4a843;">${playerTotal} pts</strong></p>
+  </div>
 
-${teamsPlayingToday.length > 0 ? `
-<div style="background:#141420;border:1px solid #252540;border-radius:8px;padding:16px;margin-bottom:16px;">
-  <h3 style="margin:0 0 12px 0;font-size:14px;color:#d4a843;text-transform:uppercase;letter-spacing:1px;">
-    Your Teams Today
-  </h3>
-  ${teamsPlayingToday
-    .map((m) => {
-      const home = teamById.get(m.homeTeamId);
-      const away = teamById.get(m.awayTeamId);
-      const kickoff = m.kickoff
-        ? new Date(m.kickoff).toLocaleTimeString("en-GB", {
-            hour: "2-digit",
-            minute: "2-digit",
-            timeZone: "Europe/London",
-          })
-        : "TBC";
-      return `<div style="padding:8px 0;border-bottom:1px solid #252540;">
-        <span style="font-size:14px;">${home?.flagEmoji ?? ""} ${escHtml(home?.name ?? "?")} vs ${escHtml(away?.name ?? "?")} ${away?.flagEmoji ?? ""}</span>
-        <span style="float:right;color:#d4a843;font-size:13px;">${kickoff}</span>
-      </div>`;
-    })
-    .join("")}
-</div>
-` : ""}
+  <!-- Your Teams Today -->
+  ${yourTeamsTodayHtml}
 
-${yesterdayResults.length > 0 ? `
-<div style="background:#141420;border:1px solid #252540;border-radius:8px;padding:16px;margin-bottom:16px;">
-  <h3 style="margin:0 0 12px 0;font-size:14px;color:#d4a843;text-transform:uppercase;letter-spacing:1px;">
-    Yesterday's Results
-  </h3>
-  ${yesterdayResults
-    .map(
-      (r) =>
-        `<div style="padding:8px 0;border-bottom:1px solid #252540;${r.isPlayerMatch ? "background:#d4a84310;" : ""}">
-          <div style="font-size:14px;font-weight:${r.isPlayerMatch ? "bold" : "normal"};">
-            ${escHtml(r.label)}
-          </div>
-          <div style="font-size:11px;color:#f5f1e866;margin-top:2px;">
-            ${r.homeOwner ? escHtml(r.homeOwner) : "Unassigned"} vs ${r.awayOwner ? escHtml(r.awayOwner) : "Unassigned"}
-          </div>
-        </div>`
-    )
-    .join("")}
-</div>
-` : ""}
+  <!-- Yesterday's Results -->
+  ${yesterdayResultsHtml}
 
-${myPoints ? `
-<div style="background:#141420;border:1px solid #252540;border-radius:8px;padding:16px;margin-bottom:16px;">
-  <h3 style="margin:0 0 12px 0;font-size:14px;color:#d4a843;text-transform:uppercase;letter-spacing:1px;">
-    Your Points Yesterday: ${myPoints.total > 0 ? "+" : ""}${Math.round(myPoints.total * 10) / 10}
-  </h3>
-  ${myPoints.breakdown.map((line) => `<div style="font-size:13px;padding:4px 0;color:#f5f1e8cc;">${escHtml(line)}</div>`).join("")}
-</div>
-` : ""}
+  <!-- Leaderboard -->
+  <div style="padding:15px 20px;">
+    <h2 style="color:#d4a843;font-size:16px;margin:0 0 10px;border-bottom:1px solid #252540;padding-bottom:8px;">🏆 Leaderboard</h2>
+    <table style="width:100%;border-collapse:collapse;font-size:13px;">
+      ${leaderboardRows}
+    </table>
+  </div>
 
-<div style="background:#141420;border:1px solid #252540;border-radius:8px;padding:16px;margin-bottom:16px;">
-  <h3 style="margin:0 0 12px 0;font-size:14px;color:#d4a843;text-transform:uppercase;letter-spacing:1px;">
-    Leaderboard
-  </h3>
-  ${standings
-    .slice(0, 5)
-    .map(
-      (s, i) =>
-        `<div style="padding:6px 0;display:flex;justify-content:space-between;font-size:14px;${s.playerId === player.id ? "color:#d4a843;font-weight:bold;" : "color:#f5f1e8cc;"}">
-          <span>${i + 1}. ${escHtml(s.name)}</span>
-          <span>${s.totalPoints} pts</span>
-        </div>`
-    )
-    .join("")}
-  ${playerRank > 5
-    ? `<div style="padding:8px 0;margin-top:8px;border-top:1px solid #252540;font-size:14px;color:#d4a843;font-weight:bold;display:flex;justify-content:space-between;">
-        <span>${playerRank}. ${escHtml(player.name)} (you)</span>
-        <span>${playerTotal} pts</span>
-      </div>`
-    : ""}
-</div>
+  <!-- Action Required -->
+  <div style="padding:15px 20px;">
+    <h2 style="color:#d4a843;font-size:16px;margin:0 0 10px;border-bottom:1px solid #252540;padding-bottom:8px;">🎯 Action Required</h2>
+    <a href="${appUrl}/predictions" style="display:block;background:#1a237e;color:#f5f1e8;text-align:center;padding:12px;border-radius:6px;text-decoration:none;font-weight:bold;margin-bottom:8px;">Submit Predictions →</a>
+    <a href="${appUrl}/quiz" style="display:block;background:#00695c;color:#f5f1e8;text-align:center;padding:12px;border-radius:6px;text-decoration:none;font-weight:bold;margin-bottom:8px;">Play Daily Quiz →</a>
+  </div>
 
-<div style="background:#141420;border:1px solid #252540;border-radius:8px;padding:16px;margin-bottom:16px;">
-  <h3 style="margin:0 0 8px 0;font-size:14px;color:#d4a843;">Don't forget!</h3>
-  <p style="margin:0 0 4px 0;font-size:13px;color:#f5f1e8cc;">
-    Play today's quiz and submit your predictions before kickoff.
-  </p>
-</div>
-
-<div style="text-align:center;padding:24px 0;">
-  <a href="${appUrl}" style="display:inline-block;background:#d4a843;color:#0a0a0f;font-weight:600;font-size:14px;padding:12px 24px;border-radius:8px;text-decoration:none;">
-    Open WC Sweep
-  </a>
-</div>
-
-<div style="text-align:center;padding:16px 0;border-top:1px solid #252540;">
-  <p style="margin:0;font-size:11px;color:#f5f1e844;">
-    WC Sweep 2026 - Don't miss out!
-  </p>
-</div>
+  <!-- Footer -->
+  <div style="padding:20px;text-align:center;border-top:1px solid #252540;">
+    <p style="font-size:11px;color:#f5f1e844;margin:0;">
+      WC Sweep 2026 · Bragging rights only<br>
+      <a href="${appUrl}" style="color:#d4a843;text-decoration:none;">Open the app</a>
+    </p>
+  </div>
 
 </div>
 </body>
@@ -328,39 +506,6 @@ ${myPoints ? `
     // Send WhatsApp group summary
     let whatsappSent = false;
     try {
-      const todayMatchList = todayMatches
-        .map((m) => {
-          const home = allTeams.find((t) => t.id === m.homeTeamId);
-          const away = allTeams.find((t) => t.id === m.awayTeamId);
-          const homeOwner = allAssignments.find((a) => a.teamId === m.homeTeamId);
-          const awayOwner = allAssignments.find((a) => a.teamId === m.awayTeamId);
-          const hName = home?.flagEmoji ?? "";
-          const aName = away?.flagEmoji ?? "";
-          const hOwner = homeOwner ? allPlayers.find((p) => p.id === homeOwner.playerId)?.name ?? "" : "";
-          const aOwner = awayOwner ? allPlayers.find((p) => p.id === awayOwner.playerId)?.name ?? "" : "";
-          const time = m.kickoff ? new Date(m.kickoff).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/London" }) : "TBC";
-          return `${time} ${hName} ${home?.name ?? "?"} vs ${away?.name ?? "?"} ${aName}\n   ${hOwner} vs ${aOwner}`;
-        })
-        .join("\n\n");
-
-      const leaderboardText = allPlayers
-        .map((p) => {
-          const pts = allPoints.filter((pt) => pt.playerId === p.id).reduce((s, pt) => s + pt.points, 0);
-          return { name: p.name, pts };
-        })
-        .sort((a, b) => b.pts - a.pts)
-        .slice(0, 5)
-        .map((p, i) => `${i + 1}. ${p.name} — ${p.pts.toFixed(1)} pts`)
-        .join("\n");
-
-      const waMsg = `⚽ *WC Sweep 2026 — Daily Update*\n\n` +
-        (todayMatches.length > 0
-          ? `🏟️ *Today's Matches*\n\n${todayMatchList}\n\n`
-          : `No matches today.\n\n`) +
-        `🏆 *Leaderboard*\n${leaderboardText}\n\n` +
-        `📱 Open the app → ${process.env.NEXT_PUBLIC_APP_URL ?? "https://mkts-dun.vercel.app"}\n` +
-        `🎯 Don't forget your predictions!`;
-
       whatsappSent = await sendWhatsAppGroupMessage(waMsg);
     } catch (err) {
       console.error("[Daily Digest] WhatsApp failed:", err);

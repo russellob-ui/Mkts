@@ -389,6 +389,15 @@ export async function settleMatch(matchId: number): Promise<void> {
     source: "auto",
   });
 
+  // Send rich full-time WhatsApp message
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "mkts-dun.vercel.app";
+  const hFlag = homeTeam.flagEmoji ?? "";
+  const aFlag = awayTeam.flagEmoji ?? "";
+  const ftMsg = `🏁 *FULL TIME*\n\n${hFlag} *${homeTeam.name} ${homeScore}* - ${awayScore} ${awayTeam.name} ${aFlag}\n\n*Points:*\n${homeOwner ?? "Unowned"}: +pts\n${awayOwner ?? "Unowned"}: +pts\n\n📊 Standings → ${appUrl}`;
+  try {
+    await sendWhatsAppGroupMessage(ftMsg);
+  } catch { /* non-fatal */ }
+
   // Resolve predictions for this match
   try {
     await resolvePredictions(matchId);
@@ -455,8 +464,21 @@ async function generateGoalBanter(
     importance = 8;
   }
 
-  const score = `${fixture.goals.home ?? 0}-${fixture.goals.away ?? 0}`;
-  const detail = `${homeTeam.name} ${score} ${awayTeam.name}`;
+  const homeFlag = (homeTeam as Record<string, unknown>).flagEmoji as string ?? "";
+  const awayFlag = (awayTeam as Record<string, unknown>).flagEmoji as string ?? "";
+  const homeScore = fixture.goals.home ?? 0;
+  const awayScore = fixture.goals.away ?? 0;
+  const ownerName = owner?.name ?? "Unowned";
+  const tierMult = assignment ? `x${((scoringTeam as Record<string, unknown>).tier as number) ?? 1}.0` : "";
+
+  let waMsg: string;
+  if (isOwnGoal) {
+    waMsg = `😬 *OWN GOAL!* ${minute}'\n\n${homeFlag} *${homeTeam.name} ${homeScore}* - ${awayScore} ${awayTeam.name} ${awayFlag}\n\n😬 ${playerName} puts it in his own net\n\n_${ownerName} affected_`;
+  } else if (isPenalty) {
+    waMsg = `🎯 *PENALTY GOAL!* ${minute}'\n\n${homeFlag} *${homeTeam.name} ${homeScore}* - ${awayScore} ${awayTeam.name} ${awayFlag}\n\n🎯 ${playerName} converts from the spot${evt.assist?.name ? ` (Won by: ${evt.assist.name})` : ""}\n\n_${ownerName} picks up pts (${tierMult})_`;
+  } else {
+    waMsg = `⚽ *GOAL!* ${minute}'\n\n${homeFlag} *${homeTeam.name} ${homeScore}* - ${awayScore} ${awayTeam.name} ${awayFlag}\n\n⚽ ${playerName}${evt.assist?.name ? ` (Assist: ${evt.assist.name})` : ""}\n\n_${ownerName} picks up pts (${tierMult})_`;
+  }
 
   try {
     await db.insert(banterEvents).values({
@@ -465,14 +487,13 @@ async function generateGoalBanter(
       teamId: scoringTeam.id,
       eventType: isOwnGoal ? "own_goal" : "goal",
       headline,
-      detail,
+      detail: `${homeTeam.name} ${homeScore}-${awayScore} ${awayTeam.name}`,
       emoji,
       importance,
       source: "auto",
     });
-    // Send goal to WhatsApp group
     try {
-      await sendWhatsAppGroupMessage(`${emoji} ${headline}\n${detail}`);
+      await sendWhatsAppGroupMessage(waMsg);
     } catch { /* non-fatal */ }
     return true;
   } catch {
