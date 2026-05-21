@@ -70,15 +70,37 @@ export async function GET() {
     key
   );
 
-  // Plus a few likely alternatives
-  results.fixtures_l1_s2025 = await rawFetch(
-    "/fixtures?league=1&season=2025",
-    key
-  );
-  results.fixtures_l1_s2022 = await rawFetch(
-    "/fixtures?league=1&season=2022",
-    key
-  );
+  // Full team list for league=1 season=2026 — this is what sync-fixtures
+  // uses to populate wc_teams.api_team_id. The "unmatched teams" list
+  // returned by sync is meaningless without seeing the candidates.
+  const teamsRaw = await rawFetch("/teams?league=1&season=2026", key);
+  results.teams_l1_s2026 = teamsRaw;
+
+  // Pull just the names out, sorted, so it's easy to scan in the JSON
+  type RawTeam = { team?: { id?: number; name?: string } };
+  const teamsArr = Array.isArray((teamsRaw as { sample?: unknown } | null)?.sample)
+    ? null // sample is truncated to 2 — we want the real full list
+    : null;
+  void teamsArr;
+
+  // Re-fetch (uncached, full body) so we have all names, not just the 2-row sample
+  try {
+    const res = await fetch(
+      `${BASE_URL}/teams?league=1&season=2026`,
+      { headers: { "x-apisports-key": key }, cache: "no-store" }
+    );
+    const json = (await res.json()) as { response?: RawTeam[] };
+    const names = (json.response ?? [])
+      .map((t) => t.team?.name)
+      .filter((n): n is string => typeof n === "string")
+      .sort((a, b) => a.localeCompare(b));
+    results.teamNames_l1_s2026 = {
+      count: names.length,
+      names,
+    };
+  } catch (err) {
+    results.teamNames_l1_s2026 = { error: String(err) };
+  }
 
   return NextResponse.json(results);
 }
