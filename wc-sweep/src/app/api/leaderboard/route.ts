@@ -10,9 +10,8 @@ import {
   banterEvents,
   chatMessages,
   quizResults,
-  predictions,
 } from "@/db/schema";
-import { desc, asc, and, gte, lte, gt, isNull, eq } from "drizzle-orm";
+import { desc, asc, isNull } from "drizzle-orm";
 
 let tablesEnsured = false;
 
@@ -85,7 +84,8 @@ export async function GET() {
 
     // Points that existed 24h ago (for rank comparison)
     const pointsBefore24h = allPoints.filter(
-      (p) => p.createdAt && p.createdAt.getTime() <= twentyFourHoursAgo.getTime()
+      (p) =>
+        p.createdAt && p.createdAt.getTime() <= twentyFourHoursAgo.getTime()
     );
 
     // Points in last 3 days
@@ -96,7 +96,9 @@ export async function GET() {
     // First point date (for daily average calculation)
     const firstPointDate = allPoints.reduce(
       (min, p) =>
-        p.createdAt && p.createdAt.getTime() < min ? p.createdAt.getTime() : min,
+        p.createdAt && p.createdAt.getTime() < min
+          ? p.createdAt.getTime()
+          : min,
       Date.now()
     );
     const totalDays = Math.max(
@@ -133,6 +135,8 @@ export async function GET() {
     const oldRankMap = new Map(oldRanks.map((r) => [r.pid, r.rank]));
 
     // ----- Build leaderboard -----
+    const round1 = (n: number) => Math.round(n * 10) / 10;
+
     const leaderboard = allPlayers
       .map((player) => {
         const playerAssignments = allAssignments.filter(
@@ -162,7 +166,6 @@ export async function GET() {
         }
 
         // Round all values
-        const round1 = (n: number) => Math.round(n * 10) / 10;
         totalPoints = round1(totalPoints);
         gamePoints = round1(gamePoints);
         predictionPoints = round1(predictionPoints);
@@ -220,45 +223,48 @@ export async function GET() {
       }
     });
 
+    // ----- Helper: build match card from DB row -----
+    function buildMatchCard(m: (typeof allMatches)[number]) {
+      const home = teamMap.get(m.homeTeamId);
+      const away = teamMap.get(m.awayTeamId);
+      const homeAssign = allAssignments.find(
+        (a) => a.teamId === m.homeTeamId
+      );
+      const awayAssign = allAssignments.find(
+        (a) => a.teamId === m.awayTeamId
+      );
+      const homeOwner = homeAssign
+        ? playerMap.get(homeAssign.playerId)?.name ?? null
+        : null;
+      const awayOwner = awayAssign
+        ? playerMap.get(awayAssign.playerId)?.name ?? null
+        : null;
+      return {
+        id: m.id,
+        homeTeam: home?.name ?? "?",
+        awayTeam: away?.name ?? "?",
+        homeFlag: home?.flagEmoji ?? "\u{1F3F3}\u{FE0F}",
+        awayFlag: away?.flagEmoji ?? "\u{1F3F3}\u{FE0F}",
+        homeScore: m.homeScore,
+        awayScore: m.awayScore,
+        status: m.status,
+        minute: m.minute,
+        kickoff: m.kickoff?.toISOString() ?? "",
+        homeOwner,
+        awayOwner,
+        stage: m.stage,
+        venue: m.venue,
+        city: m.city,
+      };
+    }
+
     // ----- Today's matches -----
     const todayMatches = allMatches
       .filter((m) => {
         const ko = m.kickoff;
         return ko >= todayStart && ko <= todayEnd;
       })
-      .map((m) => {
-        const home = teamMap.get(m.homeTeamId);
-        const away = teamMap.get(m.awayTeamId);
-        const homeAssign = allAssignments.find(
-          (a) => a.teamId === m.homeTeamId
-        );
-        const awayAssign = allAssignments.find(
-          (a) => a.teamId === m.awayTeamId
-        );
-        const homeOwner = homeAssign
-          ? playerMap.get(homeAssign.playerId)?.name ?? null
-          : null;
-        const awayOwner = awayAssign
-          ? playerMap.get(awayAssign.playerId)?.name ?? null
-          : null;
-        return {
-          id: m.id,
-          homeTeam: home?.name ?? "?",
-          awayTeam: away?.name ?? "?",
-          homeFlag: home?.flagEmoji ?? "🏳️",
-          awayFlag: away?.flagEmoji ?? "🏳️",
-          homeScore: m.homeScore,
-          awayScore: m.awayScore,
-          status: m.status,
-          minute: m.minute,
-          kickoff: m.kickoff?.toISOString() ?? "",
-          homeOwner,
-          awayOwner,
-          stage: m.stage,
-          venue: m.venue,
-          city: m.city,
-        };
-      })
+      .map(buildMatchCard)
       .sort(
         (a, b) =>
           new Date(a.kickoff).getTime() - new Date(b.kickoff).getTime()
@@ -284,13 +290,17 @@ export async function GET() {
       const nm = upcomingMatches[0];
       const home = teamMap.get(nm.homeTeamId);
       const away = teamMap.get(nm.awayTeamId);
-      const homeAssign = allAssignments.find((a) => a.teamId === nm.homeTeamId);
-      const awayAssign = allAssignments.find((a) => a.teamId === nm.awayTeamId);
+      const homeAssign = allAssignments.find(
+        (a) => a.teamId === nm.homeTeamId
+      );
+      const awayAssign = allAssignments.find(
+        (a) => a.teamId === nm.awayTeamId
+      );
       nextMatch = {
         homeTeam: home?.name ?? "?",
-        homeFlag: home?.flagEmoji ?? "🏳️",
+        homeFlag: home?.flagEmoji ?? "\u{1F3F3}\u{FE0F}",
         awayTeam: away?.name ?? "?",
-        awayFlag: away?.flagEmoji ?? "🏳️",
+        awayFlag: away?.flagEmoji ?? "\u{1F3F3}\u{FE0F}",
         kickoff: nm.kickoff.toISOString(),
         homeOwner: homeAssign
           ? playerMap.get(homeAssign.playerId)?.name ?? null
@@ -329,9 +339,9 @@ export async function GET() {
       liveMatch = {
         id: liveMatchRow.id,
         homeTeam: home?.name ?? "?",
-        homeFlag: home?.flagEmoji ?? "🏳️",
+        homeFlag: home?.flagEmoji ?? "\u{1F3F3}\u{FE0F}",
         awayTeam: away?.name ?? "?",
-        awayFlag: away?.flagEmoji ?? "🏳️",
+        awayFlag: away?.flagEmoji ?? "\u{1F3F3}\u{FE0F}",
         homeScore: liveMatchRow.homeScore ?? 0,
         awayScore: liveMatchRow.awayScore ?? 0,
         minute: liveMatchRow.minute ?? 0,
@@ -346,7 +356,8 @@ export async function GET() {
 
     // ----- Today points by player -----
     const todayPoints = allPoints.filter(
-      (p) => p.createdAt && p.createdAt >= todayStart && p.createdAt <= todayEnd
+      (p) =>
+        p.createdAt && p.createdAt >= todayStart && p.createdAt <= todayEnd
     );
     const todayByPlayer = new Map<number, number>();
     for (const p of todayPoints) {
@@ -359,7 +370,7 @@ export async function GET() {
       .map(([pid, pts]) => ({
         playerId: pid,
         playerName: playerMap.get(pid)?.name ?? "Unknown",
-        points: Math.round(pts * 10) / 10,
+        points: round1(pts),
       }))
       .sort((a, b) => b.points - a.points);
 
@@ -367,7 +378,7 @@ export async function GET() {
     const hour = now.getHours();
     const statCandidates: Array<{ emoji: string; text: string }> = [];
 
-    // Best defence
+    // Best defence — clean sheets
     for (const player of allPlayers) {
       const pAssignments = allAssignments.filter(
         (a) => a.playerId === player.id
@@ -378,7 +389,6 @@ export async function GET() {
 
       for (const team of aliveTeams) {
         if (!team) continue;
-        // Count clean sheets from points
         const cleanSheets = allPoints.filter(
           (p) =>
             p.playerId === player.id &&
@@ -387,7 +397,7 @@ export async function GET() {
         ).length;
         if (cleanSheets >= 2) {
           statCandidates.push({
-            emoji: "🧤",
+            emoji: "\u{1F9E4}",
             text: `${player.name}'s ${team.name}: ${cleanSheets} clean sheets`,
           });
         }
@@ -401,7 +411,7 @@ export async function GET() {
       );
       if (predPts.length >= 3) {
         statCandidates.push({
-          emoji: "🎯",
+          emoji: "\u{1F3AF}",
           text: `${player.name} has nailed ${predPts.length} predictions`,
         });
       }
@@ -411,7 +421,7 @@ export async function GET() {
     for (const entry of leaderboard) {
       if (entry.teamsTotal > 0 && entry.teamsAlive === 0) {
         statCandidates.push({
-          emoji: "💨",
+          emoji: "\u{1F4A8}",
           text: `${entry.playerName} has 0 teams left alive`,
         });
       }
@@ -419,12 +429,11 @@ export async function GET() {
 
     // Leader's total
     if (leaderboard.length >= 2) {
-      const gap =
-        leaderboard[0].totalPoints - leaderboard[1].totalPoints;
+      const gap = leaderboard[0].totalPoints - leaderboard[1].totalPoints;
       if (gap > 0) {
         statCandidates.push({
-          emoji: "👑",
-          text: `${leaderboard[0].playerName} leads by ${Math.round(gap * 10) / 10} points`,
+          emoji: "\u{1F451}",
+          text: `${leaderboard[0].playerName} leads by ${round1(gap)} points`,
         });
       }
     }
@@ -433,7 +442,7 @@ export async function GET() {
     for (const entry of leaderboard) {
       if (entry.trend === "hot") {
         statCandidates.push({
-          emoji: "🔥",
+          emoji: "\u{1F525}",
           text: `${entry.playerName} is on fire! Hot streak in the last 3 days`,
         });
       }
@@ -459,7 +468,7 @@ export async function GET() {
     for (const evt of recentBanter.slice(0, 10)) {
       activityItems.push({
         type: "banter",
-        emoji: evt.emoji ?? "📢",
+        emoji: evt.emoji ?? "\u{1F4E2}",
         text: evt.headline,
         timeAgo: timeAgoStr(evt.createdAt),
         sortTime: evt.createdAt.getTime(),
@@ -471,7 +480,7 @@ export async function GET() {
       if (msg.contextType === "trash_talk") continue;
       activityItems.push({
         type: "chat",
-        emoji: "💬",
+        emoji: "\u{1F4AC}",
         text: `${msg.playerNameSnapshot}: ${msg.body.length > 60 ? msg.body.slice(0, 60) + "..." : msg.body}`,
         timeAgo: timeAgoStr(msg.createdAt),
         sortTime: msg.createdAt.getTime(),
@@ -483,7 +492,7 @@ export async function GET() {
       const p = playerMap.get(qr.playerId);
       activityItems.push({
         type: "quiz",
-        emoji: "🧠",
+        emoji: "\u{1F9E0}",
         text: `${p?.name ?? "Someone"} scored ${qr.score}/5 on the quiz`,
         timeAgo: timeAgoStr(qr.createdAt),
         sortTime: qr.createdAt.getTime(),
@@ -501,42 +510,11 @@ export async function GET() {
       (m) => m.status === "scheduled"
     ).length;
 
-    // Check for today's quiz
-    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
-    // Quiz is always available if there are questions (which there always are)
     const quizAvailable = true;
-
-    // Props available if there are scheduled matches today
     const propsAvailable = scheduledToday > 0;
 
     // ----- Upcoming matches (next 3 after now) -----
-    const upcomingNext3 = upcomingMatches.slice(0, 3).map((m) => {
-      const home = teamMap.get(m.homeTeamId);
-      const away = teamMap.get(m.awayTeamId);
-      const homeAssign = allAssignments.find(
-        (a) => a.teamId === m.homeTeamId
-      );
-      const awayAssign = allAssignments.find(
-        (a) => a.teamId === m.awayTeamId
-      );
-      return {
-        id: m.id,
-        homeTeam: home?.name ?? "?",
-        awayTeam: away?.name ?? "?",
-        homeFlag: home?.flagEmoji ?? "🏳️",
-        awayFlag: away?.flagEmoji ?? "🏳️",
-        kickoff: m.kickoff.toISOString(),
-        homeOwner: homeAssign
-          ? playerMap.get(homeAssign.playerId)?.name ?? null
-          : null,
-        awayOwner: awayAssign
-          ? playerMap.get(awayAssign.playerId)?.name ?? null
-          : null,
-        stage: m.stage,
-        venue: m.venue,
-        city: m.city,
-      };
-    });
+    const upcomingNext3 = upcomingMatches.slice(0, 3).map(buildMatchCard);
 
     return NextResponse.json({
       leaderboard,
