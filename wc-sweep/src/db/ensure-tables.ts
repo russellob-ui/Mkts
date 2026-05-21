@@ -297,5 +297,188 @@ export async function ensureTables() {
     )
   `);
 
-  console.log("[DB] WC Sweep tables ensured");
+  // ===== FANTASY FOOTBALL — additive, isolated from sweep =====
+  // Per docs/fantasy/FINAL_PLAN.md. All FK references to existing tables
+  // are read-only (no CASCADE into sweep tables).
+
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS footballers (
+      id SERIAL PRIMARY KEY,
+      api_player_id INTEGER UNIQUE,
+      full_name TEXT NOT NULL,
+      display_name TEXT NOT NULL,
+      nation TEXT NOT NULL,
+      position TEXT NOT NULL CHECK (position IN ('GK','DEF','MID','FWD')),
+      price_tenths INTEGER NOT NULL,
+      data_source TEXT NOT NULL CHECK (data_source IN ('api-football','manual','heuristic')),
+      eliminated_at TIMESTAMP,
+      is_active BOOLEAN NOT NULL DEFAULT true,
+      created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+    )
+  `);
+  await db.execute(sql`CREATE INDEX IF NOT EXISTS footballers_nation_idx ON footballers(nation)`);
+  await db.execute(sql`CREATE INDEX IF NOT EXISTS footballers_position_idx ON footballers(position)`);
+  await db.execute(sql`CREATE INDEX IF NOT EXISTS footballers_price_idx ON footballers(price_tenths)`);
+
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS footballer_events (
+      id SERIAL PRIMARY KEY,
+      match_id INTEGER NOT NULL REFERENCES matches(id),
+      footballer_id INTEGER NOT NULL REFERENCES footballers(id),
+      event_type TEXT NOT NULL,
+      minute INTEGER,
+      value INTEGER NOT NULL DEFAULT 1,
+      source TEXT NOT NULL,
+      scoring_tier TEXT NOT NULL CHECK (scoring_tier IN ('LIVE','SIMPLIFIED','ADMIN')),
+      created_at TIMESTAMP NOT NULL DEFAULT NOW()
+    )
+  `);
+  await db.execute(sql`CREATE UNIQUE INDEX IF NOT EXISTS footballer_events_dedupe_idx ON footballer_events(match_id, footballer_id, event_type, COALESCE(minute, -1), source)`);
+  await db.execute(sql`CREATE INDEX IF NOT EXISTS footballer_events_match_idx ON footballer_events(match_id)`);
+  await db.execute(sql`CREATE INDEX IF NOT EXISTS footballer_events_footballer_idx ON footballer_events(footballer_id)`);
+
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS fantasy_gameweeks (
+      id SERIAL PRIMARY KEY,
+      gw_number INTEGER NOT NULL UNIQUE,
+      name TEXT NOT NULL,
+      match_ids INTEGER[] NOT NULL,
+      deadline_at TIMESTAMP NOT NULL,
+      is_finalised BOOLEAN NOT NULL DEFAULT false,
+      finalised_at TIMESTAMP,
+      stage TEXT NOT NULL CHECK (stage IN ('GROUP','R16','QF','SF','F'))
+    )
+  `);
+
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS fantasy_squads (
+      id SERIAL PRIMARY KEY,
+      human_id INTEGER NOT NULL REFERENCES players(id),
+      gameweek_id INTEGER NOT NULL REFERENCES fantasy_gameweeks(id),
+      is_free_hit BOOLEAN NOT NULL DEFAULT false,
+      is_wildcard BOOLEAN NOT NULL DEFAULT false,
+      is_triple_capt BOOLEAN NOT NULL DEFAULT false,
+      is_bench_boost BOOLEAN NOT NULL DEFAULT false,
+      locked_at TIMESTAMP,
+      is_auto_applied BOOLEAN NOT NULL DEFAULT false,
+      created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+      UNIQUE (human_id, gameweek_id)
+    )
+  `);
+
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS fantasy_squad_slots (
+      id SERIAL PRIMARY KEY,
+      squad_id INTEGER NOT NULL REFERENCES fantasy_squads(id) ON DELETE CASCADE,
+      footballer_id INTEGER NOT NULL REFERENCES footballers(id),
+      slot_index INTEGER NOT NULL CHECK (slot_index BETWEEN 0 AND 14),
+      is_starter BOOLEAN NOT NULL,
+      bench_order INTEGER,
+      is_captain BOOLEAN NOT NULL DEFAULT false,
+      is_vice BOOLEAN NOT NULL DEFAULT false,
+      UNIQUE (squad_id, slot_index),
+      UNIQUE (squad_id, footballer_id)
+    )
+  `);
+  await db.execute(sql`CREATE INDEX IF NOT EXISTS fantasy_squad_slots_squad_idx ON fantasy_squad_slots(squad_id)`);
+
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS fantasy_transfers (
+      id SERIAL PRIMARY KEY,
+      human_id INTEGER NOT NULL REFERENCES players(id),
+      gameweek_id INTEGER NOT NULL REFERENCES fantasy_gameweeks(id),
+      footballer_out INTEGER NOT NULL REFERENCES footballers(id),
+      footballer_in INTEGER NOT NULL REFERENCES footballers(id),
+      is_free BOOLEAN NOT NULL,
+      is_forced BOOLEAN NOT NULL DEFAULT false,
+      cost_points INTEGER NOT NULL DEFAULT 0,
+      created_at TIMESTAMP NOT NULL DEFAULT NOW()
+    )
+  `);
+  await db.execute(sql`CREATE INDEX IF NOT EXISTS fantasy_transfers_human_gw_idx ON fantasy_transfers(human_id, gameweek_id)`);
+
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS fantasy_chips (
+      id SERIAL PRIMARY KEY,
+      human_id INTEGER NOT NULL REFERENCES players(id),
+      chip_type TEXT NOT NULL CHECK (chip_type IN ('WILDCARD','FREE_HIT','TRIPLE_CAPT','BENCH_BOOST')),
+      gameweek_id INTEGER REFERENCES fantasy_gameweeks(id),
+      used_at TIMESTAMP,
+      UNIQUE (human_id, chip_type)
+    )
+  `);
+
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS fantasy_footballer_gw_points (
+      id SERIAL PRIMARY KEY,
+      footballer_id INTEGER NOT NULL REFERENCES footballers(id),
+      gameweek_id INTEGER NOT NULL REFERENCES fantasy_gameweeks(id),
+      match_id INTEGER REFERENCES matches(id),
+      minutes INTEGER NOT NULL DEFAULT 0,
+      goals INTEGER NOT NULL DEFAULT 0,
+      assists INTEGER NOT NULL DEFAULT 0,
+      clean_sheets INTEGER NOT NULL DEFAULT 0,
+      conceded INTEGER NOT NULL DEFAULT 0,
+      saves INTEGER NOT NULL DEFAULT 0,
+      pen_saved INTEGER NOT NULL DEFAULT 0,
+      pen_missed INTEGER NOT NULL DEFAULT 0,
+      yellow_cards INTEGER NOT NULL DEFAULT 0,
+      red_cards INTEGER NOT NULL DEFAULT 0,
+      own_goals INTEGER NOT NULL DEFAULT 0,
+      total_points INTEGER NOT NULL DEFAULT 0,
+      scoring_tier TEXT NOT NULL CHECK (scoring_tier IN ('LIVE','SIMPLIFIED','ADMIN')),
+      is_provisional BOOLEAN NOT NULL DEFAULT true,
+      computed_at TIMESTAMP NOT NULL DEFAULT NOW(),
+      UNIQUE (footballer_id, gameweek_id, match_id)
+    )
+  `);
+
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS fantasy_squad_gw_scores (
+      id SERIAL PRIMARY KEY,
+      squad_id INTEGER NOT NULL REFERENCES fantasy_squads(id),
+      gameweek_id INTEGER NOT NULL REFERENCES fantasy_gameweeks(id),
+      raw_points INTEGER NOT NULL,
+      transfer_cost INTEGER NOT NULL DEFAULT 0,
+      net_points INTEGER NOT NULL,
+      captain_id INTEGER REFERENCES footballers(id),
+      captain_played BOOLEAN NOT NULL DEFAULT false,
+      vice_activated BOOLEAN NOT NULL DEFAULT false,
+      is_provisional BOOLEAN NOT NULL DEFAULT true,
+      computed_at TIMESTAMP NOT NULL DEFAULT NOW(),
+      UNIQUE (squad_id, gameweek_id)
+    )
+  `);
+
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS fantasy_score_corrections (
+      id SERIAL PRIMARY KEY,
+      footballer_id INTEGER NOT NULL REFERENCES footballers(id),
+      gameweek_id INTEGER NOT NULL REFERENCES fantasy_gameweeks(id),
+      reason TEXT NOT NULL,
+      before_json JSONB NOT NULL,
+      after_json JSONB NOT NULL,
+      applied_by INTEGER REFERENCES players(id),
+      created_at TIMESTAMP NOT NULL DEFAULT NOW()
+    )
+  `);
+
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS fantasy_error_log (
+      id SERIAL PRIMARY KEY,
+      context TEXT NOT NULL,
+      match_id INTEGER,
+      gameweek_id INTEGER,
+      error_message TEXT NOT NULL,
+      stack TEXT,
+      created_at TIMESTAMP NOT NULL DEFAULT NOW()
+    )
+  `);
+
+  await db.execute(sql`ALTER TABLE matches ADD COLUMN IF NOT EXISTS fantasy_finalised BOOLEAN NOT NULL DEFAULT false`);
+  await db.execute(sql`ALTER TABLE matches ADD COLUMN IF NOT EXISTS fantasy_finalised_at TIMESTAMP`);
+
+  console.log("[DB] WC Sweep + Fantasy tables ensured");
 }

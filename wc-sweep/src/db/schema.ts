@@ -365,3 +365,151 @@ export const tradeProposals = pgTable("trade_proposals", {
   proposedAt: timestamp("proposed_at").defaultNow(),
   resolvedAt: timestamp("resolved_at"),
 });
+
+// =====================================================================
+// FANTASY FOOTBALL — see docs/fantasy/FINAL_PLAN.md
+// `players` table above = the 8 humans. In fantasy code we alias them
+// as `humans` semantically. `footballers` (below) = the WC players.
+// =====================================================================
+
+export type Human = typeof players.$inferSelect;
+
+export const footballers = pgTable("footballers", {
+  id: serial("id").primaryKey(),
+  apiPlayerId: integer("api_player_id").unique(),
+  fullName: text("full_name").notNull(),
+  displayName: text("display_name").notNull(),
+  nation: text("nation").notNull(),
+  position: text("position").notNull(),
+  priceTenths: integer("price_tenths").notNull(),
+  dataSource: text("data_source").notNull(),
+  eliminatedAt: timestamp("eliminated_at"),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const footballerEvents = pgTable("footballer_events", {
+  id: serial("id").primaryKey(),
+  matchId: integer("match_id").notNull().references(() => matches.id),
+  footballerId: integer("footballer_id").notNull().references(() => footballers.id),
+  eventType: text("event_type").notNull(),
+  minute: integer("minute"),
+  value: integer("value").notNull().default(1),
+  source: text("source").notNull(),
+  scoringTier: text("scoring_tier").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const fantasyGameweeks = pgTable("fantasy_gameweeks", {
+  id: serial("id").primaryKey(),
+  gwNumber: integer("gw_number").notNull().unique(),
+  name: text("name").notNull(),
+  matchIds: integer("match_ids").array().notNull(),
+  deadlineAt: timestamp("deadline_at").notNull(),
+  isFinalised: boolean("is_finalised").notNull().default(false),
+  finalisedAt: timestamp("finalised_at"),
+  stage: text("stage").notNull(),
+});
+
+export const fantasySquads = pgTable("fantasy_squads", {
+  id: serial("id").primaryKey(),
+  humanId: integer("human_id").notNull().references(() => players.id),
+  gameweekId: integer("gameweek_id").notNull().references(() => fantasyGameweeks.id),
+  isFreeHit: boolean("is_free_hit").notNull().default(false),
+  isWildcard: boolean("is_wildcard").notNull().default(false),
+  isTripleCapt: boolean("is_triple_capt").notNull().default(false),
+  isBenchBoost: boolean("is_bench_boost").notNull().default(false),
+  lockedAt: timestamp("locked_at"),
+  isAutoApplied: boolean("is_auto_applied").notNull().default(false),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const fantasySquadSlots = pgTable("fantasy_squad_slots", {
+  id: serial("id").primaryKey(),
+  squadId: integer("squad_id").notNull().references(() => fantasySquads.id, { onDelete: "cascade" }),
+  footballerId: integer("footballer_id").notNull().references(() => footballers.id),
+  slotIndex: integer("slot_index").notNull(),
+  isStarter: boolean("is_starter").notNull(),
+  benchOrder: integer("bench_order"),
+  isCaptain: boolean("is_captain").notNull().default(false),
+  isVice: boolean("is_vice").notNull().default(false),
+});
+
+export const fantasyTransfers = pgTable("fantasy_transfers", {
+  id: serial("id").primaryKey(),
+  humanId: integer("human_id").notNull().references(() => players.id),
+  gameweekId: integer("gameweek_id").notNull().references(() => fantasyGameweeks.id),
+  footballerOut: integer("footballer_out").notNull().references(() => footballers.id),
+  footballerIn: integer("footballer_in").notNull().references(() => footballers.id),
+  isFree: boolean("is_free").notNull(),
+  isForced: boolean("is_forced").notNull().default(false),
+  costPoints: integer("cost_points").notNull().default(0),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const fantasyChips = pgTable("fantasy_chips", {
+  id: serial("id").primaryKey(),
+  humanId: integer("human_id").notNull().references(() => players.id),
+  chipType: text("chip_type").notNull(),
+  gameweekId: integer("gameweek_id").references(() => fantasyGameweeks.id),
+  usedAt: timestamp("used_at"),
+});
+
+export const fantasyFootballerGwPoints = pgTable("fantasy_footballer_gw_points", {
+  id: serial("id").primaryKey(),
+  footballerId: integer("footballer_id").notNull().references(() => footballers.id),
+  gameweekId: integer("gameweek_id").notNull().references(() => fantasyGameweeks.id),
+  matchId: integer("match_id").references(() => matches.id),
+  minutes: integer("minutes").notNull().default(0),
+  goals: integer("goals").notNull().default(0),
+  assists: integer("assists").notNull().default(0),
+  cleanSheets: integer("clean_sheets").notNull().default(0),
+  conceded: integer("conceded").notNull().default(0),
+  saves: integer("saves").notNull().default(0),
+  penSaved: integer("pen_saved").notNull().default(0),
+  penMissed: integer("pen_missed").notNull().default(0),
+  yellowCards: integer("yellow_cards").notNull().default(0),
+  redCards: integer("red_cards").notNull().default(0),
+  ownGoals: integer("own_goals").notNull().default(0),
+  totalPoints: integer("total_points").notNull().default(0),
+  scoringTier: text("scoring_tier").notNull(),
+  isProvisional: boolean("is_provisional").notNull().default(true),
+  computedAt: timestamp("computed_at").notNull().defaultNow(),
+});
+
+export const fantasySquadGwScores = pgTable("fantasy_squad_gw_scores", {
+  id: serial("id").primaryKey(),
+  squadId: integer("squad_id").notNull().references(() => fantasySquads.id),
+  gameweekId: integer("gameweek_id").notNull().references(() => fantasyGameweeks.id),
+  rawPoints: integer("raw_points").notNull(),
+  transferCost: integer("transfer_cost").notNull().default(0),
+  netPoints: integer("net_points").notNull(),
+  captainId: integer("captain_id").references(() => footballers.id),
+  captainPlayed: boolean("captain_played").notNull().default(false),
+  viceActivated: boolean("vice_activated").notNull().default(false),
+  isProvisional: boolean("is_provisional").notNull().default(true),
+  computedAt: timestamp("computed_at").notNull().defaultNow(),
+});
+
+export const fantasyScoreCorrections = pgTable("fantasy_score_corrections", {
+  id: serial("id").primaryKey(),
+  footballerId: integer("footballer_id").notNull().references(() => footballers.id),
+  gameweekId: integer("gameweek_id").notNull().references(() => fantasyGameweeks.id),
+  reason: text("reason").notNull(),
+  beforeJson: jsonb("before_json").notNull(),
+  afterJson: jsonb("after_json").notNull(),
+  appliedBy: integer("applied_by").references(() => players.id),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const fantasyErrorLog = pgTable("fantasy_error_log", {
+  id: serial("id").primaryKey(),
+  context: text("context").notNull(),
+  matchId: integer("match_id"),
+  gameweekId: integer("gameweek_id"),
+  errorMessage: text("error_message").notNull(),
+  stack: text("stack"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
