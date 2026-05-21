@@ -347,7 +347,8 @@ export default function AdminPage() {
       document.body.removeChild(el);
     }
     setCopiedCode(code);
-    setTimeout(() => setCopiedCode(null), 2000);
+    setTimeout(() => setCopiedCode(null), 1500);
+    alert(`Copied!\n${url}`);
   }
 
   // Loading state while checking stored verification
