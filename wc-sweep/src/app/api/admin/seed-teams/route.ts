@@ -136,12 +136,26 @@ export async function POST(request: Request) {
     // run before the draw. CASCADE handles all referencing tables.
     await db.execute(sql`TRUNCATE TABLE wc_teams RESTART IDENTITY CASCADE`);
 
+    // The original seed created a UNIQUE index on fifa_code for ON CONFLICT
+    // idempotency. We no longer rely on it (TRUNCATE makes seeds idempotent)
+    // and API data has genuine collisions on 3-letter codes (Australia/Austria
+    // both fall back to "AUS"). Drop it so inserts don't fail on dupes.
+    await db.execute(sql`DROP INDEX IF EXISTS wc_teams_fifa_code_idx`);
+    // api_team_id IS unique per team in API-Football — enforce that instead.
+    await db.execute(
+      sql`CREATE UNIQUE INDEX IF NOT EXISTS wc_teams_api_team_id_idx ON wc_teams(api_team_id) WHERE api_team_id IS NOT NULL`
+    );
+
     const missingGroup: string[] = [];
     const missingFlag: string[] = [];
 
     for (const t of teams) {
       const name = t.team.name;
-      const fifaCode = t.team.code ?? name.slice(0, 3).toUpperCase();
+      // Prefer API's code; fall back to a guaranteed-unique value derived
+      // from the API team id so we can't collide on the 3-letter prefix.
+      const fifaCode = t.team.code?.trim()
+        ? t.team.code.trim().toUpperCase()
+        : `T${t.team.id}`;
       const groupLetter = groupByApiId.get(t.team.id);
       const flagEmoji = FLAGS[name] ?? null;
       const tier = TIERS[name] ?? 4;
