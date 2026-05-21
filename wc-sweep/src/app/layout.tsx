@@ -26,6 +26,17 @@ export default function RootLayout({
   return (
     <html lang="en">
       <head>
+        <meta property="og:title" content="WC Sweep 2026 ⚽🏆" />
+        <meta property="og:description" content="Join the FIFA World Cup 2026 sweepstake. Pick teams. Predict matches. Win bragging rights." />
+        <meta property="og:image" content="https://mkts-dun.vercel.app/opengraph-image" />
+        <meta property="og:image:width" content="1200" />
+        <meta property="og:image:height" content="630" />
+        <meta property="og:type" content="website" />
+        <meta property="og:url" content="https://mkts-dun.vercel.app" />
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content="WC Sweep 2026 ⚽🏆" />
+        <meta name="twitter:description" content="Join the FIFA World Cup 2026 sweepstake." />
+        <meta name="twitter:image" content="https://mkts-dun.vercel.app/opengraph-image" />
         <link
           rel="preconnect"
           href="https://fonts.googleapis.com"
