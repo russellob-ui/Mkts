@@ -496,22 +496,9 @@ All five decisions resolved. Recorded in §4 above.
 
 ---
 
-## 15. The 30-minute call (Friday 23 May, agenda — revised post-decisions)
+## 15. 30-minute call — SKIPPED 21 May 2026
 
-Most decisions now resolved. The call is shorter and primarily informational + commitment-confirmation.
-
-**Attendees**: all 8 humans. WhatsApp video, 19:00 UK.
-
-**Pre-read** (sent 24h prior): one-page rules summary (no BPS, unlimited KO transfers for eliminated, £5 pot), screenshot of squad picker mockup, link to FPL primer for novices.
-
-**Agenda** (strict timing, ~15 min):
-
-- **0:00-0:03 — Frame**: "Adding fantasy to the sweep. 3 weeks. Sweep is canon, fantasy is for banter. Separate £40 pot, winner takes all."
-- **0:03-0:08 — Confirm commitment**: "Who is in? Need 6/8 minimum. Hands up." If <6 → drop to prediction game.
-- **0:08-0:11 — Inform of locked rules**: scoring is pure FPL (goals/assists/CS/cards/saves) with no BPS; 1 Wildcard + 3 chips; squads public at deadline; auto-template applies if no submission by T-60min; unlimited free transfers for players of eliminated nations.
-- **0:11-0:13 — £5 pot collection**: confirm everyone pays in, agree pot custodian.
-- **0:13-0:15 — Hard-kill consent**: "If neither API-Football nor a backup API delivers live per-player data, fantasy degrades to single-squad prediction game scored from final tournament stats. Acceptable as last resort?" Need explicit yes.
-- Skip: Tier 3 admin volunteer (rejected), Match MVP vote (dropped), public-squads debate (locked), KO cap debate (locked).
+User decision: skip the call. Send instructions to the 8 humans only once the system is built and ready to onboard. Decisions in §4 are canonical; no further vote required. Build commences immediately.
 
 **Decisions logged** in `/docs/fantasy/call-23may.md`, committed to repo, linked from CLAUDE.md.
 

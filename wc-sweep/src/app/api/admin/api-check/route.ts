@@ -102,5 +102,56 @@ export async function GET() {
     results.teamNames_l1_s2026 = { error: String(err) };
   }
 
+  // ===== FANTASY DAY-0 AUDIT (docs/fantasy/FINAL_PLAN.md §3) =====
+  // The WC 2026 coverage is reported as events/lineups/players=false but
+  // that may just be pre-tournament. Confirm whether API-Football CAN
+  // deliver per-player data by probing a recently-finished international
+  // friendly. If yes, Tier 1A LIVE is feasible once WC starts. If no, we
+  // need a backup provider (SportMonks/Sofascore/FotMob).
+  try {
+    const today = new Date();
+    const fromDate = new Date(today.getTime() - 21 * 24 * 60 * 60 * 1000)
+      .toISOString()
+      .slice(0, 10);
+    const toDate = today.toISOString().slice(0, 10);
+
+    // league=10 = "International Friendlies" in API-Football
+    const friendlies = await rawFetch(
+      `/fixtures?league=10&season=2026&from=${fromDate}&to=${toDate}&status=FT`,
+      key
+    );
+    results.recentFriendlies = friendlies;
+
+    type Fx = { fixture?: { id?: number; date?: string }; teams?: { home?: { name?: string }; away?: { name?: string } } };
+    const sample = (friendlies.sample as Fx[] | null) ?? [];
+    const probeFixture = sample[0]?.fixture?.id;
+
+    if (probeFixture) {
+      results.fantasyProbe_fixtureId = probeFixture;
+      results.fantasyProbe_fixtureMeta = {
+        date: sample[0]?.fixture?.date,
+        home: sample[0]?.teams?.home?.name,
+        away: sample[0]?.teams?.away?.name,
+      };
+      results.fantasyProbe_events = await rawFetch(
+        `/fixtures/events?fixture=${probeFixture}`,
+        key
+      );
+      results.fantasyProbe_lineups = await rawFetch(
+        `/fixtures/lineups?fixture=${probeFixture}`,
+        key
+      );
+      results.fantasyProbe_players = await rawFetch(
+        `/fixtures/players?fixture=${probeFixture}`,
+        key
+      );
+    } else {
+      results.fantasyProbe_note =
+        "No recent finished international friendly found in last 21 days; cannot probe per-player coverage";
+    }
+  } catch (err) {
+    results.fantasyProbe_error = String(err);
+  }
+
   return NextResponse.json(results);
 }
