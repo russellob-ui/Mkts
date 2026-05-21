@@ -108,7 +108,7 @@ export default function GoldenBootPage() {
       <div className="flex gap-1 bg-dark-card border border-dark-border rounded-lg p-1">
         <button
           onClick={() => setTab("goals")}
-          className={`flex-1 py-2 rounded-md text-sm font-semibold transition-colors ${
+          className={`flex-1 py-2 rounded-md text-sm font-semibold transition-colors cursor-pointer ${
             tab === "goals"
               ? "bg-wc-gold/20 text-wc-gold border border-wc-gold/30"
               : "text-cream/50 hover:text-cream/70 border border-transparent"
@@ -118,7 +118,7 @@ export default function GoldenBootPage() {
         </button>
         <button
           onClick={() => setTab("assists")}
-          className={`flex-1 py-2 rounded-md text-sm font-semibold transition-colors ${
+          className={`flex-1 py-2 rounded-md text-sm font-semibold transition-colors cursor-pointer ${
             tab === "assists"
               ? "bg-wc-gold/20 text-wc-gold border border-wc-gold/30"
               : "text-cream/50 hover:text-cream/70 border border-transparent"

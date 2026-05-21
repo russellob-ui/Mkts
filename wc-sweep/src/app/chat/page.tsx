@@ -102,7 +102,7 @@ export default function ChatPage() {
   useEffect(() => {
     loadMessages();
     loadPlayers();
-    const interval = setInterval(loadMessages, 3000);
+    const interval = setInterval(loadMessages, 10_000);
     return () => clearInterval(interval);
   }, [loadMessages, loadPlayers]);
 

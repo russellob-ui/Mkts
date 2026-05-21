@@ -189,7 +189,7 @@ export default function PlayerProfilePage() {
           <h2 className="text-sm font-semibold text-cream/60 uppercase tracking-wider mb-3">
             Points Breakdown
           </h2>
-          <div className="bg-dark-card border border-dark-border rounded-lg overflow-hidden">
+          <div className="bg-dark-card border border-dark-border rounded-lg overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-cream/50 text-xs border-b border-dark-border">

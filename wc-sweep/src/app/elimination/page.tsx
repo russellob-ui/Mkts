@@ -64,9 +64,9 @@ export default function EliminationPage() {
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-dark text-cream flex items-center justify-center">
+      <div className="min-h-screen bg-dark text-cream flex items-center justify-center">
         <div className="text-cream/50">Loading...</div>
-      </main>
+      </div>
     );
   }
 
@@ -75,7 +75,7 @@ export default function EliminationPage() {
   const leaders = playerData.filter((p) => p.teamsAlive === maxAlive && maxAlive > 0);
 
   return (
-    <main className="min-h-screen bg-dark text-cream">
+    <div className="min-h-screen bg-dark text-cream">
       <div className="max-w-3xl mx-auto px-4 py-8">
         <h1 className="text-3xl font-serif font-bold mb-2">
           <span className="text-wc-gold">Elimination</span> Tracker
@@ -176,6 +176,6 @@ export default function EliminationPage() {
           </div>
         )}
       </div>
-    </main>
+    </div>
   );
 }

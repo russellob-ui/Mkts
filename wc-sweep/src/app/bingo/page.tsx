@@ -125,7 +125,7 @@ export default function BingoPage() {
           onChange={(e) =>
             setSelectedPlayerId(e.target.value ? Number(e.target.value) : null)
           }
-          className="w-full bg-dark border border-dark-border rounded px-3 py-2 text-cream text-sm"
+          className="w-full bg-dark border border-dark-border rounded px-3 py-2 text-cream text-sm cursor-pointer"
         >
           <option value="">Select player...</option>
           {players.map((p) => (
@@ -185,7 +185,7 @@ export default function BingoPage() {
                 }`}
               >
                 <span
-                  className={`text-[11px] leading-tight font-medium ${
+                  className={`text-[10px] leading-tight font-medium overflow-hidden text-ellipsis ${
                     cell.completed ? "text-green-300" : "text-cream/60"
                   }`}
                 >

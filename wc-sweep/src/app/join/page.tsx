@@ -198,7 +198,7 @@ function JoinForm() {
           <label className="text-xs font-semibold text-cream/60 uppercase tracking-wider">
             Avatar
           </label>
-          <div className="grid grid-cols-9 gap-1.5">
+          <div className="grid grid-cols-6 sm:grid-cols-9 gap-1.5">
             {EMOJI_OPTIONS.map((emoji) => (
               <button
                 key={emoji}

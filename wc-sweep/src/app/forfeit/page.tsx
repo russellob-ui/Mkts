@@ -249,7 +249,7 @@ export default function ForfeitPage() {
                       dominantBaseline="middle"
                       transform={`rotate(${textRotation}, ${textX}, ${textY})`}
                       fill="white"
-                      fontSize="3.2"
+                      fontSize="5"
                       fontWeight="600"
                     >
                       {FORFEIT_EMOJIS[i]}
@@ -293,7 +293,7 @@ export default function ForfeitPage() {
 
       {/* Result */}
       {showResult && result && (
-        <div className="bg-dark-card border-2 border-wc-gold rounded-lg p-6 text-center space-y-3 animate-bounce">
+        <div className="bg-dark-card border-2 border-wc-gold rounded-lg p-6 text-center space-y-3">
           <div className="text-4xl">{FORFEIT_EMOJIS[result.forfeitIndex]}</div>
           <div className="text-xs text-cream/40 uppercase tracking-wider">
             The forfeit is...

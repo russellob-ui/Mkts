@@ -81,7 +81,13 @@ export default function ExpectedPointsPage() {
     );
   }
 
-  if (!data || data.length === 0) return null;
+  if (!data || data.length === 0) return (
+    <div className="max-w-4xl mx-auto px-4 py-6">
+      <div className="bg-dark-card border border-dark-border rounded-lg p-6 text-center text-cream/40">
+        No data available yet. Check back once matches are underway.
+      </div>
+    </div>
+  );
 
   const maxProjected = Math.max(...data.map((d) => d.projectedTotal), 1);
 

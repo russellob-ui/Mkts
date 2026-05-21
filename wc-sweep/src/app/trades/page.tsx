@@ -220,7 +220,7 @@ export default function TradesPage() {
   }
 
   return (
-    <main className="min-h-screen bg-dark text-cream">
+    <div className="min-h-screen bg-dark text-cream">
       <div className="max-w-2xl mx-auto px-4 py-8">
         <h1 className="text-3xl font-serif font-bold mb-2">
           <span className="text-wc-gold">Trade</span> Market
@@ -470,6 +470,6 @@ export default function TradesPage() {
           )}
         </section>
       </div>
-    </main>
+    </div>
   );
 }

@@ -300,6 +300,7 @@ export default function MatchDetailPage() {
           <h2 className="text-sm font-semibold text-cream/60 uppercase tracking-wider mb-3">
             Points Breakdown
           </h2>
+          <div className="overflow-x-auto">
           <div className="bg-dark-card border border-dark-border rounded-lg overflow-hidden">
             <table className="w-full text-sm">
               <thead>
@@ -347,6 +348,7 @@ export default function MatchDetailPage() {
                 ))}
               </tbody>
             </table>
+          </div>
           </div>
         </section>
       )}

@@ -86,7 +86,7 @@ export default function SharePage() {
   }
 
   return (
-    <main className="min-h-screen bg-dark text-cream">
+    <div className="min-h-screen bg-dark text-cream">
       <div className="max-w-2xl mx-auto px-4 py-8">
         <h1 className="text-3xl font-serif font-bold mb-2">
           <span className="text-wc-gold">Share</span> Card
@@ -160,6 +160,6 @@ export default function SharePage() {
           </div>
         )}
       </div>
-    </main>
+    </div>
   );
 }

@@ -172,7 +172,7 @@ export default function FormGuidePage() {
       </div>
 
       {/* Legend */}
-      <div className="flex items-center justify-center gap-6 text-xs text-cream/40">
+      <div className="flex flex-wrap items-center justify-center gap-6 text-xs text-cream/40">
         <div className="flex items-center gap-1">
           <span>{TREND_BADGE.hot.emoji}</span>
           <span>Hot: above average last 3 days</span>

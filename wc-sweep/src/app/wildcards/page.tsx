@@ -299,13 +299,13 @@ export default function WildcardsPage() {
                         </div>
                         <div className="shrink-0 ml-3">
                           {confirmMatchId === m.id ? (
-                            <div className="flex items-center gap-2">
+                            <div className="flex flex-col sm:flex-row gap-2">
                               <input
                                 type="password"
                                 placeholder="Passcode"
                                 value={passcode}
                                 onChange={(e) => setPasscode(e.target.value)}
-                                className="w-24 bg-dark border border-dark-border rounded px-2 py-1 text-xs text-cream focus:outline-none focus:border-wc-gold/50"
+                                className="w-full sm:w-24 bg-dark border border-dark-border rounded px-2 py-1 text-xs text-cream focus:outline-none focus:border-wc-gold/50"
                               />
                               <button
                                 onClick={() => activateWildcard(m.id)}
