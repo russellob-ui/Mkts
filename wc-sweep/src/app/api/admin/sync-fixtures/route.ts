@@ -61,15 +61,14 @@ export async function POST(request: Request) {
         continue;
       }
 
-      // Parse stage + group from API round string
-      // Examples: "Group A - 1" → stage="GS1", group="A"
-      //           "Round of 32" → stage="R32", group=null
-      //           "Round of 16" → stage="R16", group=null
-      //           "Quarter-finals" → stage="QF", group=null
-      //           "Semi-finals" → stage="SF", group=null
-      //           "3rd Place" → stage="3P", group=null
-      //           "Final" → stage="F", group=null
-      const { stage, groupLetter } = parseRound(f.league.round);
+      // Parse stage + group from API round string.
+      // For "Group Stage - N" the round itself doesn't tell us which group
+      // (A–L), so fall back to the home team's groupLetter (seeded from
+      // /standings during seed-teams).
+      const parsed = parseRound(f.league.round);
+      const stage = parsed.stage;
+      const groupLetter =
+        parsed.groupLetter ?? (stage.startsWith("GS") ? homeTeam.groupLetter || null : null);
       const status = mapStatus(f.fixture.status.short);
 
       await db.execute(sql`
@@ -148,7 +147,7 @@ function parseRound(round: string): {
   stage: string;
   groupLetter: string | null;
 } {
-  // "Group A - 1" → GS1, A
+  // "Group A - 1" → GS1, A   (explicit per-group format, older seasons)
   // "Group B - 2" → GS2, B
   // "Group L - 3" → GS3, L
   const groupMatch = round.match(/^Group\s+([A-L])\s*-\s*(\d+)$/i);
@@ -157,6 +156,13 @@ function parseRound(round: string): {
       stage: `GS${groupMatch[2]}`,
       groupLetter: groupMatch[1].toUpperCase(),
     };
+  }
+
+  // "Group Stage - N" → GSN, group unknown from round string
+  // (caller will fall back to home team's groupLetter)
+  const matchdayMatch = round.match(/^Group\s+Stage\s*-\s*(\d+)$/i);
+  if (matchdayMatch) {
+    return { stage: `GS${matchdayMatch[1]}`, groupLetter: null };
   }
 
   // Knockout rounds
