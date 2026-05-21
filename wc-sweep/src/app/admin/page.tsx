@@ -279,7 +279,12 @@ export default function AdminPage() {
       if (res.ok) {
         setResult({ ok: true, msg: data.message ?? "Done" });
       } else {
-        setResult({ ok: false, msg: data.error ?? `Failed (${res.status})` });
+        setResult({
+          ok: false,
+          msg: data.detail
+            ? `${data.error ?? `Failed (${res.status})`} — ${data.detail}`
+            : data.error ?? `Failed (${res.status})`,
+        });
       }
     } catch (err) {
       setResult({ ok: false, msg: String(err) });
