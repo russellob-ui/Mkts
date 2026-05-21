@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 
 const NAV_SECTIONS = [
@@ -58,14 +58,64 @@ const NAV_SECTIONS = [
   },
 ];
 
-const ALL_LINKS = NAV_SECTIONS.flatMap((s) => s.links);
 const JOIN_LINK = { href: "/join", label: "Join" };
 
-export default function Nav() {
+function DesktopDropdown({
+  section,
+}: {
+  section: (typeof NAV_SECTIONS)[number];
+}) {
   const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (open) {
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((p) => !p)}
+        onMouseEnter={() => setOpen(true)}
+        className={`text-sm px-2 py-1 rounded transition-colors cursor-pointer ${
+          open ? "text-wc-gold" : "text-cream/60 hover:text-cream"
+        }`}
+      >
+        {section.label}
+      </button>
+      {open && (
+        <div
+          className="absolute top-full left-0 mt-1 bg-dark-card border border-dark-border rounded-lg shadow-xl py-1 min-w-[160px] z-50"
+          onMouseLeave={() => setOpen(false)}
+        >
+          {section.links.map((link) => (
+            <Link
+              key={link.href}
+              href={link.href}
+              onClick={() => setOpen(false)}
+              className="block px-4 py-2 text-sm text-cream/70 hover:text-cream hover:bg-dark-border/40 transition-colors"
+            >
+              {link.label}
+            </Link>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default function Nav() {
+  const [mobileOpen, setMobileOpen] = useState(false);
+
+  useEffect(() => {
+    if (mobileOpen) {
       document.body.style.overflow = "hidden";
     } else {
       document.body.style.overflow = "";
@@ -73,35 +123,29 @@ export default function Nav() {
     return () => {
       document.body.style.overflow = "";
     };
-  }, [open]);
+  }, [mobileOpen]);
 
   return (
     <>
       <nav className="border-b border-dark-border bg-dark/95 backdrop-blur-sm sticky top-0 z-40">
-        <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
+        <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
           <Link
             href="/"
             className="font-serif text-xl font-bold tracking-tight shrink-0"
-            onClick={() => setOpen(false)}
+            onClick={() => setMobileOpen(false)}
           >
             <span className="text-wc-gold">WC</span>{" "}
             <span className="text-cream">Sweep 2026</span>
           </Link>
 
-          {/* Desktop links */}
-          <div className="hidden md:flex items-center gap-4 text-sm text-cream/60">
-            {ALL_LINKS.filter((l) => l.href !== "/").map((link) => (
-              <Link
-                key={link.href}
-                href={link.href}
-                className="hover:text-cream transition-colors"
-              >
-                {link.label}
-              </Link>
+          {/* Desktop: section dropdowns */}
+          <div className="hidden md:flex items-center gap-1">
+            {NAV_SECTIONS.map((section) => (
+              <DesktopDropdown key={section.label} section={section} />
             ))}
             <Link
               href={JOIN_LINK.href}
-              className="text-xs text-cream/40 hover:text-cream transition-colors"
+              className="text-xs text-cream/40 hover:text-cream transition-colors ml-2 px-2 py-1"
             >
               {JOIN_LINK.label}
             </Link>
@@ -110,9 +154,9 @@ export default function Nav() {
           {/* Mobile hamburger */}
           <button
             type="button"
-            onClick={() => setOpen((prev) => !prev)}
+            onClick={() => setMobileOpen((prev) => !prev)}
             aria-label="Menu"
-            aria-expanded={open}
+            aria-expanded={mobileOpen}
             className="md:hidden cursor-pointer p-2 hover:bg-dark-border rounded-lg transition-colors relative z-[60]"
           >
             <svg
@@ -122,7 +166,7 @@ export default function Nav() {
               fill="currentColor"
               className="text-cream"
             >
-              {open ? (
+              {mobileOpen ? (
                 <path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z" />
               ) : (
                 <>
@@ -137,12 +181,11 @@ export default function Nav() {
       </nav>
 
       {/* Full-screen mobile overlay menu */}
-      {open && (
+      {mobileOpen && (
         <div
           className="fixed inset-0 bg-dark z-50 overflow-y-auto md:hidden"
           style={{ backdropFilter: "blur(12px)" }}
         >
-          {/* Close bar */}
           <div className="sticky top-0 bg-dark border-b border-dark-border px-4 py-3 flex items-center justify-between">
             <span className="font-serif text-xl font-bold">
               <span className="text-wc-gold">WC</span>{" "}
@@ -150,7 +193,7 @@ export default function Nav() {
             </span>
             <button
               type="button"
-              onClick={() => setOpen(false)}
+              onClick={() => setMobileOpen(false)}
               aria-label="Close menu"
               className="p-2 hover:bg-dark-border rounded-lg transition-colors"
             >
@@ -166,7 +209,6 @@ export default function Nav() {
             </button>
           </div>
 
-          {/* Menu links */}
           <div className="max-w-5xl mx-auto px-4 py-6 space-y-6">
             {NAV_SECTIONS.map((section) => (
               <div key={section.label}>
@@ -178,7 +220,7 @@ export default function Nav() {
                     <Link
                       key={link.href}
                       href={link.href}
-                      onClick={() => setOpen(false)}
+                      onClick={() => setMobileOpen(false)}
                       className="block px-3 py-3 text-base font-medium text-cream hover:text-wc-gold hover:bg-dark-border/40 rounded-lg transition-colors"
                     >
                       {link.label}
@@ -191,7 +233,7 @@ export default function Nav() {
             <div className="pt-4 border-t border-dark-border">
               <Link
                 href={JOIN_LINK.href}
-                onClick={() => setOpen(false)}
+                onClick={() => setMobileOpen(false)}
                 className="block px-3 py-3 text-sm text-cream/50 hover:text-cream hover:bg-dark-border/40 rounded-lg transition-colors"
               >
                 {JOIN_LINK.label}
