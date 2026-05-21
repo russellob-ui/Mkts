@@ -117,7 +117,7 @@ export default function DrawPage() {
           <button
             onClick={runDraw}
             disabled={running}
-            className="px-6 py-3 bg-wc-gold text-dark font-bold rounded-lg hover:bg-wc-gold/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-6 py-3 bg-wc-gold text-dark font-bold rounded-lg hover:bg-wc-gold/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
           >
             {running ? "Running Draw..." : "Run Draw"}
           </button>

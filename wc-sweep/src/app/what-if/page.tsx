@@ -240,7 +240,7 @@ export default function WhatIfPage() {
         <button
           onClick={runSimulation}
           disabled={simulating || scenarios.size === 0}
-          className="bg-wc-gold text-dark font-bold px-8 py-3 rounded-lg text-sm hover:bg-wc-gold/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          className="bg-wc-gold text-dark font-bold px-8 py-3 rounded-lg text-sm hover:bg-wc-gold/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer"
         >
           {simulating ? "Calculating..." : "Calculate What-If"}
         </button>
