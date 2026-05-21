@@ -41,19 +41,27 @@ ANVIL identified this as decision-reordering. Mandatory.
 
 **Fetch and log against an upcoming friendly** (any internationals friendly this week — there are 4 fixtures 27-30 May per FIFA window):
 
+**Primary: API-Football**
 1. `GET /fixtures?league=X&season=2026` — record latency, response size, rate-limit headers.
 2. `GET /fixtures/events?fixture=Y` — record whether `player.id` and `assist.id` are populated, percentage of nulls, event types present.
 3. `GET /fixtures/lineups?fixture=Y` — record whether `startXI` is populated 1h pre-KO vs at-KO vs post-KO, do substitutes appear, do positions match our 4 categories.
 4. `GET /fixtures/players?fixture=Y` — THE critical call. Record: populated at FT? At 90'+? Stats schema (minutes, goals, assists, cards, saves, rating). Is it the actual fixture data or empty arrays.
 5. `GET /players?league=X&season=2026` — does the WC 2026 player pool exist yet? How many?
-6. **Audit the existing sweep poller code**: which of the above does `poll-matches.ts` already fetch? Document line-by-line. This invalidates EXECUTOR's "no new fetches" claim if false.
+6. **Audit the existing sweep poller code**: which of the above does `poll-matches.ts` already fetch? Document line-by-line.
 7. **Rate limit observation**: trigger 30 calls in 60s, observe 429 behaviour, document backoff requirements.
 
-**Deliverable**: `/docs/fantasy/day0-audit.md` with: which tier (1/2/3) is feasible today, which calls already happen in sweep poller, burst-cost estimate for 4 simultaneous group-stage matches, and a GO/NO-GO on attempting Tier 1 LIVE scoring.
+**Backup API evaluation (NEW, mandated by user decision 21 May — no manual admin scoring allowed)**. Spike each for ~30 min:
+8. **SportMonks Football API** (`football.sportmonks.com`) — request demo / free tier, confirm WC 2026 season coverage, per-player live stats schema, pricing.
+9. **Sofascore** — investigate `api.sofascore.com` reverse-engineered endpoints (legality/ToS risk to document). Some endpoints public via mobile-app traffic.
+10. **FotMob** (`www.fotmob.com/api`) — similar semi-public endpoints.
+11. **StatsBomb Open Data** — confirm whether WC 2026 will be in their open data programme (historical-only is likely, but check).
+12. **Optasports / Stats Perform** — note pricing/contact, almost certainly out of budget but document for completeness.
+
+**Deliverable**: `/docs/fantasy/day0-audit.md` with: (a) API-Football WC 2026 tier feasibility today, (b) at least 2 evaluated backup providers ranked by cost × coverage × integration effort, (c) which calls already happen in sweep poller, (d) burst-cost estimate for 4 simultaneous group-stage matches, (e) GO/NO-GO on Tier 1A; if NO-GO, the recommended Tier 1B backup with integration cost estimate.
 
 ---
 
-## 4. Final decisions (locked by Arbiter)
+## 4. Final decisions (locked by Arbiter + User, 21 May 2026)
 
 | Decision | Value | Rationale |
 |---|---|---|
@@ -61,16 +69,18 @@ ANVIL identified this as decision-reordering. Mandatory.
 | Footballer table name | `footballers` | Unprefixed — domain entity, owns its noun. |
 | Table prefix | `fantasy_*` | For fantasy-feature tables. `footballers`/`footballer_events` unprefixed. |
 | Combined leaderboard | **NO** | Sweep is canon (FIRST PRINCIPLES axiom A5); RAVEN agreed. |
-| BPS replacement | **Drop, no MVP by default** | Match MVP feature-flagged off; sign-off pending in 30-min call. |
+| Bonus points | **DROPPED entirely** (user, 21 May) | No BPS, no Match MVP. Pure FPL scoring on goals/assists/CS/cards/saves only. |
 | In-tournament price changes | **NO** | Heuristic noise compounds; static prices locked at GW1. |
 | Wildcard count | **1** | Knockouts already grant free forced transfers; 2 wildcards → infinite transfers. |
 | Chip stacking same GW | **NO** | One chip per GW. |
 | Pre-deadline squad visibility | **N-of-8 only** | Drives WhatsApp nags; no leak vectors in server responses. |
-| Post-deadline squad visibility | **Public** | Drives banter; 8 mates not strangers. |
+| Post-deadline squad visibility | **Public at deadline lock** (user, 21 May) | Drives banter; 8 mates not strangers. |
 | Auto-pick on no-submit | **YES** | T-60min Balanced template + WhatsApp ping (PHANTOM blank-squad protector). |
 | Default squad templates | **YES (3)** | Balanced / Attacking / Safe — onboarding for FPL-naive (PHANTOM). |
 | Presentation | **Sibling sites, shared nav** | Top nav Sweep \| Fantasy tabs; distinct route trees; §2 isolation. |
-| Tier 3 admin operator | **TBD in 30-min call** | Question 1 on agenda. No volunteer → hard-kill auto-fires. |
+| Knockout free transfers | **Unlimited for eliminated nations** (user, 21 May) | Every player from an eliminated nation swappable for free, no cap, no -4. |
+| Prize pot | **Separate £40 fantasy pot, winner-takes-all** (user, 21 May) | Sweep prize untouched; two distinct competitions, two winners. |
+| **Tier 3 ADMIN scoring** | **REJECTED** (user, 21 May) | **No manual admin entry. Must be API-driven. If API-Football fails to deliver per-player data, switch to a backup commercial API (SportMonks, Sofascore, FotMob, StatsBomb). Day 0 audit must evaluate backups.** |
 
 ---
 
@@ -321,13 +331,15 @@ ALTER TABLE matches ADD COLUMN fantasy_finalised_at TIMESTAMPTZ;
 3. `matches.fantasy_finalised` BOOLEAN — flips true 24h post-match by cron 18; blocks live recompute thereafter.
 4. `fantasy_squad_gw_scores` UNIQUE on `(squad_id, gameweek_id)` — full recompute, atomic write.
 
-**Scoring tiers** (CONTRARIAN's column + ANVIL's lock):
+**Scoring tiers** (revised post-user-decision, 21 May — Tier 3 ADMIN removed):
 
-- **Tier 1 LIVE**: cron 17 every 60s during live windows. Fetches `/fixtures/events` + `/fixtures/players`. Full FPL scoring including saves, conceded, cards.
-- **Tier 2 SIMPLIFIED**: cron 17 every 90s. Fetches `/fixtures/events` only. Scores: appearance (lineup-named), goals, assists, yellow/red. No saves, no CS exact-conceded (CS derived from match score + lineup-named).
-- **Tier 3 ADMIN**: cron 17 disabled. Admin operator enters minutes/goals/assists/cards/saves via `/admin/fantasy/score-match`. ~90s per match.
+- **Tier 1A LIVE (API-Football)**: cron 17 every 60s during live windows. Fetches `/fixtures/events` + `/fixtures/players`. Full FPL scoring including saves, conceded, cards. Default if Day-0 audit passes.
+- **Tier 1B LIVE (Backup API)**: same scoring logic, different ingestion adapter. Candidate providers to evaluate in Day 0: **SportMonks** (`football.sportmonks.com`, well-documented, supports live per-player), **Sofascore** (semi-public, requires reverse-engineered endpoints — risk), **FotMob** (similar), **StatsBomb** (mostly historical, may not cover live WC). Adapter pattern in `src/lib/fantasy/providers/` so swap is per-deploy.
+- **Tier 2 SIMPLIFIED**: cron 17 every 90s. Fetches whichever provider's events-only endpoint works. Scores: appearance (lineup-named), goals, assists, yellow/red. No saves, no CS exact-conceded (CS derived from match score + lineup-named). Used only if BOTH 1A and 1B can't provide full per-player stats.
 
-**Tier is locked at GW1 lock.** Stored as env var `FANTASY_SCORING_TIER`. The `scoring_tier` column exists for audit and to let admin re-score a single match at a different tier without forcing tournament-wide. Mid-tournament tier change requires explicit migration: full recompute + WhatsApp announcement.
+**Tier 3 ADMIN scoring is rejected by user decision.** If by 9 June 23:59 no API combination delivers per-player data, the only remaining option is the hard-kill prediction-game mode (§10) — single-squad locked entire tournament, scored post-tournament from whatever data the API eventually publishes.
+
+**Tier is locked at GW1 lock.** Stored as env var `FANTASY_SCORING_TIER` (`1A`/`1B`/`2`). The `scoring_tier` column exists for audit. Mid-tournament tier change requires explicit migration: full recompute + WhatsApp announcement.
 
 **FPL scoring values**: appearance 1, 60+ min 2, GK/DEF goal 6, MID goal 5, FWD goal 4, assist 3, GK/DEF CS 4, MID CS 1, GK 3 saves 1, GK pen save 5, pen miss -2, 2 conceded GK/DEF -1, yellow -1, red -3, own goal -2. Captain ×2. Triple captain ×3. Vice activates if captain plays 0 minutes.
 
@@ -384,7 +396,7 @@ price = position_floor[pos]
 | Per match | data sanity (>25pt) | Auto-extend provisional window 48h |
 | Per match | "API up but wrong" check | Cron 20 cross-references events count vs match score; mismatch = admin review |
 
-**Hard kill (PHANTOM)**: 9 June 23:59 — if neither LIVE nor SIMPLIFIED works AND no admin operator committed, fantasy launches as **prediction game**: each player submits single 15-man squad locked entire tournament, scored post-tournament from admin-entered final stats. No transfers, no chips, no live. Honest degradation, still playable.
+**Hard kill (revised post-user-decision)**: 9 June 23:59 — if NEITHER API-Football Tier 1A, NOR backup Tier 1B, NOR Tier 2 SIMPLIFIED via any provider works, fantasy launches as **prediction game**: each player submits single 15-man squad locked entire tournament, scored post-tournament from API data once it eventually publishes. No transfers, no chips, no live. No manual admin entry (user-rejected). Honest degradation, still playable.
 
 ---
 
@@ -394,7 +406,7 @@ Working day 1 = Thursday 22 May. Target launch = Wednesday 10 June (24h buffer b
 
 | Day | Date | Tasks | Hours | Depends on |
 |---|---|---|---|---|
-| **D0** | Thu 22 May | API audit per §3. Write `/docs/fantasy/day0-audit.md`. Schedule 30-min call. | 4 | — |
+| **D0** | Thu 22 May | API audit per §3 (NOW INCLUDES backup-provider evaluation: SportMonks + Sofascore + FotMob ≥30min each). Write `/docs/fantasy/day0-audit.md`. Schedule 30-min call. If API-Football WC 2026 coverage NO-GO, Day 0 deliverable also includes integration estimate for top backup. | 6 | — |
 | **D1** | Fri 23 May | 30-min call with 8 humans (§15). Lock open questions. Read existing `poll-matches.ts`. | 4 | D0 |
 | **D2** | Sat 24 May | Schema migration `0001_fantasy_init.sql`. Drizzle types. Rollback script. Feature flag wiring. Sibling-route middleware. | 8 | D1 |
 | **D3** | Sun 25 May | Seed `footballers` — scrape 23-man squads (provisional, may need refresh post 1 Jun cutoff). `scripts/price-footballers.ts` v1. Validation gate. | 8 | D2 |
@@ -425,7 +437,8 @@ Total: ~166 hours. Single dev at ~8h/day = realistic with 18h slip room.
 
 | # | Risk | Impact | Likelihood | Mitigation | Source |
 |---|---|---|---|---|---|
-| 1 | API-Football `/fixtures/players` never populates for WC 2026 | Critical | High | Tier 2 + Tier 3 fallback; 9 Jun hard kill to prediction-game | Brief, CONTRARIAN, FIRST PRINCIPLES |
+| 1 | API-Football `/fixtures/players` never populates for WC 2026 | Critical | High | Tier 1B backup-provider switch (SportMonks etc); Tier 2 SIMPLIFIED; 9 Jun hard kill to prediction-game | Brief, CONTRARIAN, FIRST PRINCIPLES, User 21 May |
+| 1B | NO backup API provider offers full per-player WC 2026 stats at acceptable cost | Critical | Medium | Day 0 audit evaluates ≥3 backups; if all fail, hard-kill to prediction game (user-mandated, no manual admin) | User 21 May |
 | 2 | Polling burst-cost 429s during 4-match group windows | High | Medium | Backoff documented Day 0; staggered cron windows; cache /fixtures call | ANVIL |
 | 3 | Drizzle migration breaks existing sweep | Critical | Low | No rename; isolation §2; rollback script; staging test | PHANTOM |
 | 4 | 03:00 UK kickoff = nobody pushes deadline | High | High | Auto-template at T-60min; WhatsApp ping cron | PHANTOM |
@@ -434,7 +447,7 @@ Total: ~166 hours. Single dev at ~8h/day = realistic with 18h slip room.
 | 7 | Squad picker validation edge cases | High | High | Day 7 E2E with 2 humans; full unit coverage Day 5 | ANVIL |
 | 8 | Sweep poller fetches not what EXECUTOR assumes | High | Medium | Day 0 audit; resolved before D9 | ANVIL |
 | 9 | API returns 200 with null/wrong data ("up but wrong") | High | Medium | Cron 20 sanity gate; 48h provisional window on flagged matches | PHANTOM |
-| 10 | Admin Tier 3 operator unnamed | Critical (in Tier 3 path) | Medium | 30-min call assigns; otherwise hard kill | CONTRARIAN, ANVIL |
+| 10 | ~~Admin Tier 3 operator unnamed~~ — N/A, Tier 3 rejected by user 21 May | — | — | Replaced by Risk 1B (backup API evaluation) | CONTRARIAN, ANVIL, User |
 | 11 | Tier switching mid-tournament produces non-commensurable scores | High | Low | Tier locked at GW1; column for audit only | ANVIL |
 | 12 | Knockout chip degeneracy (5 Brazilians out → Bench Boost dead) | Medium | Medium | ChipDeadAlert warns "N/15 playing"; user takes risk | PHANTOM |
 | 13 | Server-client clock drift, deadline missed | High | Medium | Server-authoritative epoch on every page | PHANTOM |
@@ -471,34 +484,34 @@ Items 1-7 are pre-emptively droppable Day 13 if any day slipped >0.5d cumulative
 
 ---
 
-## 14. Open decisions for the user
+## 14. Open decisions for the user — RESOLVED 21 May 2026
 
-These are NOT for the Arbiter. Bring to the 30-min call.
+All five decisions resolved. Recorded in §4 above.
 
-1. **Who is the Tier 3 admin operator?** Recommended default: the developer. If unavailable for any night match within 60min, nominate a second. If no commitment → 9 Jun hard kill to prediction-game.
-2. **Match MVP +3 (replaces BPS) — yes/no?** Recommended default: **no**. BPS is a tedious mechanic in 8-mate league; MVP adds variance but feels arbitrary. Ship without; add post-launch if requested.
-3. **Prize structure: fantasy prize vs sweep prize, separate or combined?** Recommended default: **separate small fantasy pot** (£40 if everyone chips £5), winner-takes-all. Sweep prize untouched.
-4. **Public squads at deadline lock — comfortable?** Recommended default: **yes**, public after lock. Drives banter. If anyone objects, fall back to "public on GW1 finalise" so picks aren't visible during the first matches.
-5. **Knockout free-transfer-on-elimination cap — unlimited or capped?** Recommended default: **unlimited free transfers for eliminated nation players only**. Anything else is constructive elimination, not real loss.
+1. ~~Tier 3 admin operator~~ → **REJECTED.** No manual admin scoring; must use APIs. Day 0 audit expanded to evaluate backup providers (SportMonks, Sofascore, FotMob, StatsBomb). Hard kill remains prediction-game if no API works.
+2. ~~Match MVP / BPS~~ → **Dropped entirely**, no bonus points.
+3. ~~Prize structure~~ → **Separate £40 fantasy pot, winner-takes-all.**
+4. ~~Public squads at deadline lock~~ → **Yes, public at deadline lock.**
+5. ~~Knockout free-transfer cap~~ → **Unlimited free for players of eliminated nations only.**
 
 ---
 
-## 15. The 30-minute call (Friday 23 May, agenda)
+## 15. The 30-minute call (Friday 23 May, agenda — revised post-decisions)
+
+Most decisions now resolved. The call is shorter and primarily informational + commitment-confirmation.
 
 **Attendees**: all 8 humans. WhatsApp video, 19:00 UK.
 
-**Pre-read** (sent 24h prior): one-page rules summary, screenshot of squad picker mockup, link to FPL primer for novices.
+**Pre-read** (sent 24h prior): one-page rules summary (no BPS, unlimited KO transfers for eliminated, £5 pot), screenshot of squad picker mockup, link to FPL primer for novices.
 
-**Agenda** (strict timing):
+**Agenda** (strict timing, ~15 min):
 
-- **0:00-0:03 — Frame**: "Adding fantasy to the sweep. 3 weeks. Sweep is canon, fantasy is for banter."
+- **0:00-0:03 — Frame**: "Adding fantasy to the sweep. 3 weeks. Sweep is canon, fantasy is for banter. Separate £40 pot, winner takes all."
 - **0:03-0:08 — Confirm commitment**: "Who is in? Need 6/8 minimum. Hands up." If <6 → drop to prediction game.
-- **0:08-0:13 — Tier 3 admin volunteer**: "If the API doesn't carry live stats, somebody enters box scores within 1h of match end. ~60 matches. Who?" If nobody → tier 1/2 only or hard-kill plan.
-- **0:13-0:17 — Match MVP / BPS**: "FPL has a tedious bonus mechanic. Three options: drop it, simple +3 to top non-captain in each match across all squads, or simplified 3/2/1 BPS. Vote." Recommend: drop.
-- **0:17-0:21 — Public squads**: "Squads visible to all after deadline locks each GW — OK?" Default yes; check for objections.
-- **0:21-0:25 — Prize pot**: "£5 each into separate fantasy pot, winner-takes-all? Or no prize, banter only?" Recommend £5 pot.
-- **0:25-0:28 — Hard-kill consent**: "If API doesn't work and no admin, fallback is single-squad prediction game. Acceptable?" Need explicit yes.
-- **0:28-0:30 — Confirm dates**: "Squad entry opens 9 June. Deadline 19:00 UTC 11 June. GW1 = group matchday 1."
+- **0:08-0:11 — Inform of locked rules**: scoring is pure FPL (goals/assists/CS/cards/saves) with no BPS; 1 Wildcard + 3 chips; squads public at deadline; auto-template applies if no submission by T-60min; unlimited free transfers for players of eliminated nations.
+- **0:11-0:13 — £5 pot collection**: confirm everyone pays in, agree pot custodian.
+- **0:13-0:15 — Hard-kill consent**: "If neither API-Football nor a backup API delivers live per-player data, fantasy degrades to single-squad prediction game scored from final tournament stats. Acceptable as last resort?" Need explicit yes.
+- Skip: Tier 3 admin volunteer (rejected), Match MVP vote (dropped), public-squads debate (locked), KO cap debate (locked).
 
 **Decisions logged** in `/docs/fantasy/call-23may.md`, committed to repo, linked from CLAUDE.md.
 
