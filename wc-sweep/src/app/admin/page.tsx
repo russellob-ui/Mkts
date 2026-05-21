@@ -89,6 +89,8 @@ export default function AdminPage() {
   // Setup actions
   const [seedResult, setSeedResult] = useState<{ ok: boolean; msg: string } | null>(null);
   const [seedLoading, setSeedLoading] = useState(false);
+  const [seedMatchesResult, setSeedMatchesResult] = useState<{ ok: boolean; msg: string } | null>(null);
+  const [seedMatchesLoading, setSeedMatchesLoading] = useState(false);
   const [syncResult, setSyncResult] = useState<{ ok: boolean; msg: string } | null>(null);
   const [syncLoading, setSyncLoading] = useState(false);
   const [drawResult, setDrawResult] = useState<{ ok: boolean; msg: string } | null>(null);
@@ -586,7 +588,7 @@ export default function AdminPage() {
         <h2 className="text-sm font-semibold text-cream/60 uppercase tracking-wider">
           Tournament Setup
         </h2>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {/* Seed Teams */}
           <div className="bg-dark-card border border-dark-border rounded-lg p-4 space-y-3">
             <h3 className="text-sm font-semibold">Seed Teams</h3>
@@ -615,6 +617,38 @@ export default function AdminPage() {
                 }`}
               >
                 {seedResult.msg}
+              </div>
+            )}
+          </div>
+
+          {/* Seed Matches */}
+          <div className="bg-dark-card border border-dark-border rounded-lg p-4 space-y-3">
+            <h3 className="text-sm font-semibold">Seed Matches</h3>
+            <p className="text-xs text-cream/40">
+              Generate group stage match schedule.
+            </p>
+            <button
+              type="button"
+              onClick={() =>
+                runSetupAction(
+                  "/api/admin/seed-matches",
+                  setSeedMatchesLoading,
+                  setSeedMatchesResult,
+                  "Seed all group stage matches? This generates the full schedule."
+                )
+              }
+              disabled={seedMatchesLoading}
+              className="bg-wc-blue text-cream font-semibold text-xs px-3 py-2 rounded-lg hover:bg-wc-blue/80 disabled:opacity-50 transition-colors cursor-pointer w-full"
+            >
+              {seedMatchesLoading ? "Seeding..." : "Seed Matches"}
+            </button>
+            {seedMatchesResult && (
+              <div
+                className={`text-xs ${
+                  seedMatchesResult.ok ? "text-green-400" : "text-red-400"
+                }`}
+              >
+                {seedMatchesResult.msg}
               </div>
             )}
           </div>
