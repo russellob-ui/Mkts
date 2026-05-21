@@ -121,7 +121,7 @@ export async function GET() {
     if (teams.length > 0) {
       addCheck("API-Football", "pass", `API returned ${teams.length} teams`);
     } else {
-      addCheck("API-Football", "warn", "API returned 0 teams");
+      addCheck("API-Football", "warn", "API returned 0 teams (normal pre-tournament)");
     }
   } catch (err) {
     addCheck("API-Football", "warn", `API unreachable: ${String(err)}`);

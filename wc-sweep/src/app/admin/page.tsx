@@ -103,7 +103,7 @@ export default function AdminPage() {
   const [inviteLoading, setInviteLoading] = useState(false);
   const [generatingCode, setGeneratingCode] = useState(false);
   const [newCode, setNewCode] = useState<string | null>(null);
-  const [copySuccess, setCopySuccess] = useState(false);
+  const [copiedCode, setCopiedCode] = useState<string | null>(null);
 
   // Notifications
   const [notifStats, setNotifStats] = useState<{
@@ -338,19 +338,16 @@ export default function AdminPage() {
     const url = `${window.location.origin}/join?code=${code}`;
     try {
       await navigator.clipboard.writeText(url);
-      setCopySuccess(true);
-      setTimeout(() => setCopySuccess(false), 2000);
     } catch {
-      // Fallback: select text
       const el = document.createElement("textarea");
       el.value = url;
       document.body.appendChild(el);
       el.select();
       document.execCommand("copy");
       document.body.removeChild(el);
-      setCopySuccess(true);
-      setTimeout(() => setCopySuccess(false), 2000);
     }
+    setCopiedCode(code);
+    setTimeout(() => setCopiedCode(null), 2000);
   }
 
   // Loading state while checking stored verification
@@ -452,7 +449,7 @@ export default function AdminPage() {
                 onClick={() => copyInviteLink(newCode)}
                 className="bg-wc-gold text-dark font-semibold text-xs px-3 py-2 rounded-lg hover:bg-wc-gold/90 transition-colors cursor-pointer shrink-0"
               >
-                {copySuccess ? "Copied!" : "Copy Link"}
+                {copiedCode === newCode ? "Copied!" : "Copy Link"}
               </button>
             </div>
           )}
@@ -491,7 +488,7 @@ export default function AdminPage() {
                       onClick={() => copyInviteLink(ic.code)}
                       className="text-xs text-wc-gold hover:text-wc-gold/80 transition-colors cursor-pointer shrink-0"
                     >
-                      Copy Link
+                      {copiedCode === ic.code ? "Copied!" : "Copy Link"}
                     </button>
                   )}
                 </div>
