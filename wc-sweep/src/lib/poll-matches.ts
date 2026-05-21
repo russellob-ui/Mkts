@@ -19,7 +19,7 @@ import {
 } from "@/lib/api-football";
 import { calcMatchPoints } from "@/lib/points";
 import { resolvePredictions } from "@/lib/resolve-predictions";
-import { sendWhatsAppGroupMessage } from "@/lib/whatsapp";
+import { sendWhatsAppGroupMessage, sendWhatsAppDM } from "@/lib/whatsapp";
 
 // ---- Types ----
 
@@ -417,6 +417,27 @@ export async function settleMatch(matchId: number): Promise<void> {
     await sendWhatsAppGroupMessage(ftMsg);
   } catch { /* non-fatal */ }
 
+  // DM each owner with their personal result
+  const allPlayersForDM = await db.select().from(players);
+  for (const [assignObj, team, pts] of [
+    [homeAssignment, homeTeam, homePts],
+    [awayAssignment, awayTeam, awayPts],
+  ] as const) {
+    if (!assignObj) continue;
+    const p = allPlayersForDM.find((pl) => pl.id === assignObj.playerId);
+    if (!p?.phone) continue;
+    const won = winnerTeamId === team.id;
+    const drew = homeScore === awayScore;
+    const personalMsg = won
+      ? `🎉 *Your ${team.flagEmoji ?? ""} ${team.name} won!*\n${homeTeam.name} ${homeScore}-${awayScore} ${awayTeam.name}\nYou earned *+${Math.round((pts as number) * 10) / 10} pts*`
+      : drew
+        ? `🤝 *Your ${team.flagEmoji ?? ""} ${team.name} drew*\n${homeTeam.name} ${homeScore}-${awayScore} ${awayTeam.name}\nYou earned *+${Math.round((pts as number) * 10) / 10} pts*`
+        : `😤 *Your ${team.flagEmoji ?? ""} ${team.name} lost*\n${homeTeam.name} ${homeScore}-${awayScore} ${awayTeam.name}\n0 pts from this match`;
+    try {
+      await sendWhatsAppDM(p.phone, personalMsg);
+    } catch { /* non-fatal */ }
+  }
+
   // Resolve predictions for this match
   try {
     await resolvePredictions(matchId);
@@ -524,9 +545,13 @@ async function generateGoalBanter(
       importance,
       source: "auto",
     });
-    try {
-      await sendWhatsAppGroupMessage(waMsg);
-    } catch { /* non-fatal */ }
+    // DM the team owner instead of spamming the group
+    if (owner && (owner as Record<string, unknown>).phone) {
+      try {
+        const phone = (owner as Record<string, unknown>).phone as string;
+        await sendWhatsAppDM(phone, waMsg);
+      } catch { /* non-fatal */ }
+    }
     return true;
   } catch {
     return false;
