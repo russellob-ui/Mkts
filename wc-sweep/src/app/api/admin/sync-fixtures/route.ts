@@ -2,8 +2,8 @@ import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { ensureTables } from "@/db/ensure-tables";
 import { matches, wcTeams } from "@/db/schema";
-import { sql } from "drizzle-orm";
-import { getFixturesByLeague, mapStatus } from "@/lib/api-football";
+import { eq, sql } from "drizzle-orm";
+import { getFixturesByLeague, getTeams, mapStatus, type ApiTeam } from "@/lib/api-football";
 import { verifyAdminRequest } from "@/lib/admin-auth";
 
 let tablesEnsured = false;
@@ -18,12 +18,17 @@ export async function POST(request: Request) {
     const authError = await verifyAdminRequest(request);
     if (authError) return authError;
 
+    // Ensure every WC team row has an apiTeamId so the fixture team IDs
+    // returned by API-Football can be mapped to our DB rows. Without this,
+    // every fixture gets skipped as "unmapped".
+    const linkResult = await linkApiTeamIds();
+
     // Fetch all WC 2026 fixtures from API-Football
     const fixtures = await getFixturesByLeague(2026);
 
     if (fixtures.length === 0) {
       return NextResponse.json(
-        { error: "No fixtures returned from API" },
+        { error: "No fixtures returned from API", linked: linkResult },
         { status: 502 }
       );
     }
@@ -108,11 +113,22 @@ export async function POST(request: Request) {
       synced++;
     }
 
+    const parts = [
+      `Synced ${synced}/${fixtures.length} fixtures`,
+      linkResult.linked > 0 ? `linked ${linkResult.linked} team(s) to API IDs` : null,
+      skipped > 0 ? `skipped ${skipped}` : null,
+      linkResult.unmatched.length > 0
+        ? `unmatched teams: ${linkResult.unmatched.join(", ")}`
+        : null,
+    ].filter(Boolean);
+
     return NextResponse.json({
+      message: parts.join(" — "),
       synced,
       skipped,
       totalFixtures: fixtures.length,
       unmappedTeams: unmappedTeams.length > 0 ? unmappedTeams : undefined,
+      linked: linkResult,
     });
   } catch (err) {
     console.error("[SyncFixtures]", err);
@@ -156,4 +172,87 @@ function parseRound(round: string): {
 
   // Fallback
   return { stage: round, groupLetter: null };
+}
+
+// ---- Populate wc_teams.api_team_id by matching API-Football team names ----
+
+// API-Football uses slightly different names than our seed data. Map our
+// seeded name (lowercase) → set of acceptable API-Football names (lowercase).
+const NAME_ALIASES: Record<string, string[]> = {
+  usa: ["united states", "usa"],
+  "south korea": ["korea republic", "south korea"],
+  "ivory coast": ["côte d'ivoire", "cote d'ivoire", "ivory coast"],
+  iran: ["iran", "ir iran", "iran islamic republic"],
+  "trinidad and tobago": ["trinidad and tobago", "trinidad & tobago"],
+  "saudi arabia": ["saudi arabia"],
+  "costa rica": ["costa rica"],
+  "new zealand": ["new zealand"],
+};
+
+function normaliseName(s: string): string {
+  return s.toLowerCase().trim().replace(/\s+/g, " ");
+}
+
+async function linkApiTeamIds(): Promise<{
+  linked: number;
+  alreadyLinked: number;
+  unmatched: string[];
+}> {
+  const teamsInDb = await db.select().from(wcTeams);
+  const needsLinking = teamsInDb.filter((t) => t.apiTeamId == null);
+
+  if (needsLinking.length === 0) {
+    return { linked: 0, alreadyLinked: teamsInDb.length, unmatched: [] };
+  }
+
+  let apiTeams: ApiTeam[];
+  try {
+    apiTeams = await getTeams(2026);
+  } catch (err) {
+    throw new Error(
+      `Could not fetch API-Football teams for linking: ${err instanceof Error ? err.message : String(err)}`
+    );
+  }
+
+  // Build lookup: every alias + the canonical API name → apiTeamId
+  const apiByName = new Map<string, number>();
+  for (const t of apiTeams) {
+    apiByName.set(normaliseName(t.team.name), t.team.id);
+  }
+
+  let linked = 0;
+  const unmatched: string[] = [];
+
+  for (const team of needsLinking) {
+    const candidates = [
+      normaliseName(team.name),
+      ...(NAME_ALIASES[normaliseName(team.name)] ?? []),
+    ];
+
+    let apiId: number | undefined;
+    for (const c of candidates) {
+      const hit = apiByName.get(c);
+      if (hit != null) {
+        apiId = hit;
+        break;
+      }
+    }
+
+    if (apiId == null) {
+      unmatched.push(team.name);
+      continue;
+    }
+
+    await db
+      .update(wcTeams)
+      .set({ apiTeamId: apiId })
+      .where(eq(wcTeams.id, team.id));
+    linked++;
+  }
+
+  return {
+    linked,
+    alreadyLinked: teamsInDb.length - needsLinking.length,
+    unmatched,
+  };
 }
