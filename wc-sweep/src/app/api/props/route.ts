@@ -119,10 +119,10 @@ export async function GET(request: Request) {
           .where(eq(matchEvents.matchId, m.id));
 
         for (const ev of events) {
-          if (ev.eventType === "Card" && ev.detail?.toLowerCase().includes("red")) {
+          if (ev.eventType === "red_card") {
             anyRedCard = true;
           }
-          if (ev.eventType === "Goal" && ev.detail?.toLowerCase().includes("penalty")) {
+          if (ev.eventType === "penalty_goal" || ev.eventType === "penalty_miss") {
             anyPenalty = true;
           }
         }

@@ -4,6 +4,7 @@ import { ensureTables } from "@/db/ensure-tables";
 import { players } from "@/db/schema";
 import { isNotNull } from "drizzle-orm";
 import { sendPushNotification } from "@/lib/web-push";
+import { verifyAdminRequest } from "@/lib/admin-auth";
 
 let tablesEnsured = false;
 
@@ -13,6 +14,9 @@ export async function POST(request: Request) {
       await ensureTables();
       tablesEnsured = true;
     }
+
+    const authError = await verifyAdminRequest(request);
+    if (authError) return authError;
 
     const body = await request.json();
     const { title, body: notifBody, url } = body as {

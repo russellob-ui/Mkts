@@ -171,40 +171,41 @@ export async function GET(request: NextRequest) {
     const triggered = new Set<string>();
 
     for (const evt of events) {
-      if (evt.eventType === "Goal" && evt.minute !== null && evt.minute <= 10) {
+      const isGoal = evt.eventType === "goal" || evt.eventType === "penalty_goal";
+      if (isGoal && evt.minute !== null && evt.minute <= 10) {
         triggered.add("Goal in first 10 minutes");
       }
-      if (evt.eventType === "Card" && evt.detail === "Red Card") {
+      if (evt.eventType === "red_card") {
         triggered.add("Red card");
       }
-      if (evt.eventType === "Goal" && evt.minute !== null && evt.minute >= 85) {
+      if (isGoal && evt.minute !== null && evt.minute >= 85) {
         triggered.add("Goal after 85th min");
       }
-      if (evt.eventType === "Goal" && evt.minute !== null && evt.minute >= 90) {
+      if (isGoal && evt.minute !== null && evt.minute >= 90) {
         triggered.add("Injury time goal");
       }
-      if (evt.eventType === "Goal" && evt.detail === "Own Goal") {
+      if (evt.eventType === "own_goal") {
         triggered.add("Own goal");
       }
-      if (evt.eventType === "Goal" && evt.detail === "Penalty") {
+      if (evt.eventType === "penalty_goal") {
         triggered.add("Penalty awarded");
       }
-      if (evt.eventType === "Var") {
+      if (evt.eventType === "var_decision") {
         triggered.add("VAR decision");
       }
-      if (evt.eventType === "Goal" && evt.detail === "Header") {
+      if (evt.eventType === "goal" && evt.detail === "Header") {
         triggered.add("Header goal");
       }
-      if (evt.eventType === "Goal" && evt.detail === "Free Kick") {
+      if (evt.eventType === "goal" && evt.detail === "Free Kick") {
         triggered.add("Free kick goal");
       }
-      if (evt.eventType === "subst" && evt.detail === "Substitute Goal") {
+      if (evt.eventType === "substitution" && evt.detail === "Substitute Goal") {
         triggered.add("Substitute scores");
       }
-      if (evt.eventType === "Missed Penalty" || evt.detail === "Missed Penalty") {
+      if (evt.eventType === "penalty_miss" || evt.detail === "Missed Penalty") {
         triggered.add("Missed penalty");
       }
-      if (evt.eventType === "Penalty Save" || evt.detail === "Penalty Save") {
+      if (evt.detail === "Penalty Save") {
         triggered.add("Goalkeeper saves penalty");
       }
     }
@@ -222,7 +223,7 @@ export async function GET(request: NextRequest) {
 
         // Count goals per match per player for hat tricks and doubles
         const matchGoals = events.filter(
-          (e) => e.matchId === m.id && e.eventType === "Goal" && e.detail !== "Own Goal"
+          (e) => e.matchId === m.id && (e.eventType === "goal" || e.eventType === "penalty_goal")
         );
         const goalsByPlayer = new Map<string, number>();
         for (const g of matchGoals) {
@@ -238,8 +239,7 @@ export async function GET(request: NextRequest) {
         const matchYellows = events.filter(
           (e) =>
             e.matchId === m.id &&
-            e.eventType === "Card" &&
-            (e.detail === "Yellow Card" || e.detail === "Second Yellow card")
+            (e.eventType === "yellow_card" || e.eventType === "second_yellow")
         );
         if (matchYellows.length >= 3) triggered.add("3+ yellow cards in a match");
       }
@@ -253,7 +253,7 @@ export async function GET(request: NextRequest) {
       // Also mark it if the match is finished and no goals were scored before halftime
       if (m.status === "finished") {
         const firstHalfGoals = events.filter(
-          (e) => e.matchId === m.id && e.eventType === "Goal" && e.minute !== null && e.minute <= 45
+          (e) => e.matchId === m.id && (e.eventType === "goal" || e.eventType === "penalty_goal" || e.eventType === "own_goal") && e.minute !== null && e.minute <= 45
         );
         if (firstHalfGoals.length === 0) {
           triggered.add("0-0 at halftime");

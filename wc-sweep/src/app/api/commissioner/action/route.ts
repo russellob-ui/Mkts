@@ -7,6 +7,7 @@ import {
   teamAssignments,
 } from "@/db/schema";
 import { eq } from "drizzle-orm";
+import { verifyAdminRequest } from "@/lib/admin-auth";
 
 let tablesEnsured = false;
 
@@ -18,6 +19,7 @@ interface CommissionerActionBody {
   headline: string;
   reason?: string;
   emoji?: string;
+  adminPasscode?: string;
 }
 
 export async function POST(request: Request) {
@@ -26,6 +28,9 @@ export async function POST(request: Request) {
       await ensureTables();
       tablesEnsured = true;
     }
+
+    const authError = await verifyAdminRequest(request);
+    if (authError) return authError;
 
     const body: CommissionerActionBody = await request.json();
 

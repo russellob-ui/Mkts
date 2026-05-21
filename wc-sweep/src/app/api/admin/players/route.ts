@@ -3,10 +3,11 @@ import { db } from "@/db";
 import { ensureTables } from "@/db/ensure-tables";
 import { players, teamAssignments } from "@/db/schema";
 import { eq, sql } from "drizzle-orm";
+import { verifyAdminRequest } from "@/lib/admin-auth";
 
 let tablesEnsured = false;
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     if (!tablesEnsured) {
       await ensureTables();
@@ -21,17 +22,13 @@ export async function GET() {
       assignmentCounts.set(a.playerId, (assignmentCounts.get(a.playerId) ?? 0) + 1);
     }
 
+    // Strip sensitive PII — only return safe fields
     const result = allPlayers.map((p) => ({
       id: p.id,
       name: p.name,
       slug: p.slug,
       avatarEmoji: p.avatarEmoji,
       color: p.color,
-      rowColor: p.rowColor,
-      email: p.email,
-      phone: p.phone,
-      pushSubscription: p.pushSubscription ? true : false,
-      createdAt: p.createdAt,
       teamCount: assignmentCounts.get(p.id) ?? 0,
     }));
 
@@ -51,6 +48,9 @@ export async function POST(request: Request) {
       await ensureTables();
       tablesEnsured = true;
     }
+
+    const authError = await verifyAdminRequest(request);
+    if (authError) return authError;
 
     const body = await request.json();
     const { name, passcode, color, avatarEmoji } = body as {

@@ -22,6 +22,12 @@ export async function verifyAdminRequest(
         { status: 403 }
       );
     }
+    if (!admin.isCommissioner) {
+      return NextResponse.json(
+        { error: "Not authorized — commissioner access required" },
+        { status: 403 }
+      );
+    }
     return null;
   } catch {
     return NextResponse.json(

@@ -89,7 +89,7 @@ export async function GET() {
     // Count goals per team from events
     const teamGoals = new Map<number, number>();
     for (const e of allEvents) {
-      if (e.eventType === "Goal") {
+      if (e.eventType === "goal" || e.eventType === "penalty_goal") {
         teamGoals.set(e.teamId, (teamGoals.get(e.teamId) ?? 0) + 1);
       }
     }

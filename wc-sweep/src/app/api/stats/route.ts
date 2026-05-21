@@ -48,13 +48,15 @@ export async function GET() {
 
     // ---- Total cards ----
     const cardEvents = allEvents.filter(
-      (e) => e.eventType === "Card"
+      (e) => e.eventType === "yellow_card" || e.eventType === "red_card" || e.eventType === "second_yellow" || e.eventType === "card"
     );
     const totalCards = cardEvents.length;
-    const totalRedCards = cardEvents.filter(
-      (e) => e.detail?.toLowerCase().includes("red")
+    const totalRedCards = allEvents.filter(
+      (e) => e.eventType === "red_card"
     ).length;
-    const totalYellowCards = totalCards - totalRedCards;
+    const totalYellowCards = allEvents.filter(
+      (e) => e.eventType === "yellow_card" || e.eventType === "second_yellow"
+    ).length;
 
     // ---- Total clean sheets ----
     const totalCleanSheets = finishedMatches.reduce((count, m) => {
@@ -66,7 +68,7 @@ export async function GET() {
 
     // ---- Top scorer (player from match_events) ----
     const goalEvents = allEvents.filter(
-      (e) => e.eventType === "Goal"
+      (e) => e.eventType === "goal" || e.eventType === "penalty_goal"
     );
     const goalsByPlayer: Record<
       string,

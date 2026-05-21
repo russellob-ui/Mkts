@@ -7,7 +7,7 @@ import {
   teamAssignments,
   matchEvents,
 } from "@/db/schema";
-import { eq, and, sql } from "drizzle-orm";
+import { eq, and, sql, inArray } from "drizzle-orm";
 
 /** Confidence multiplier: confidence 1=1x, 2=1.25x, 3=1.5x, 4=1.75x, 5=2x */
 function getConfidenceMultiplier(confidence: number): number {
@@ -78,7 +78,7 @@ export async function resolvePredictions(matchId: number) {
     .where(
       and(
         eq(matchEvents.matchId, matchId),
-        eq(matchEvents.eventType, "Goal")
+        sql`${matchEvents.eventType} IN ('goal', 'penalty_goal')`
       )
     );
 

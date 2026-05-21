@@ -1,8 +1,12 @@
 import { NextResponse } from "next/server";
 import { sendWhatsAppGroupMessage } from "@/lib/whatsapp";
+import { verifyAdminRequest } from "@/lib/admin-auth";
 
 export async function POST(request: Request) {
   try {
+    const authError = await verifyAdminRequest(request);
+    if (authError) return authError;
+
     const { message } = await request.json();
     if (!message) {
       return NextResponse.json({ error: "Message required" }, { status: 400 });
