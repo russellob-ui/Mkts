@@ -81,9 +81,10 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { playerId, preferences } = body as {
+    const { playerId, preferences, passcode } = body as {
       playerId?: number;
       preferences?: Record<string, boolean>;
+      passcode?: string;
     };
 
     if (!playerId) {
@@ -100,9 +101,9 @@ export async function POST(request: Request) {
       );
     }
 
-    // Validate player exists
+    // Validate player exists and verify passcode
     const existing = await db
-      .select({ id: players.id })
+      .select({ id: players.id, passcode: players.passcode })
       .from(players)
       .where(eq(players.id, playerId));
 
@@ -110,6 +111,13 @@ export async function POST(request: Request) {
       return NextResponse.json(
         { error: "Player not found" },
         { status: 404 }
+      );
+    }
+
+    if (existing[0].passcode && existing[0].passcode !== passcode) {
+      return NextResponse.json(
+        { error: "Invalid passcode" },
+        { status: 403 }
       );
     }
 

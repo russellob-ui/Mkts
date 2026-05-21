@@ -52,8 +52,26 @@ function medalOrRank(rank: number): string {
   return `${rank}.`;
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    // Soft guard: in production, only allow Vercel cron or requests with the correct secret
+    const isVercelCron = !!request.headers.get("x-vercel-cron-signature");
+    const cronSecret = process.env.CRON_SECRET;
+    const url = new URL(request.url);
+    const providedSecret = url.searchParams.get("secret");
+
+    if (
+      process.env.NODE_ENV === "production" &&
+      !isVercelCron &&
+      cronSecret &&
+      providedSecret !== cronSecret
+    ) {
+      return NextResponse.json(
+        { error: "Unauthorized — cron secret required" },
+        { status: 401 }
+      );
+    }
+
     if (!tablesEnsured) {
       await ensureTables();
       tablesEnsured = true;
