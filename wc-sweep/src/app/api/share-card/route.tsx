@@ -7,7 +7,7 @@ import {
   teamAssignments,
   pointsLog,
 } from "@/db/schema";
-import { eq } from "drizzle-orm";
+// drizzle-orm used via db.select().from()
 
 let tablesEnsured = false;
 

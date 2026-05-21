@@ -7,7 +7,7 @@ import {
   teamAssignments,
   tradeProposals,
 } from "@/db/schema";
-import { eq, sql, desc, and } from "drizzle-orm";
+import { eq, desc, and } from "drizzle-orm";
 
 let tablesEnsured = false;
 

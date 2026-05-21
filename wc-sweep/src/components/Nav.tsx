@@ -11,6 +11,7 @@ const NAV_SECTIONS = [
       { href: "/groups", label: "Groups" },
       { href: "/bracket", label: "Bracket" },
       { href: "/golden-boot", label: "Golden Boot" },
+      { href: "/elimination", label: "Elimination" },
     ],
   },
   {
@@ -18,11 +19,12 @@ const NAV_SECTIONS = [
     links: [
       { href: "/predictions", label: "Predictions" },
       { href: "/props", label: "Props" },
-      { href: "/streaks", label: "Streaks" },
       { href: "/wildcards", label: "Wildcards" },
+      { href: "/trades", label: "Trades" },
       { href: "/chat", label: "Chat" },
       { href: "/quiz", label: "Quiz" },
       { href: "/bingo", label: "Bingo" },
+      { href: "/streaks", label: "Streaks" },
     ],
   },
   {
@@ -32,8 +34,8 @@ const NAV_SECTIONS = [
       { href: "/digest", label: "Digest" },
       { href: "/rivalry", label: "Rivalry" },
       { href: "/trash-talk", label: "Trash Talk" },
-      { href: "/superlatives", label: "Superlatives" },
       { href: "/achievements", label: "Achievements" },
+      { href: "/superlatives", label: "Superlatives" },
       { href: "/stats", label: "Stats" },
     ],
   },
@@ -49,6 +51,7 @@ const NAV_SECTIONS = [
     label: "End",
     links: [
       { href: "/yearbook", label: "Yearbook" },
+      { href: "/share", label: "Share Card" },
       { href: "/forfeit", label: "Forfeit Wheel" },
       { href: "/scoring", label: "Scoring Rules" },
     ],
