@@ -7,6 +7,7 @@ const NAV_SECTIONS = [
     label: "Live",
     links: [
       { href: "/", label: "Home" },
+      { href: "/schedule", label: "Schedule" },
       { href: "/groups", label: "Groups" },
       { href: "/bracket", label: "Bracket" },
       { href: "/golden-boot", label: "Golden Boot" },

@@ -2,6 +2,13 @@
 
 import { useEffect, useState } from "react";
 
+interface BanterEvent {
+  id: number;
+  emoji: string | null;
+  headline: string;
+  createdAt: string;
+}
+
 interface LeaderboardEntry {
   playerId: number;
   playerName: string;
@@ -33,19 +40,41 @@ interface MatchCard {
   stage: string;
 }
 
+function timeAgo(dateStr: string): string {
+  const now = Date.now();
+  const then = new Date(dateStr).getTime();
+  const diff = now - then;
+  if (diff < 0) return "";
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  return `${days}d ago`;
+}
+
 export default function Home() {
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [todayMatches, setTodayMatches] = useState<MatchCard[]>([]);
+  const [banterEvents, setBanterEvents] = useState<BanterEvent[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function load() {
       try {
-        const res = await fetch("/api/leaderboard");
-        if (res.ok) {
-          const data = await res.json();
+        const [lbRes, banterRes] = await Promise.all([
+          fetch("/api/leaderboard"),
+          fetch("/api/banter"),
+        ]);
+        if (lbRes.ok) {
+          const data = await lbRes.json();
           setLeaderboard(data.leaderboard ?? []);
           setTodayMatches(data.todayMatches ?? []);
+        }
+        if (banterRes.ok) {
+          const data = await banterRes.json();
+          setBanterEvents((data.events ?? []).slice(0, 5));
         }
       } catch {
         // API not ready yet
@@ -138,6 +167,36 @@ export default function Home() {
               </div>
             </section>
           )}
+
+          <section>
+            <h2 className="text-sm font-semibold text-cream/60 uppercase tracking-wider mb-3">
+              Live Feed
+            </h2>
+            {banterEvents.length === 0 ? (
+              <div className="bg-dark-card border border-dark-border rounded-lg p-4 text-center text-cream/40 text-sm">
+                No activity yet
+              </div>
+            ) : (
+              <div className="space-y-1.5">
+                {banterEvents.map((evt) => (
+                  <div
+                    key={evt.id}
+                    className="bg-dark-card border border-dark-border rounded-lg px-3 py-2 flex items-center gap-2.5"
+                  >
+                    <span className="text-base shrink-0">
+                      {evt.emoji ?? "📢"}
+                    </span>
+                    <span className="text-sm text-cream/80 flex-1 min-w-0 truncate">
+                      {evt.headline}
+                    </span>
+                    <span className="text-[10px] text-cream/30 shrink-0 whitespace-nowrap">
+                      {timeAgo(evt.createdAt)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
 
           <section>
             <h2 className="text-sm font-semibold text-cream/60 uppercase tracking-wider mb-3">

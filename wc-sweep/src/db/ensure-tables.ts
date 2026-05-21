@@ -283,5 +283,19 @@ export async function ensureTables() {
     )
   `);
 
+  // -- Trade Proposals --
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS trade_proposals (
+      id SERIAL PRIMARY KEY,
+      proposer_player_id INTEGER NOT NULL REFERENCES players(id),
+      proposer_team_id INTEGER NOT NULL REFERENCES wc_teams(id),
+      target_player_id INTEGER NOT NULL REFERENCES players(id),
+      target_team_id INTEGER NOT NULL REFERENCES wc_teams(id),
+      status TEXT NOT NULL DEFAULT 'pending',
+      proposed_at TIMESTAMP DEFAULT NOW(),
+      resolved_at TIMESTAMP
+    )
+  `);
+
   console.log("[DB] WC Sweep tables ensured");
 }

@@ -352,3 +352,16 @@ export const forfeitSpins = pgTable("forfeit_spins", {
   targetPlayerSlug: text("target_player_slug"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
+
+// ---- Trade Proposals ----
+
+export const tradeProposals = pgTable("trade_proposals", {
+  id: serial("id").primaryKey(),
+  proposerPlayerId: integer("proposer_player_id").notNull().references(() => players.id),
+  proposerTeamId: integer("proposer_team_id").notNull().references(() => wcTeams.id),
+  targetPlayerId: integer("target_player_id").notNull().references(() => players.id),
+  targetTeamId: integer("target_team_id").notNull().references(() => wcTeams.id),
+  status: text("status").notNull().default("pending"),
+  proposedAt: timestamp("proposed_at").defaultNow(),
+  resolvedAt: timestamp("resolved_at"),
+});
