@@ -315,7 +315,7 @@ export default function AdminPage() {
   async function generateInviteCode() {
     setGeneratingCode(true);
     setNewCode(null);
-    setCopySuccess(false);
+    setCopiedCode(null);
     try {
       const res = await fetch("/api/invite", {
         method: "POST",
