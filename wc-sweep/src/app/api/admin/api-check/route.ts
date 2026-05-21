@@ -36,10 +36,13 @@ async function rawFetch(path: string, key: string) {
 }
 
 export async function GET() {
-  const key = process.env.API_FOOTBALL_KEY;
+  const raw = process.env.API_FOOTBALL_KEY;
+  const key = raw?.trim();
   const keyInfo = {
     set: Boolean(key),
-    length: key?.length ?? 0,
+    rawLength: raw?.length ?? 0,
+    trimmedLength: key?.length ?? 0,
+    hadWhitespace: raw != null && raw !== key,
     preview: key ? `${key.slice(0, 4)}...${key.slice(-4)}` : null,
   };
 
