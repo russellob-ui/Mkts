@@ -1,7 +1,7 @@
 const BASE_URL = "https://v3.football.api-sports.io";
 
 function getHeaders(): Record<string, string> {
-  const key = process.env.API_FOOTBALL_KEY;
+  const key = process.env.API_FOOTBALL_KEY?.trim();
   if (!key) throw new Error("API_FOOTBALL_KEY not set");
   return {
     "x-apisports-key": key,
