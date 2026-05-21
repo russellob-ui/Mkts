@@ -3,8 +3,19 @@ import Nav from "@/components/Nav";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "World Cup Sweep 2026",
-  description: "Friends. Teams. Glory. FIFA World Cup 2026 sweepstake.",
+  title: "WC Sweep 2026 ⚽🏆",
+  description: "Friends. Teams. Glory. Join the FIFA World Cup 2026 sweepstake — pick your teams, predict matches, win bragging rights.",
+  openGraph: {
+    type: "website",
+    title: "WC Sweep 2026 ⚽🏆",
+    description: "Join the FIFA World Cup 2026 sweepstake. Pick teams. Predict matches. Win bragging rights.",
+    siteName: "WC Sweep 2026",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "WC Sweep 2026 ⚽🏆",
+    description: "Join the FIFA World Cup 2026 sweepstake. Pick teams. Predict matches. Win bragging rights.",
+  },
 };
 
 export default function RootLayout({
